@@ -15,7 +15,7 @@ import zlib
 from PIL import Image
 import pypdfium2 as pdfium
 from pypdf import PageObject, PdfReader, PdfWriter
-from pypdf.generic import ArrayObject, DictionaryObject, EncodedStreamObject, NameObject, NumberObject
+from pypdf.generic import DictionaryObject, EncodedStreamObject, NameObject, NumberObject
 
 log = logging.getLogger(__name__)
 
@@ -328,9 +328,8 @@ class PdfEditorModel:
             except Exception:
                 log.exception("Falha ao abrir capa padrão embutida")
         image = Image.new("RGB", (1245, 2048), (28, 28, 28))
-        # O fallback textual do Kotlin usa fonte SansSerif; Pillow sem asset de fonte
-        # não oferece equivalência garantida. Mantemos o fundo/tamanho e registramos
-        # a ausência do recurso original na documentação do passo.
+        # O recurso original ainda será copiado no passo de assets/portable; sem ele,
+        # a capa fallback exata com fonte SansSerif não é garantida por Pillow.
         return image
 
     def _load_config(self) -> None:
@@ -340,7 +339,7 @@ class PdfEditorModel:
             data = json.loads(self.config_file.read_text(encoding="utf-8"))
             relative = str(data.get("custom_cover", "")).strip()
             if relative:
-                candidate = self.app_root / Path(relative.replace("/", str(Path("/"))))
+                candidate = self.app_root.joinpath(*relative.replace("\\", "/").split("/"))
                 if candidate.exists():
                     self.custom_cover = candidate
         except Exception:
@@ -406,6 +405,10 @@ class PdfEditorModel:
         bottom = float(box.bottom)
         ctm = (scale, 0.0, 0.0, scale, x - left * scale, y - bottom * scale)
         target.merge_transformed_page(source, ctm, over=True, expand=False)
+        # PDFBox LayerUtility.importPageAsForm + drawForm incorpora o conteúdo da
+        # página, não a árvore de anotações. pypdf copia /Annots no merge, então
+        # removemos explicitamente para reproduzir o comportamento do motor ativo.
+        target.pop(NameObject("/Annots"), None)
         writer.add_page(target)
 
     def _append_raster(self, writer: PdfWriter, image: Image.Image) -> None:
