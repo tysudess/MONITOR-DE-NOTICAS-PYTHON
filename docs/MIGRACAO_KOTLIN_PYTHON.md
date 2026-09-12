@@ -13,33 +13,30 @@ O comportamento comprovado é a fonte da verdade. Lacunas não são preenchidas 
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-## Estado após o Passo 10
+## Estado após o Passo 11
 
-Os Passos 1–9 permanecem preservados. O Passo 10 substitui o placeholder visual do Extrator pela implementação PySide6 integrada e porta o motor efetivo da release: cinco presets, yt-dlp nightly/stable, Deno, FFmpeg/FFprobe, roteamento YouTube/Globoplay/R7/genérico, fallbacks HTML, snapshot HLS de live, compatibilidade H.264, cancelamento, histórico/qualidade portable, sessão Globoplay DPAPI e updater seguro.
+Os Passos 1–10 permanecem preservados. O Passo 11 substitui o placeholder do Editor PDF pela implementação PySide6 real baseada exclusivamente no `PdfEditorScreenV2.kt` ativo da baseline, incluindo o resultado dos patches visuais executados pelo workflow da release.
 
-Editor PDF, Editor de Vídeo e portable final não foram iniciados.
+O Editor PDF Kotlin ativo usa Apache PDFBox `3.0.3` + ImageIO/TwelveMonkeys. O Python usa `pypdf==6.18.0`, `pypdfium2==5.13.0` e `Pillow==12.3.0`, cada biblioteca limitada ao papel necessário para reproduzir o comportamento comprovado.
 
-O source correto do Extrator não é somente `ExtractorVideoEngine.kt`: o workflow da release executa patches antes da compilação. O Passo 10 usa `df1701...` + `integrate-v8-extractor-tab.py` + `patch-extractor-generic-html.py` e patches encadeados + `patch-extractor-hidden-process.py` como contrato final.
+Não foram adicionados split, extração de páginas para arquivos separados, impressão, OCR, compressão genérica, conversão genérica, múltiplos documentos/abas ou navegação de primeira/anterior/próxima/última página porque essas funções não aparecem como recursos ativos do V2 final.
 
-## MIG trabalhados no Passo 10
+Editor de Vídeo e portable final não foram iniciados.
 
-- `MIG-043` — cinco presets: `APROVADO` por comparação literal/testes.
-- `MIG-044` — download genérico yt-dlp: `EM TESTE` até download real com binários da release.
-- `MIG-045` — retry compatível: `APROVADO` por equivalência determinística.
-- `MIG-046` — fallback HTML genérico: `APROVADO` para parser/ordem/filtros; integração externa coberta por `MIG-044`.
-- `MIG-047` — R7/Record: `EM TESTE` até teste real externo.
-- `MIG-048` — Globoplay multicaminho: `EM TESTE` até teste real externo.
-- `MIG-049` — sessão Globoplay DPAPI: `EM TESTE` para integração completa; proteção DPAPI base já existe/testada.
-- `MIG-050` — login interno Globoplay: `BLOQUEADO` porque `GloboplayLoginHelper.exe` pertence ao empacotamento/portable excluído deste passo.
-- `MIG-051` — YouTube normal: `EM TESTE` até mídia real.
-- `MIG-052` — snapshot YouTube Live: `EM TESTE` até live real controlada.
-- `MIG-053` — remux/transcode live: `EM TESTE` até FFmpeg real do pacote.
-- `MIG-054` — H.264: `EM TESTE` até arquivo real; comando/decisão testados.
-- `MIG-055` — cancelamento/invalidação: `EM TESTE` até subprocesso real do bundle; árvore/token testados.
-- `MIG-056` — histórico/qualidade portable: `APROVADO`.
-- `MIG-057` — updater seguro yt-dlp: `EM TESTE` até atualização real controlada.
-- `MIG-106` — UI PySide6 do Extrator integrada ao Monitor: `EM TESTE`.
-- `MIG-107` — regressão/equivalência automatizada do Passo 10: `APROVADO`.
+## MIG trabalhados no Passo 11
+
+- `MIG-058` — importação PDF/imagens/file drop: `APROVADO`.
+- `MIG-059` — página em branco: `APROVADO`.
+- `MIG-060` — crop normalizado: `APROVADO`.
+- `MIG-061` — rotação/flip: `PENDENTE`; métodos internos existem, mas acionamento ativo na UI final não foi comprovado e não foi inventado.
+- `MIG-062` — reordenação drag-and-drop: `APROVADO`.
+- `MIG-063` — undo/redo com 30 snapshots: `APROVADO`.
+- `MIG-064` — capa padrão/custom: `APROVADO`; o asset `pdf-default-cover.b64` foi copiado literalmente da baseline.
+- `MIG-065` — qualidade de exportação: `APROVADO` para o comportamento ativo; enum 450/300/220 preservado e UI final permanece efetivamente em HIGH/450 dpi porque o selector não é exposto no layout final.
+- `MIG-066` — exportação vetorial: `APROVADO`.
+- `MIG-067` — exportação raster: `APROVADO`.
+- `MIG-108` — workspace PySide6 real do Editor PDF: `EM TESTE` até inspeção humana em desktop interativo.
+- `MIG-109` — equivalência/regressão automatizada do Passo 11: `APROVADO`.
 
 ## Checklist oficial
 
@@ -102,16 +99,16 @@ O source correto do Extrator não é somente `ExtractorVideoEngine.kt`: o workfl
 | MIG-055 | Extrator | Cancelamento e invalidação callbacks | EM TESTE |
 | MIG-056 | Extrator | Histórico/qualidade portable | APROVADO |
 | MIG-057 | Extrator | Atualizador seguro yt-dlp | EM TESTE |
-| MIG-058 | PDF | Importação PDF/imagens/drop | PENDENTE |
-| MIG-059 | PDF | Página em branco | PENDENTE |
-| MIG-060 | PDF | Crop normalizado | PENDENTE |
+| MIG-058 | PDF | Importação PDF/imagens/drop | APROVADO |
+| MIG-059 | PDF | Página em branco | APROVADO |
+| MIG-060 | PDF | Crop normalizado | APROVADO |
 | MIG-061 | PDF | Rotação e flip | PENDENTE |
-| MIG-062 | PDF | Reordenação drag-and-drop | PENDENTE |
-| MIG-063 | PDF | Undo/redo 30 snapshots | PENDENTE |
-| MIG-064 | PDF | Capa padrão/custom | PENDENTE |
-| MIG-065 | PDF | Qualidade exportação | PENDENTE |
-| MIG-066 | PDF | Exportação vetorial | PENDENTE |
-| MIG-067 | PDF | Exportação raster | PENDENTE |
+| MIG-062 | PDF | Reordenação drag-and-drop | APROVADO |
+| MIG-063 | PDF | Undo/redo 30 snapshots | APROVADO |
+| MIG-064 | PDF | Capa padrão/custom | APROVADO |
+| MIG-065 | PDF | Qualidade exportação | APROVADO |
+| MIG-066 | PDF | Exportação vetorial | APROVADO |
+| MIG-067 | PDF | Exportação raster | APROVADO |
 | MIG-068 | Editor Vídeo | Launcher PySide6 | PENDENTE |
 | MIG-069 | Editor Vídeo | Importação múltipla | PENDENTE |
 | MIG-070 | Editor Vídeo | Probe FFprobe | PENDENTE |
@@ -152,54 +149,70 @@ O source correto do Extrator não é somente `ExtractorVideoEngine.kt`: o workfl
 | MIG-105 | UI/Testes | Smoke/navegação/equivalência Qt | APROVADO |
 | MIG-106 | UI/Extrator | Workspace PySide6 real do Extrator | EM TESTE |
 | MIG-107 | Extrator/Testes | Equivalência e regressão automatizada Passo 10 | APROVADO |
+| MIG-108 | UI/PDF | Workspace PySide6 real do Editor PDF | EM TESTE |
+| MIG-109 | PDF/Testes | Equivalência e regressão automatizada Passo 11 | APROVADO |
 
-## Inventário do Extrator final
+## Inventário funcional do Editor PDF ativo
 
-### Dependências externas da release
+### Código ativo x legado
 
-| Arquivo | Papel |
-|---|---|
-| `bin/yt-dlp.exe` | engine principal/nightly |
-| `bin/yt-dlp-stable.exe` | engine stable preferido no Globoplay |
-| `bin/ffmpeg.exe` | merge/remux/transcode/live |
-| `bin/ffprobe.exe` | codec de vídeo |
-| `bin/deno.exe` | runtime JS passado ao yt-dlp |
+- `PdfEditorScreenV2.kt`: **ATIVO**.
+- `PdfEditorScreen.kt`: **LEGADO/ANTERIOR** para a release V8 analisada.
+- patches `patch-pdf-editor-naval-layout.py` e `patch-pdf-editor-naval-layout-refine.py`: **ATIVOS NO BUILD**, alteram visual/layout e preservam funções.
 
-O workflow baixa versões `latest`; versão exata de yt-dlp/Deno: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**. FFmpeg tenta BtbN n9.0 e depois Gyan; a fonte concreta do ZIP aprovado é **NÃO DETERMINADO PELO CÓDIGO ANALISADO** sem inspeção do artefato/log.
+### Funções ativas comprovadas
 
-### Fontes/rotas
+| Função | Entrada | Saída/efeito | MIG |
+|---|---|---|---|
+| Selecionar arquivos | múltiplos PDF/imagens suportadas | itens de páginas na ordem | MIG-058 |
+| Selecionar PDFs | múltiplos PDF | cada página vira item | MIG-058 |
+| File drop | PDF/imagens | mesmo importador | MIG-058 |
+| Preview | página selecionada | render visual 120 dpi | MIG-058/MIG-108 |
+| Miniaturas | páginas | render 58 dpi, max 56×84 | MIG-058/MIG-108 |
+| Criar blank | ação UI | página branca 1240×1754 px | MIG-059 |
+| Cortar | seleção retangular | crop normalizado | MIG-060 |
+| Redimensionar | 75/90/100/110/125% | somente zoom visual | MIG-108 |
+| Excluir | página selecionada | remove 1 item | MIG-063 |
+| Ordenar | drag-and-drop | altera posição de 1 item | MIG-062 |
+| Limpar | confirmação | remove todos os itens | MIG-063 |
+| Undo/redo | snapshots | volta/refaz estado | MIG-063 |
+| Capa | toggle + imagem custom | capa inicial opcional | MIG-064 |
+| Gerar PDF | páginas + capa | novo arquivo `.pdf` | MIG-065/066/067 |
 
-- YouTube/YouTu.be → probe; normal ou live.
-- Globoplay/`globo:` → stable yt-dlp, sessão DPAPI, múltiplas tentativas.
-- R7/Record → página + candidatos HTML.
-- Outros → mídia direta ou yt-dlp + fallback HTML.
+### Funções que não foram inventadas
 
-### Qualidades
+Não foram encontradas como recursos ativos do V2 final: separar PDF, extrair páginas para arquivos separados, imprimir, compactar como operação própria, converter PDF→imagem, OCR, pesquisar/selecionar texto, abas multi-documento ou navegação first/prev/next/last.
 
-`360p`, `480p`, `720p HD`, `1080p Full HD`, `Melhor disponível`; default `480p`. Selectors/compat permanecem literais conforme documentação de arquitetura.
+Rotação/flip possuem métodos internos, mas nenhuma chamada ativa para `showTransformMenu()` foi encontrada; por isso `MIG-061` não foi promovido e a UI Python não expõe um botão novo.
 
-### Output
+## Motor e exportação
 
-Pasta `Videos/`; template `%(title).150B [%(id)s].%(ext)s`; merge/remux para MP4. Live própria usa `<title> [LIVE-ATE-AGORA <timestamp>] [<id>].mp4`.
+PDFBox 3.0.3 é o motor original. O Python reproduz a divisão:
 
-### Proxy
+- PDF sem crop/rotação/flip → caminho vetorial;
+- imagem, blank ou página transformada → caminho raster.
 
-O engine suporta parâmetro proxy, mas a release final remove o proxy próprio e chama o Extrator com string vazia. O proxy geral do Monitor **não foi ligado** no Passo 10 porque isso seria alterar o comportamento aprovado.
+A página final usa largura fixa de `595.276 pt` e altura proporcional. No caminho vetorial, o conteúdo é escalado/centralizado. No caminho raster, a imagem ocupa a página inteira proporcional.
 
-### Globoplay
+O documento fonte nunca é alterado. Metadata original e estruturas de documento não são automaticamente herdadas porque o original cria um novo `PDDocument`; testes protegem essa semântica, inclusive ausência de `/Annots` herdado no caminho vetorial.
 
-Sessão salva em `data/extractor/globoplay.session.dpapi`, DPAPI CurrentUser. O login real requer `data/extractor/runtime/GloboplayLoginHelper.exe`, que não é empacotado neste passo e mantém `MIG-050 BLOQUEADO`.
+## Capa e persistência
 
-## Testes do Passo 10
+- `data/config.json`;
+- `data/capa_padrao_usuario.png`;
+- `data/capa_padrao.png` opcional;
+- `resources/pdf-default-cover.b64` copiado literalmente da baseline.
 
-Testes unitários/equivalência cobrem presets, selectors, classificação, normalização R7, parser HTML, histórico/qualidade, construção do comando yt-dlp, progresso, retry, FFprobe/H.264, cancelamento e contrato visual da tela.
+## Testes do Passo 11
 
-A workflow executou `compileall` e a suíte completa em Windows e Ubuntu e passou nos dois ambientes. No run Windows foram executados **102 testes** (`72 + 30` na saída compacta do pytest).
+Os testes usam somente PDFs/imagens artificiais. Cobrem importação, múltiplas páginas, imagem, blank, crop, reorder, delete, undo/redo, zoom, dimensões, caminho raster/vetorial, capa custom, PDF protegido, preservação do arquivo fonte, metadata/anotações e contrato da GUI.
 
-## Validação manual / integração externa
+A workflow `Python migration tests`, run `34725866759`, concluiu `success` em Windows e Ubuntu no commit de código `cea24a89fd30699a1357e113c8256e544a21258c`. No job Windows, o pytest executou **116 testes** e todos passaram.
 
-Não foi executado download humano real de YouTube/R7/Globoplay/live com o bundle final da release, porque o Passo 10 exclui o portable final e o repositório alvo não contém os cinco executáveis/helper. Seria incorreto chamar mocks/fixtures de teste real. Por isso os MIGs dependentes de mídia externa permanecem `EM TESTE` e o login helper `BLOQUEADO`.
+## Validação manual
+
+Não houve sessão humana interativa com desktop gráfico neste passo. A GUI foi instanciada e testada com Qt `offscreen` nos dois sistemas. Portanto `MIG-108` permanece `EM TESTE` e não é apresentado como validação manual concluída.
 
 ## Regras permanentes
 
-Os identificadores `MIG-001` a `MIG-107` são permanentes. Não renumerar/reutilizar. Um MIG só vira `APROVADO` após comparação objetiva e validação compatível com sua natureza.
+Os identificadores `MIG-001` a `MIG-109` são permanentes. Não renumerar, reutilizar ou substituir números. Um MIG só vira `APROVADO` após comparação objetiva e validação compatível com sua natureza.
