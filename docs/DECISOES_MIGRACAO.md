@@ -2,157 +2,144 @@
 
 ## Decisões anteriores preservadas
 
-As decisões `DEC-001` a `DEC-032` continuam válidas e não são renumeradas. Resumo permanente:
+As decisões `DEC-001` a `DEC-041` permanecem válidas, permanentes e não são renumeradas. O histórico detalhado permanece rastreável nos commits dos Passos 1 a 9. Resumo:
 
 | DEC | Escopo | Decisão preservada |
 |---|---|---|
 | DEC-001 | Runtime | Python 3.12.x |
-| DEC-002 | UI toolkit | PySide6 6.9.1 |
+| DEC-002 | UI | PySide6 6.9.1 |
 | DEC-003 | Paths | raiz portable centralizada em AppPaths |
 | DEC-004 | Binários | não substituir binários externos antes do passo próprio |
-| DEC-005 | Git | desenvolvimento em `migration/python-foundation` |
-| DEC-006 | SQLite | `sqlite3`, SQL explícito, sem ORM |
-| DEC-007 | DAO/repository | não criar repository parcial no Passo 4 |
-| DEC-008 | Banco real | fixtures temporárias; MIG de DB continuam EM TESTE |
-| DEC-009 | VideoMatchPolicy | política mínima portada e validada no Passo 5 |
-| DEC-010 | Matchers | manter matchers de notícia/vídeo separados |
-| DEC-011 | Unicode | NFD + remoção Mn + regex equivalente |
-| DEC-012 | VideoTermStore | persistência permanece bloqueada até contrato completo |
-| DEC-013 | URLs | canonicalização com urllib mantendo saída |
-| DEC-014 | Globoplay | prioridade estável booleana, sem score inventado |
-| DEC-015 | Passo 5 | extrair somente regras determinísticas |
-| DEC-016 | HTTP/parsing | requests + BeautifulSoup preservando contratos |
-| DEC-017 | Proxy | HttpClient aceita proxies por injeção |
-| DEC-018 | Globoplay parcial | Edições/Trechos permanecem EM TESTE |
-| DEC-019 | Scheduler | thread de loop + lanes seriais equivalentes |
-| DEC-020 | Relógio | datetime local do sistema |
-| DEC-021 | Automation/repositories | portas NewsRunner/VideoRunner |
-| DEC-022 | Retry/timeout | AutomationService não adiciona retry/timeout global |
-| DEC-023 | SharedPreferences | properties + StringSet compatível |
-| DEC-024 | Cancelamento | token cooperativo |
-| DEC-025 | Proxy Desktop | ProxySettings preservando defaults/contrato |
-| DEC-026 | Senha proxy | DPAPI em vez de plaintext |
-| DEC-027 | DPAPI | ctypes + CryptProtectData/CryptUnprotectData CurrentUser |
-| DEC-028 | Startup | winreg no mesmo HKCU Run; não gravar python de desenvolvimento |
-| DEC-029 | Notificações | QSystemTrayIcon pela porta de notificação |
-| DEC-030 | Processos | subprocess, shell=False, flags Windows e taskkill |
-| DEC-031 | JNA/Credential Manager | não implementar: não encontrados na baseline |
-| DEC-032 | CI Windows | validar DPAPI/Registry em Windows real e chave isolada |
+| DEC-005 | Git | branch `migration/python-foundation` |
+| DEC-006 | SQLite | sqlite3/SQL explícito, sem ORM |
+| DEC-007–015 | Dados/matching | preservar contratos, sem repositories/score inventados |
+| DEC-016–018 | HTTP/Globoplay | requests/parsing e proxy injetável, fluxos parciais explicitados |
+| DEC-019–024 | Automação | scheduler/lanes/clock/ports/cancelamento equivalentes |
+| DEC-025–032 | Windows/segurança | proxy, DPAPI, startup, tray, subprocessos e CI Windows |
+| DEC-033–041 | UI Passo 9 | QMainWindow/stack, controller fino, catálogo, placeholders, senha segura, QThread, tray, CI Qt e aprovação conservadora |
 
-Os detalhes históricos permanecem rastreáveis nos commits dos Passos 1 a 8.
+Nenhuma decisão anterior é revogada pelo Passo 10.
 
-## DEC-033
-ID DA DECISÃO: DEC-033  
+## DEC-042
+ID DA DECISÃO: DEC-042  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-094  
-COMPONENTE: Shell principal da interface  
-COMPORTAMENTO ORIGINAL: `DashboardV5Main.kt` usa Window Compose 1600×960, menu lateral, seções V5, fecha escondendo para tray e encerra pela ação `Sair`. O workflow final adiciona `VIDEO_EDITOR` após `EXTRACTOR`.  
-DECISÃO: usar `QMainWindow` + sidebar + `QStackedWidget`, preservando ordem final de 12 seções, tamanho inicial, título, close-to-tray e menu do tray.  
-JUSTIFICATIVA: reproduzir comportamento, sem tentar traduzir Compose estruturalmente.  
-EVIDÊNCIA NO KOTLIN: `DashboardV5Main.kt` + `tools/integrate-video-editor-tab.py`, Build SHA df1701.  
-IMPACTO: base da UI PySide6.  
-REVERSÍVEL: Sim somente mantendo equivalência funcional.
+MIG RELACIONADO: MIG-043 a MIG-057, MIG-106, MIG-107  
+COMPONENTE: Fonte da verdade do Extrator  
+COMPORTAMENTO ORIGINAL: o arquivo estático `ExtractorVideoEngine.kt` no Build SHA ainda é transformado pelo workflow antes da compilação. `integrate-v8-extractor-tab.py`, `patch-extractor-generic-html.py`, seus patches encadeados e `patch-extractor-hidden-process.py` alteram roteamento, live, persistência, retry, R7, paths, cancelamento e subprocessos.  
+DECISÃO: portar o **resultado efetivo do Build SHA `df1701...` + patches executados pela workflow**, e não o HEAD atual do branch nem o source Kotlin estático isolado.  
+JUSTIFICATIVA: somente essa composição corresponde à release aprovada.  
+EVIDÊNCIA: `.github/workflows/release-v8-extractor-tab-portable.yml`, Build SHA `df1701ba5427a04954093e8ebed63f26abb2b2b7`.  
+IMPACTO: evita regressão para motor intermediário.  
+REVERSÍVEL: Não sem mudar a baseline.
 
-## DEC-034
-ID DA DECISÃO: DEC-034  
+## DEC-043
+ID DA DECISÃO: DEC-043  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-095 a MIG-103, MIG-105  
-COMPONENTE: Fronteira UI ↔ serviços  
-COMPORTAMENTO ORIGINAL: Dashboard chama `DesktopControllerV5`; o Controller chama DB/repositories/automação, não implementa scraping dentro dos composables.  
-DECISÃO: criar `MainUiController` fino, sem SQL/scraping/matching/scheduler nos widgets. Buscas reais exigem `AutomationPort` injetado.  
-JUSTIFICATIVA: o destino ainda não possui business `NewsRepository`/`VideoRepository`; recriá-los dentro da UI violaria a arquitetura e a regra de não inventar.  
-EVIDÊNCIA: `DashboardV5Main.kt`, `DesktopControllerV5.kt` e `repositories/__init__.py` no destino.  
-IMPACTO: runtime padrão exibe dados locais/configurações, mas busca real fica indisponível até a composição futura.  
-REVERSÍVEL: Não sem alterar separação de responsabilidades.
+MIG RELACIONADO: MIG-043 a MIG-054  
+COMPONENTE: Motor de download  
+COMPORTAMENTO ORIGINAL: o Extrator combina yt-dlp nightly, yt-dlp stable, FFmpeg, FFprobe, Deno, fallbacks HTML próprios e lógica própria de HLS/live.  
+DECISÃO: manter essa composição. Python coordena os mesmos executáveis/argumentos e porta apenas a lógica que era Kotlin; não substituir tudo por biblioteca Python ou serviço alternativo.  
+JUSTIFICATIVA: requisito de equivalência do motor já funcional.  
+EVIDÊNCIA: `ExtractorVideoEngine.kt`, `YouTubeLiveSnapshot.kt`, fallbacks HTML e workflow.  
+IMPACTO: os cinco binários continuam dependências externas da distribuição.  
+REVERSÍVEL: Não sem alterar comportamento.
 
-## DEC-035
-ID DA DECISÃO: DEC-035  
+## DEC-044
+ID DA DECISÃO: DEC-044  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-100  
-COMPONENTE: Catálogo da tela Fontes  
-COMPORTAMENTO ORIGINAL: `SourceCatalog` contém 13 fontes nacionais, 135 estaduais e 12 especializadas; `DesktopVideoSources.all` combina `VideoSourceCatalog.all` com dois extras Desktop.  
-DECISÃO: portar integralmente o catálogo de notícias necessário à UI. Para vídeos, usar somente os dois extras já migrados e registrar `VIDEO_CATALOG_COMPLETE=False`; não duplicar silenciosamente `VideoSourceCatalog` neste passo.  
-JUSTIFICATIVA: a tela Fontes precisa do catálogo, mas o catálogo base de vídeo pertence a uma lacuna anterior ainda não migrada.  
-EVIDÊNCIA NO KOTLIN: `SourceCatalog.kt`, `DesktopVideoSources.kt`.  
-IMPACTO: notícias/especializadas completas; seleção de fontes de vídeo permanece parcial.  
-REVERSÍVEL: Sim quando o catálogo base for migrado.
+MIG RELACIONADO: MIG-043, MIG-044, MIG-045  
+COMPONENTE: Presets e retry  
+COMPORTAMENTO ORIGINAL: cinco qualidades possuem selector primário e selector compatível. O retry compatível só ocorre para falhas de formato/player específicas, não autenticação.  
+DECISÃO: copiar labels/selectors/limits literalmente e restringir retry às mesmas mensagens (`403`, forbidden, requested format, format unavailable, qualidade indisponível, player response).  
+JUSTIFICATIVA: ampliar retry mudaria tentativas, erros e tráfego.  
+EVIDÊNCIA: `EXTRACTOR_QUALITIES` + `patch-extractor-compat-retry.py`.  
+IMPACTO: comportamento determinístico testável.  
+REVERSÍVEL: Não sem mudar equivalência.
 
-## DEC-036
-ID DA DECISÃO: DEC-036  
+## DEC-045
+ID DA DECISÃO: DEC-045  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-104, MIG-058 a MIG-077  
-COMPONENTE: Ferramentas externas na navegação  
-COMPORTAMENTO ORIGINAL: Dashboard final possui acesso a Editor PDF, Extrator e Editor de Vídeo; cada um tem motor próprio.  
-DECISÃO: preservar seções e navegação, mas usar página-placeholder explícita no Passo 9.  
-JUSTIFICATIVA: o escopo exige integração visual apenas e proíbe migrar os motores agora.  
-EVIDÊNCIA: Dashboard final + workflow V8.  
-IMPACTO: ponto de acesso existe sem funcionalidade inventada.  
-REVERSÍVEL: Sim quando cada motor for migrado no passo próprio.
+MIG RELACIONADO: MIG-046, MIG-047, MIG-048  
+COMPONENTE: Roteamento e fallback HTML  
+COMPORTAMENTO ORIGINAL: YouTube, Globoplay, R7/Record e genérico têm caminhos distintos; HTML fallback testa no máximo 15 candidatos e preserva referer/UA.  
+DECISÃO: manter quatro rotas separadas e os limites/filtros específicos de cada parser.  
+JUSTIFICATIVA: unificar em parser genérico perderia regras da release.  
+EVIDÊNCIA: `DirectMediaHtmlFallback.kt`, `R7HtmlFallback.kt`, `GloboplayHtmlFallback.kt`, patches de integração.  
+IMPACTO: parsers continuam pequenos e fonte-específicos.  
+REVERSÍVEL: Somente com prova de equivalência.
 
-## DEC-037
-ID DA DECISÃO: DEC-037  
+## DEC-046
+ID DA DECISÃO: DEC-046  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-102, MIG-093  
-COMPONENTE: Campo de senha do proxy  
-COMPORTAMENTO ORIGINAL: a tela Kotlin inicializa o campo com `c.proxyPassword`, portanto pode repor a senha na UI.  
-DECISÃO: o Python usa `QLineEdit.Password`, limpa o campo após salvar e não repõe automaticamente o plaintext descriptografado em refresh.  
-JUSTIFICATIVA: requisito explícito dos Passos 8 e 9 de não expor credencial desprotegida sem necessidade. O segredo continua em DPAPI CurrentUser.  
-EVIDÊNCIA: `V5SettingsScreen` + regras de segurança do Passo 8.  
-IMPACTO: diferença deliberada de UX por segurança; não altera armazenamento nem autenticação.  
-REVERSÍVEL: somente mediante decisão explícita de aceitar maior exposição.
+MIG RELACIONADO: MIG-051, MIG-052, MIG-053, MIG-054  
+COMPONENTE: YouTube Live  
+COMPORTAMENTO ORIGINAL: apenas live ativa usa snapshot. O motor congela a playlist HLS no ponto atual, valida janela DVR, tenta remux e depois H.264/AAC; fallback yt-dlp usa `--download-sections` até o ponto atual.  
+DECISÃO: portar o snapshot HLS em Python e proibir fallback ilimitado quando o início da live não puder ser determinado. `post_live` segue fluxo normal.  
+JUSTIFICATIVA: seguir os patches finais da release e impedir download que acompanhe live indefinidamente.  
+EVIDÊNCIA: `YouTubeLiveSnapshot.kt`, `patch-extractor-live-current-point.py`, `patch-extractor-youtube-live-status.py`.  
+IMPACTO: HLS próprio permanece parte essencial do motor.  
+REVERSÍVEL: Não sem mudar comportamento aprovado.
 
-## DEC-038
-ID DA DECISÃO: DEC-038  
+## DEC-047
+ID DA DECISÃO: DEC-047  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-095 a MIG-103  
-COMPONENTE: Atualização da UI / não bloqueio  
-COMPORTAMENTO ORIGINAL: Dashboard usa tick de aproximadamente 250 ms e as buscas rodam fora do thread visual.  
-DECISÃO: usar `QTimer` de 250 ms para sincronizar a página atual; `ProxySettings.test_connection` roda em `QThread`; buscas são delegadas ao AutomationService.  
-JUSTIFICATIVA: manter GUI responsiva e não executar requests diretamente em handlers de widgets.  
-EVIDÊNCIA: Dashboard V5 e arquitetura do AutomationService.  
-IMPACTO: callbacks de workers não manipulam widgets diretamente.  
-REVERSÍVEL: Sim se a segurança de thread Qt for preservada.
+MIG RELACIONADO: MIG-049, MIG-050  
+COMPONENTE: Sessão/login Globoplay  
+COMPORTAMENTO ORIGINAL: cookies Netscape são protegidos por DPAPI CurrentUser; login ocorre em helper Chromium/PySide6 empacotado, cuja senha nunca é recebida pelo Monitor.  
+DECISÃO: reutilizar `DpapiTextStore` nativo do Passo 8 para o mesmo arquivo `globoplay.session.dpapi`; implementar o launcher do helper, mas **não inventar outro navegador ou login** se `GloboplayLoginHelper.exe` ainda não estiver no pacote.  
+JUSTIFICATIVA: o Passo 10 exclui portable final/binário helper.  
+EVIDÊNCIA: `GloboplaySessionStore.kt`, `GloboplayLoginWindow.kt`.  
+IMPACTO: sessão segura está migrada; login real fica `BLOQUEADO` até o helper ser empacotado.  
+REVERSÍVEL: launcher pode ser substituído apenas por mecanismo comprovadamente equivalente.
 
-## DEC-039
-ID DA DECISÃO: DEC-039  
+## DEC-048
+ID DA DECISÃO: DEC-048  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-004, MIG-094, MIG-091  
-COMPONENTE: Tray e comportamento ao fechar  
-COMPORTAMENTO ORIGINAL: fechar a janela apenas oculta; tray possui Abrir, três buscas, Parar buscas e Sair.  
-DECISÃO: usar `QSystemTrayIcon`, ignorar `closeEvent` normal e esconder; `Sair` habilita encerramento real, fecha controller e esconde tray.  
-JUSTIFICATIVA: equivalência operacional direta.  
-EVIDÊNCIA: `DashboardV5Main.kt`.  
-IMPACTO: execução residente preparada; notificação usa o mesmo tray Qt.  
-REVERSÍVEL: Não sem mudar UX comprovada.
+MIG RELACIONADO: MIG-055, MIG-106  
+COMPONENTE: Threading e cancelamento  
+COMPORTAMENTO ORIGINAL: download roda fora da UI; cancelamento invalida callbacks/resultados antigos e encerra árvore do subprocesso.  
+DECISÃO: `ExtractorPage` usa `QThread`, token de operação e `HiddenProcessRunner.destroy_tree`.  
+JUSTIFICATIVA: preservar responsividade e impedir callback atrasado de alterar nova operação.  
+EVIDÊNCIA: `patch-extractor-cancel-token.py`, `patch-extractor-hidden-process.py`.  
+IMPACTO: nenhum download roda no thread principal.  
+REVERSÍVEL: Não sem manter os dois níveis de cancelamento.
 
-## DEC-040
-ID DA DECISÃO: DEC-040  
+## DEC-049
+ID DA DECISÃO: DEC-049  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-105  
-COMPONENTE: Testes PySide6  
-COMPORTAMENTO ORIGINAL: produto alvo é Windows, mas a suíte anterior já executava em Windows/Ubuntu.  
-DECISÃO: manter matriz Windows/Ubuntu, instalar no runner Linux somente libs de runtime Qt (`libegl1`, `libgl1`, `libxkbcommon-x11-0`) e executar Qt com `QT_QPA_PLATFORM=offscreen`.  
-JUSTIFICATIVA: validar widgets reais sem depender de desktop interativo e sem pular testes de GUI.  
-EVIDÊNCIA: regressão inicial do Passo 9 mostrou ausência de `libEGL.so.1`; após instalar runtime, a mesma suíte passou em ambos os sistemas.  
-IMPACTO: smoke/integration tests reais de Qt entram na regressão contínua.  
-REVERSÍVEL: Sim.
+MIG RELACIONADO: MIG-040, MIG-044 a MIG-053  
+COMPONENTE: Proxy do Extrator  
+COMPORTAMENTO ORIGINAL: o engine aceita proxy, mas `patch-extractor-portable-state.py` remove a UI própria e a release final chama `engine.download(..., "")` e `GloboplayLoginWindow(..., "")`; comentário indica conexão futura do proxy geral.  
+DECISÃO: a tela Python do Passo 10 também envia proxy vazio. **Não conectar o proxy geral do Monitor ao Extrator nesta etapa.**  
+JUSTIFICATIVA: conectar agora seria melhoria não presente na release aprovada.  
+EVIDÊNCIA: `patch-extractor-portable-state.py`.  
+IMPACTO: suporte interno de proxy permanece no engine para compatibilidade, mas não é ativado pela UI.  
+REVERSÍVEL: Sim se passo futuro possuir evidência/decisão explícita.
 
-## DEC-041
-ID DA DECISÃO: DEC-041  
+## DEC-050
+ID DA DECISÃO: DEC-050  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-096, MIG-097, MIG-098, MIG-099, MIG-100, MIG-102  
-COMPONENTE: Aprovação conservadora da UI  
-COMPORTAMENTO ORIGINAL: telas dependem de business repositories, VideoTermStore, catálogo completo de vídeo e elementos visuais adicionais.  
-DECISÃO: não marcar como `APROVADO` uma tela cujo caminho real ainda dependa de componente ausente ou cuja paridade funcional esteja incompleta, mesmo que o widget abra e o teste de GUI passe.  
-JUSTIFICATIVA: seguir o critério do usuário de aprovação somente com integração funcional comprovada.  
-EVIDÊNCIA: checklist do Passo 9 e lacunas observadas no destino.  
-IMPACTO: vários MIGs de UI ficam `EM TESTE`/`BLOQUEADO`, evitando falso positivo de migração.  
-REVERSÍVEL: status pode avançar quando as dependências forem concluídas.
+MIG RELACIONADO: MIG-057  
+COMPONENTE: Atualizador yt-dlp  
+COMPORTAMENTO ORIGINAL: baixa stable oficial, valida >1 MB e `--version`, preserva backup, substitui, valida instalação e só então apaga backup; em falha restaura/preserva.  
+DECISÃO: manter o fluxo e nomes `yt-dlp.update.tmp.exe` / `yt-dlp.backup.exe`, timeouts e User-Agent comprovados.  
+JUSTIFICATIVA: atualização não pode destruir o executável funcional.  
+EVIDÊNCIA: `YtDlpUpdater.kt`.  
+IMPACTO: updater isolado em `extractor/updater.py`.  
+REVERSÍVEL: Não sem preservar segurança equivalente.
+
+## DEC-051
+ID DA DECISÃO: DEC-051  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-106, MIG-107  
+COMPONENTE: Aprovação/testes do Passo 10  
+COMPORTAMENTO ORIGINAL: funcionalidades dependem de sites externos e cinco binários presentes no portable.  
+DECISÃO: CI Windows/Ubuntu aprova somente contratos determinísticos, UI e regressão. Downloads reais de YouTube/R7/Globoplay/live permanecem `EM TESTE` enquanto a etapa não possuir o bundle final dos binários/helper.  
+JUSTIFICATIVA: não confundir mock/comando construído com teste real de mídia.  
+EVIDÊNCIA: escopo do Passo 10 exclui portable final.  
+IMPACTO: status conservadores mesmo com CI verde.  
+REVERSÍVEL: status avança após teste de integração real controlado.
 
 ## Regra de segurança
 
-Nenhuma decisão autoriza logar senha, token, cookie, credential blob ou plaintext descriptografado. Fixtures e testes usam somente valores artificiais.
-
-## Regra de equivalência visual
-
-O Passo 9 não exige pixel-perfect. Diferenças naturais entre Compose e Qt são aceitáveis somente quando não removem funcionalidade. Melhorias visuais/UX não são implementadas durante a equivalência; lacunas permanecem documentadas.
+Nenhuma decisão autoriza logar senha, token, cookie, blob DPAPI ou plaintext descriptografado. O Extrator não faz bypass de DRM. Fixtures usam somente dados artificiais.
