@@ -37,4 +37,4 @@ jobs:
       - name: Run complete test suite
         run: python -m pytest -q
 
-# Step 8: matrix inclui Windows para validar DPAPI/Registry reais com dados fictícios.
+# Step 8: matrix Windows/Ubuntu valida regressão completa e integrações nativas com dados fictícios.
