@@ -140,6 +140,109 @@ EVIDÊNCIA: escopo do Passo 10 exclui portable final.
 IMPACTO: status conservadores mesmo com CI verde.  
 REVERSÍVEL: status avança após teste de integração real controlado.
 
+## DEC-052
+ID DA DECISÃO: DEC-052  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-058 a MIG-067, MIG-108, MIG-109  
+COMPONENTE: Fonte da verdade do Editor PDF  
+COMPORTAMENTO ORIGINAL: `DashboardV5Main.kt` executa `PdfEditorScreenV2`; `PdfEditorScreen.kt` é implementação anterior. A release aplica somente os patches visuais `patch-pdf-editor-naval-layout.py` e `patch-pdf-editor-naval-layout-refine.py` sobre o V2.  
+DECISÃO: migrar exclusivamente `PdfEditorScreenV2` + resultado dos dois patches visuais do workflow do Build SHA `df1701...`. Não misturar funções do editor legado.  
+JUSTIFICATIVA: essa é a implementação efetivamente usada pela release aprovada.  
+EVIDÊNCIA: Dashboard V5, workflow V8 e validações do PDF.  
+IMPACTO: reduz risco de introduzir funções inexistentes no produto final.  
+REVERSÍVEL: Não sem mudar a baseline.
+
+## DEC-053
+ID DA DECISÃO: DEC-053  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-058, MIG-060, MIG-064, MIG-066, MIG-067  
+COMPONENTE: Bibliotecas PDF Python  
+COMPORTAMENTO ORIGINAL: PDFBox 3.0.3 (`PDDocument`, `PDFRenderer`, `LayerUtility`, `LosslessFactory`) + ImageIO/TwelveMonkeys WebP/TIFF.  
+DECISÃO: usar `pypdf==6.18.0` para montagem/exportação vetorial, `pypdfium2==5.13.0` para renderização PDF e `Pillow==12.3.0` para imagens/crop/raster.  
+JUSTIFICATIVA: não existe uma única biblioteca Python equivalente ao conjunto PDFBox+ImageIO sem introduzir licença forte; a combinação reproduz as responsabilidades observadas.  
+LICENÇAS: pypdf BSD-3-Clause; Pillow MIT-CMU; pypdfium2 Apache-2.0/BSD-3-Clause e PDFium BSD-style. O portable final deverá incluir os avisos/licenças de PDFium e dependências.  
+IMPACTO: o motor fica modular sem OCR/conversores não existentes.  
+REVERSÍVEL: somente mediante equivalência comprovada.
+
+## DEC-054
+ID DA DECISÃO: DEC-054  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-061  
+COMPONENTE: Rotação e espelhamento  
+COMPORTAMENTO ORIGINAL: o V2 contém `showTransformMenu`, `rotateSelected` e `flipSelected` e o modelo/exportador entende `rotation`/`flipX`; porém não foi encontrado caller ativo para `showTransformMenu` nem controle exigido pelo workflow final.  
+DECISÃO: manter suporte interno de estado/exportação, mas **não criar botão/menu de rotação/flip na UI Python** e não promover MIG-061.  
+JUSTIFICATIVA: expor uma função interna dormente como recurso visível seria inventar funcionalidade.  
+EVIDÊNCIA: busca completa no `PdfEditorScreenV2.kt` + lista de controles validada pelo workflow.  
+IMPACTO: MIG-061 permanece `PENDENTE`.  
+REVERSÍVEL: pode avançar somente com evidência de acionamento real na baseline.
+
+## DEC-055
+ID DA DECISÃO: DEC-055  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-065, MIG-066, MIG-067  
+COMPONENTE: Exportação vetorial x raster  
+COMPORTAMENTO ORIGINAL: página PDF sem crop/rotação/flip usa `LayerUtility.importPageAsForm` em nova página de largura 595.276 pt; qualquer página transformada, imagem ou blank é rasterizada e embutida via `LosslessFactory`.  
+DECISÃO: reproduzir a bifurcação. `pypdf.merge_transformed_page` é usado somente para conteúdo vetorial e `/Annots` é removido explicitamente, porque o merge do pypdf copiava anotações que o `importPageAsForm` original não incorpora. Raster usa RGB lossless/Flate.  
+JUSTIFICATIVA: preservar conteúdo e dimensões sem adicionar estruturas que o PDFBox original não copia.  
+EVIDÊNCIA: `appendVector`, `appendRaster`, `renderFinalPage` e teste que detectou `/Annots` na primeira tentativa Python.  
+IMPACTO: metadata original, bookmarks/forms/anotações não são herdados automaticamente no novo documento, conforme o fluxo original de criação de `PDDocument`.  
+REVERSÍVEL: Não sem mudar o resultado estrutural.
+
+## DEC-056
+ID DA DECISÃO: DEC-056  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-058, MIG-060, MIG-062, MIG-108  
+COMPONENTE: Preview, miniaturas e zoom  
+COMPORTAMENTO ORIGINAL: preview PDF usa render 120 dpi; miniatura usa render final 58 dpi e escala máxima 56×84; zoom varia de 50% a 300% em passos de 15%; Ajustar = 100%; Redimensionar oferece 75/90/100/110/125% e altera somente visualização. Seleção é única.  
+DECISÃO: manter esses valores e semânticas literalmente. Não adicionar navegação primeira/anterior/próxima/última nem fit-width/fit-page, porque não existem no V2 ativo.  
+JUSTIFICATIVA: “Redimensionar” não deve ser reinterpretado como alteração real do PDF.  
+IMPACTO: preview em PDFium/PySide6 mantém o mesmo contrato funcional.  
+REVERSÍVEL: Não sem mudar UX comprovada.
+
+## DEC-057
+ID DA DECISÃO: DEC-057  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-064  
+COMPONENTE: Capa padrão/custom  
+COMPORTAMENTO ORIGINAL: ordem `data/capa_padrao_usuario.png` → `data/capa_padrao.png` → recurso `/pdf-default-cover.b64` → fallback gerado. Configuração usa `data/config.json` com `custom_cover`.  
+DECISÃO: copiar literalmente o `pdf-default-cover.b64` da baseline para `resources/`, preservar a mesma ordem e salvar capa custom como PNG em `data/capa_padrao_usuario.png`.  
+JUSTIFICATIVA: gerar uma capa “parecida” seria perda visual evitável.  
+IMPACTO: asset original passa a fazer parte do projeto Python.  
+REVERSÍVEL: Não sem perder equivalência.
+
+## DEC-058
+ID DA DECISÃO: DEC-058  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-063, MIG-108  
+COMPONENTE: Estado/undo/redo e threads  
+COMPORTAMENTO ORIGINAL: undo/redo é snapshot integral de páginas+seleção, máximo 30; preview/exportações pesadas não devem bloquear a UI.  
+DECISÃO: preservar snapshots e ordem síncrona das mutações; usar `QThread` para preview/exportação e `QThreadPool` apenas para miniaturas independentes. Não paralelizar mutações/reordenação/exportação de páginas.  
+JUSTIFICATIVA: responsividade sem alterar a ordem/resultados.  
+IMPACTO: Ctrl+Z/Ctrl+Y/Delete/Ctrl+S permanecem ativos.  
+REVERSÍVEL: Não sem manter semântica equivalente.
+
+## DEC-059
+ID DA DECISÃO: DEC-059  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-066, MIG-067  
+COMPONENTE: Salvamento/proteção do original  
+COMPORTAMENTO ORIGINAL: o editor não edita o arquivo fonte em lugar; monta estado em memória e gera novo PDF por JFileChooser. Nome padrão é `RADAR DE NOTICIAS - MIDIA IMPRESSA.pdf` com capa, senão `documento.pdf`; `.pdf` é acrescentado quando necessário.  
+DECISÃO: usar diálogo Save As equivalente e nunca modificar as entradas. Política custom de sobrescrita além do comportamento do diálogo nativo: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.  
+JUSTIFICATIVA: não inventar overwrite/renome automático.  
+IMPACTO: testes verificam que o arquivo fonte permanece byte a byte inalterado.  
+REVERSÍVEL: Não sem mudar segurança do original.
+
+## DEC-060
+ID DA DECISÃO: DEC-060  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-108, MIG-109  
+COMPONENTE: Critério de aprovação do Passo 11  
+COMPORTAMENTO ORIGINAL: editor desktop interativo Swing/PDFBox.  
+DECISÃO: testes Qt offscreen Windows/Ubuntu e PDFs artificiais controlados podem aprovar contratos determinísticos e motor; a integração visual `MIG-108` permanece `EM TESTE` até inspeção humana em desktop interativo. Não declarar offscreen como “teste manual”.  
+JUSTIFICATIVA: separar regressão automatizada de validação humana real.  
+IMPACTO: MIG-109 pode ser `APROVADO` com CI verde; MIG-108 permanece conservador.  
+REVERSÍVEL: status avança após teste manual real.
+
 ## Regra de segurança
 
-Nenhuma decisão autoriza logar senha, token, cookie, blob DPAPI ou plaintext descriptografado. O Extrator não faz bypass de DRM. Fixtures usam somente dados artificiais.
+Nenhuma decisão autoriza logar senha, token, cookie, blob DPAPI, plaintext descriptografado ou conteúdo sensível dos PDFs. O Extrator não faz bypass de DRM. PDFs de teste são artificiais e não pessoais.
