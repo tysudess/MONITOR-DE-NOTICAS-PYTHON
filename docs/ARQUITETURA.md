@@ -6,176 +6,238 @@ A migração usa `tysudess/noticias-monitor`, Build SHA `df1701ba5427a04954093e8
 
 A regra permanente é preservar o motor e o comportamento comprovados. Quando algo não é comprovado: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-## Arquitetura atual após o Passo 10
+## Arquitetura atual após o Passo 11
 
 ```text
 Application
 └─ MainWindow (PySide6 QMainWindow)
    ├─ páginas do Monitor migradas no Passo 9
-   ├─ Editor de PDF [placeholder]
+   ├─ Editor de PDF [PdfEditorPage REAL]
    ├─ Extrator de Vídeos [ExtractorPage REAL]
    └─ Editor de Vídeo [placeholder]
 
-ExtractorPage (PySide6)
-   ├─ Download
-   │  ├─ URL
-   │  ├─ 5 presets de qualidade
-   │  ├─ BAIXAR VÍDEO / CANCELAR / Abrir Vídeos
-   │  ├─ progresso/status
-   │  └─ QThread → ExtractorEngine
-   ├─ Histórico
-   │  └─ ExtractorPortableStateStore
-   └─ Configurações
-      ├─ GloboplaySessionStore (DPAPI CurrentUser)
-      ├─ launcher do GloboplayLoginHelper.exe, quando empacotado
-      └─ YtDlpUpdater
+PdfEditorPage (PySide6)
+   ├─ importação PDF/imagens + file drop
+   ├─ preview PDF/imagem
+   ├─ miniaturas/lista
+   ├─ crop normalizado
+   ├─ página em branco
+   ├─ excluir/reordenar
+   ├─ undo/redo (30 snapshots)
+   ├─ zoom/Redimensionar visual
+   ├─ capa padrão/custom
+   └─ GERAR PDF → PdfEditorModel
 
-ExtractorEngine
-   ├─ yt-dlp.exe (nightly no pacote da release)
-   ├─ yt-dlp-stable.exe (Globoplay)
-   ├─ ffmpeg.exe
-   ├─ ffprobe.exe
-   ├─ deno.exe
-   ├─ YouTube normal
-   ├─ YouTube Live: snapshot HLS congelado + fallback temporal limitado
-   ├─ Globoplay: URL → globo:ID → HLS → HTML m3u8
-   ├─ R7/Record: página → candidatos HTML
-   └─ Genérico: yt-dlp → candidatos HTML/mídia direta
+PdfEditorModel
+   ├─ pypdf: montagem/exportação vetorial
+   ├─ pypdfium2/PDFium: renderização de PDF
+   ├─ Pillow: imagens/crop/raster
+   ├─ data/config.json
+   ├─ data/capa_padrao_usuario.png
+   ├─ data/capa_padrao.png (opcional)
+   └─ resources/pdf-default-cover.b64 (asset original)
 
-Windows
-   ├─ HiddenProcessRunner: subprocessos ocultos + kill da árvore
-   └─ DpapiTextStore: sessão Globoplay protegida
+ExtractorPage / ExtractorEngine
+   ├─ yt-dlp nightly/stable
+   ├─ ffmpeg / ffprobe / deno
+   ├─ YouTube normal/live
+   ├─ Globoplay
+   ├─ R7/Record
+   └─ fallback HTML
 ```
 
-## Fronteira UI x motor
+## Editor PDF — fonte ativa
 
-A UI não contém parsing de sites nem monta comandos de mídia. `ExtractorPage` coleta URL/qualidade, cria um worker em `QThread`, encaminha progresso e aciona cancelamento. A montagem de comandos, roteamento por fonte, retry, HLS, FFprobe, FFmpeg, cookies e erros pertence a `monitor_noticias.extractor`.
+A implementação efetivamente executada pelo Dashboard V5 é `PdfEditorScreenV2.kt`. `PdfEditorScreen.kt` é implementação anterior e não foi usada como fonte funcional do Passo 11.
 
-O cancelamento preserva dois níveis da release: a UI incrementa um token de operação para ignorar callbacks antigos e o engine encerra a árvore do processo ativo por `HiddenProcessRunner.destroy_tree()`.
+O workflow da release protege a lógica base do V2 e, depois da integração do Extrator, aplica:
 
-## Motor real do Extrator
+- `tools/patch-pdf-editor-naval-layout.py`;
+- `tools/patch-pdf-editor-naval-layout-refine.py`.
 
-A release não usa um downloader Python inventado. O motor comprovado é uma composição de:
+Esses patches alteram o layout/HUD e validam a permanência das funções do motor; não substituem o PDFBox nem introduzem um motor PDF diferente.
 
-- `yt-dlp.exe`;
-- `yt-dlp-stable.exe`;
-- `ffmpeg.exe`;
-- `ffprobe.exe`;
-- `deno.exe`;
-- fallbacks HTML próprios;
-- snapshot HLS próprio para YouTube Live;
-- cookies Globoplay protegidos por DPAPI;
-- helper Chromium/PySide6 para login Globoplay;
-- updater seguro de yt-dlp.
+## Motor PDF original
 
-As versões exatas de yt-dlp e Deno são **NÃO DETERMINADO PELO CÓDIGO ANALISADO**, porque o workflow baixa `latest` no momento do build. O workflow tenta FFmpeg BtbN `ffmpeg-n9.0-latest-win64-gpl-9.0.zip` e usa Gyan `ffmpeg-release-essentials.zip` como fallback; qual fonte concreta venceu no artefato final é **NÃO DETERMINADO PELO CÓDIGO ANALISADO** sem inspecionar o binário/log do build.
+Biblioteca JVM principal:
 
-## Qualidades
+- Apache PDFBox `3.0.3`, declarado em `desktop/build.gradle.kts`.
 
-O contrato contém exatamente cinco presets:
+Classes/funções usadas no V2:
 
-| Label | Limite | Selector primário | Compat |
-|---|---:|---|---|
-| 360p | 360 | `bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360][ext=mp4]/bv*[height<=360]+ba/b[height<=360]/b` | `b[height<=360][ext=mp4]/b[height<=360]/b` |
-| 480p | 480 | `bv*[height<=480][ext=mp4]+ba[ext=m4a]/b[height<=480][ext=mp4]/bv*[height<=480]+ba/b[height<=480]/b` | `b[height<=480][ext=mp4]/b[height<=480]/b` |
-| 720p HD | 720 | `bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]/b` | `b[height<=720][ext=mp4]/b[height<=720]/b` |
-| 1080p Full HD | 1080 | `bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/bv*[height<=1080]+ba/b[height<=1080]/b` | `b[height<=1080][ext=mp4]/b[height<=1080]/b` |
-| Melhor disponível | sem limite | `bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b` | `b[ext=mp4]/b` |
+- `Loader.loadPDF` — abertura de PDFs;
+- `PDFRenderer` — preview/rasterização;
+- `PDDocument`, `PDPage`, `PDRectangle` — criação do documento final;
+- `LayerUtility.importPageAsForm` — incorporação vetorial de página PDF sem transformação;
+- `PDPageContentStream` + `Matrix` — escala/posicionamento;
+- `LosslessFactory.createFromImage` — páginas rasterizadas.
 
-Índice padrão: `1` = `480p`.
+Imagens usam `ImageIO`, com TwelveMonkeys WebP/TIFF `3.12.0` no classpath.
 
-## Comando yt-dlp base
+## Bibliotecas Python escolhidas
 
-O engine preserva:
+| Biblioteca | Versão | Papel no Passo 11 |
+|---|---:|---|
+| `pypdf` | 6.18.0 | montagem do PDF final e caminho vetorial |
+| `pypdfium2` | 5.13.0 | renderização PDF para preview/crop/raster |
+| `Pillow` | 12.3.0 | imagens, crop, flip/rotação interna e raster |
+| `PySide6` | 6.9.1 | interface e workers Qt |
 
-`--no-playlist --newline --progress --windows-filenames --trim-filenames 180 --continue --retries 10 --fragment-retries 10 --retry-sleep http:linear=1::3 --retry-sleep fragment:linear=1::3 --socket-timeout 30 --ffmpeg-location <bin> -f <selector> --merge-output-format mp4 --remux-video mp4 -o "Videos/%(title).150B [%(id)s].%(ext)s" --print "after_move:FINAL_FILE:%(filepath)s"`.
+A escolha foi feita depois do inventário funcional. Não há OCR nem conversor genérico. pypdf é BSD-3-Clause; Pillow é MIT-CMU; pypdfium2 é Apache-2.0/BSD-3-Clause e distribui PDFium sob licença BSD-style. O portable final deverá carregar os avisos/licenças exigidos pelo PDFium e dependências.
 
-Se Deno existe, adiciona `--js-runtimes deno:<path>`. Cookies/referer/proxy só são acrescentados quando o fluxo os fornece.
+## Modelo de páginas
 
-## Retry de compatibilidade
+Cada item preserva:
 
-A segunda tentativa usa `quality.compat` somente quando o erro primário contém `403`, `forbidden`, `requested format`, `format is not available`, `qualidade escolhida não está disponível` ou `player response`. Erros de autenticação não disparam esse retry.
+- `kind`: `PDF`, `IMAGE` ou `BLANK`;
+- caminho de origem;
+- índice de página PDF quando aplicável;
+- rotação interna;
+- flip horizontal interno;
+- crop normalizado;
+- `uid` para identidade durante reorder/undo.
 
-## YouTube normal e Live
+A seleção ativa é única. Não há multi-select, Ctrl-select ou Shift-range comprovados no V2 ativo.
 
-O probe usa `--ignore-config --no-playlist --dump-single-json --skip-download --socket-timeout 30`. Após o patch da release, `post_live` **não** é live ativa; somente `is_live=true` ou `live_status=is_live` usa o fluxo de live.
+## Importação
 
-### Snapshot HLS
+`Arquivos` aceita múltiplos arquivos:
 
-O fluxo principal de live:
+- `.pdf`;
+- `.jpg` / `.jpeg`;
+- `.png`;
+- `.webp`;
+- `.bmp`;
+- `.tiff` / `.tif`.
 
-1. repete o probe com timeout 25 e `--ffmpeg-location`;
-2. determina o ponto final no instante do clique;
-3. escolhe variante HLS muxada com áudio+vídeo, preferindo não ultrapassar a altura desejada;
-4. lê a playlist, resolve URLs relativas e valida a janela DVR;
-5. acrescenta `#EXT-X-ENDLIST` para congelar a janela;
-6. tenta FFmpeg `-c copy`;
-7. se necessário, transcodifica para H.264/AAC (`libx264`, `veryfast`, CRF 20, `yuv420p`, AAC 160k, `+faststart`).
+`PDF` aceita múltiplos PDFs. Cada página de cada PDF vira um item separado na sequência. Uma imagem vira um item. File drop usa os mesmos formatos.
 
-Fallback temporal yt-dlp: `--live-from-start --hls-use-mpegts --download-sections *00:00:00-HH:MM:SS --force-keyframes-at-cuts --concurrent-fragments 4`. Se o início não puder ser determinado com segurança, o download é interrompido para não acompanhar a transmissão indefinidamente.
+PDF protegido por senha não possui prompt nem bypass no original; falha de abertura é exibida como erro. O Python mantém esse comportamento.
 
-## H.264 / FFprobe
+## Preview, miniaturas e zoom
 
-Após YouTube normal/live, FFprobe consulta `v:0`/`codec_name`. `h264` e `avc1` são mantidos. Outros codecs passam pela conversão H.264/AAC da baseline. Falha na conversão preserva o arquivo original.
+- PDF normal: render 120 dpi.
+- Miniatura: `renderFinalPage(..., 58)` e redução máxima para 56×84, sem ampliar.
+- Zoom: 50% a 300%, passos de 15%.
+- `Ajustar`: 100%.
+- `Redimensionar`: opções 75%, 90%, 100%, 110%, 125%; **altera somente a escala de visualização**, não as dimensões do PDF.
+- Modos visuais: `Miniatural` e `Lista`, conforme o patch final da release.
 
-## Globoplay
+Não existem controles ativos comprovados de primeira/anterior/próxima/última página, número de página, fit-width ou fit-page; não foram criados.
 
-Usa `yt-dlp-stable.exe` quando disponível. Ordem final:
+## Crop
 
-1. URL original;
-2. `globo:<id>` quando ID é detectado;
-3. URL original com `--hls-use-mpegts --downloader m3u8:native`;
-4. até 15 candidatos `.m3u8` extraídos do HTML.
+O crop é armazenado normalizado (`x`, `y`, `w`, `h`) e aplicado após a transformação da imagem/página. A seleção gráfica exige área maior que 4 px. No render final, coordenadas são limitadas a 0..1; início usa `floor` e fim usa `ceil`, preservando ao menos 1 pixel.
 
-Base Globoplay: `--force-ipv4 --ignore-config --no-mtime`. O runtime cookie vem de `data/extractor/globoplay.session.dpapi`, DPAPI CurrentUser, e é materializado temporariamente apenas durante a operação.
+## Reordenação, exclusão e limpar
 
-O login interno depende de `data/extractor/runtime/GloboplayLoginHelper.exe` (>20 MB), com `--output` e `--profile-dir`. O Passo 10 implementa o launcher, mas o helper binário pertence à montagem da release/portable e não é criado neste passo; por isso o login real permanece bloqueado até o passo de empacotamento.
+A coluna de páginas usa seleção única e drag-and-drop de inserção. O item movido permanece selecionado. Excluir remove somente a página selecionada, sem confirmação e inclusive permite remover a última. `Limpar` pede confirmação e remove todas.
 
-## R7/Record
+## Undo / redo
 
-Base `--force-ipv4 --no-mtime`. Primeiro tenta a página; depois busca até 15 candidatos `.m3u8/.mp4/.m4v/.webm`. Um erro da página principal não é tratado como diagnóstico final de DRM antes de testar os candidatos.
+Snapshot integral de páginas + índice selecionado, limite de 30 estados. Entram no histórico: importação, criar blank, crop, funções internas de rotação/flip, excluir, reorder e limpar. Zoom e troca de capa não fazem parte do undo.
 
-## Genérico
+Atalhos ativos:
 
-URL direta `.m3u8/.mp4/.m4v/.webm/.mov` vai direto ao engine. Caso contrário, tenta yt-dlp e depois até 15 candidatos HTML. O parser normaliza `\u0026`, `\/` e `&amp;`, usa User-Agent/Referer comprovados e exclui URLs de tracking/analytics/pixel.
+- `Ctrl+Z` — undo;
+- `Ctrl+Y` — redo;
+- `Delete` — excluir selecionada;
+- `Ctrl+S` — exportar.
 
-## Proxy do Extrator
+`Ctrl+O` não foi encontrado e não foi inventado.
 
-O engine mantém parâmetro de proxy porque os fallbacks e comandos originais o suportam. Entretanto, a transformação final da release remove a UI própria de proxy e chama `engine.download(..., "")` e `GloboplayLoginWindow(..., "")`. Portanto o Passo 10 **não liga automaticamente o proxy geral do Monitor ao Extrator**. Fazer isso agora alteraria a release aprovada.
+## Rotação e flip
 
-## Persistência
+`PdfEditorScreenV2.kt` contém `showTransformMenu`, `rotateSelected` e `flipSelected`, e o estado/exportador entende esses campos. Porém não foi encontrado caller ativo para `showTransformMenu` nem controle de transformação validado pelo workflow final. O Python mantém suporte interno de estado/exportação, mas **não expõe botão/menu novo**. `MIG-061` permanece pendente até surgir evidência do acionamento ativo na baseline.
 
-`data/extractor/settings.properties` guarda `qualityIndex`; `history.txt` guarda até 50 caminhos distintos, mais recente primeiro; `globoplay.session.dpapi` guarda cookies protegidos por DPAPI CurrentUser. A pasta de saída é `Videos/`.
+## Capa
 
-## Atualizador yt-dlp
+Ordem comprovada:
 
-Baixa o stable oficial para `yt-dlp.update.tmp.exe`, exige >1 MB, valida `--version`, move a instalação anterior para `yt-dlp.backup.exe`, instala/substitui, valida novamente e só então apaga o backup. Em falha, tenta restaurar o anterior e preserva backup quando necessário. Timeouts: conexão 30 s, leitura 60 s, validação 30 s. User-Agent: `MonitorDeNoticias-Extractor/3.0.1`.
+1. `data/capa_padrao_usuario.png`, quando configurada;
+2. `data/capa_padrao.png`, se existir;
+3. recurso original `resources/pdf-default-cover.b64`;
+4. fallback gerado, apenas se todos os anteriores falharem.
 
-## Testes do Passo 10
+O recurso `pdf-default-cover.b64` foi copiado literalmente do Build SHA de referência. Capa custom aceita os mesmos formatos de imagem da UI e é convertida para PNG. `data/config.json` guarda `custom_cover: data/capa_padrao_usuario.png`.
 
-Foram adicionados testes de:
+## Exportação
 
-- cinco presets e seletores;
-- classificação das fontes e normalização R7;
-- mídia direta e filtros HTML;
-- estado portable/histórico;
-- comando yt-dlp e progresso;
-- retry restrito a falhas compatíveis;
-- contrato FFprobe/H.264;
-- cancelamento da árvore de processo;
-- contrato visual do `ExtractorPage`;
-- equivalência explícita de rotas e qualidade.
+O editor sempre monta um novo documento; arquivos de origem não são modificados.
 
-A matriz Windows/Ubuntu executa `compileall` e toda a regressão com Qt offscreen. O run do Passo 10 passou nos dois ambientes. Isso não substitui teste de download real com os cinco binários/helper da distribuição final.
+Nome padrão do Save As:
 
-## Pendências deliberadas após o Passo 10
+- com capa: `RADAR DE NOTICIAS - MIDIA IMPRESSA.pdf`;
+- sem capa: `documento.pdf`.
 
-- teste real de YouTube normal/live com binários da release;
-- teste real de R7/Record e Globoplay;
-- helper Globoplay empacotado;
-- confirmação das versões concretas dos binários presentes no ZIP da release;
-- portable final;
-- Editor PDF completo;
-- Editor de Vídeo completo.
+A extensão `.pdf` é acrescentada se ausente. Política custom de overwrite além do comportamento do diálogo nativo: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-Os demais componentes e pendências dos Passos 1–9 permanecem válidos e não foram alterados pelo Passo 10.
+### Qualidade
+
+O enum original possui:
+
+- Alta (recomendado): 450 dpi;
+- Média: 300 dpi;
+- Compacta: 220 dpi.
+
+No layout final da release, o JComboBox de qualidade não é adicionado ao painel visível; por isso o valor efetivo fica no primeiro enum, HIGH/450 dpi. A UI Python também não inventa seletor e exporta no valor ativo HIGH.
+
+### Caminho vetorial
+
+Condição exata: item PDF, `rotation == 0`, `flipX == false`, `crop == null`.
+
+O PDFBox original cria uma página nova de largura fixa `595.276 pt`, altura proporcional ao crop/media box, importa a página como Form XObject e a desenha escalada/centralizada. O Python usa pypdf para reproduzir a mesma geometria. Como `merge_transformed_page` copiava `/Annots`, o Python remove `/Annots` explicitamente para ficar alinhado ao `importPageAsForm` do PDFBox.
+
+A criação de um documento novo significa que metadata do documento de origem, bookmarks/outlines e estruturas de formulário/anotações não são herdados automaticamente pelo fluxo original. O Python não tenta “preservar mais” que o original.
+
+### Caminho raster
+
+Usado para imagens, BLANK e qualquer página transformada. A imagem final é embutida lossless em RGB; largura de página `595.276 pt`, altura proporcional aos pixels. Página PDF transformada é renderizada no DPI da qualidade ativa antes da incorporação.
+
+Não existe compactação genérica separada, divisão de PDF, extração de páginas para arquivos separados, impressão, OCR, busca de texto ou conversão PDF→imagem como recurso ativo.
+
+## Threads
+
+Operações pesadas não são feitas no thread GUI:
+
+- preview/crop: `QThread`;
+- exportação: `QThread`;
+- miniaturas independentes: `QThreadPool`.
+
+Mutações do modelo e ordem das páginas continuam sequenciais. O ciclo de vida do worker de exportação encerra o `QThread` tanto em sucesso quanto em falha.
+
+## Testes do Passo 11
+
+PDFs/imagens artificiais cobrem:
+
+- importação múltipla e expansão de páginas;
+- formatos permitidos;
+- página em branco;
+- excluir/reorder;
+- undo/redo e limite 30;
+- zoom/Redimensionar;
+- crop normalizado;
+- suporte interno de rotação/flip sem botão inventado;
+- dimensões de saída de largura fixa;
+- ordem final;
+- rasterização de página transformada;
+- capa custom e persistência;
+- PDF protegido sem bypass;
+- metadata/annotation behavior;
+- original não sobrescrito;
+- ausência de split/extract/print/OCR/compress/convert inventados;
+- presença dos controles ativos na UI.
+
+A matriz `Python migration tests` executou `compileall` e toda a suíte em Windows e Ubuntu. O run `34725866759` passou nos dois ambientes, com 116 testes no Windows. Qt roda em `offscreen`; isso **não é** validação manual humana do layout.
+
+## Estado após o Passo 11
+
+O placeholder do Editor PDF foi removido da MainWindow e substituído por `PdfEditorPage`. Extrator permanece funcional conforme Passo 10. Editor de Vídeo continua placeholder. Portable final não foi iniciado.
+
+Pendências relevantes:
+
+- inspeção manual humana do Editor PDF em desktop interativo (`MIG-108`);
+- `MIG-061` rotação/flip permanece pendente porque o acionamento ativo não foi comprovado;
+- portable final/licenças PDFium;
+- Editor de Vídeo completo;
+- pendências anteriores dos Passos 1–10 não relacionadas ao PDF.
