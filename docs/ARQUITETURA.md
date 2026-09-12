@@ -1,94 +1,97 @@
 # Arquitetura da migração Python
 
-## Estado após o Passo 6
+## Estado após o Passo 7
 
-A fundação do Passo 3, a camada SQLite do Passo 4 e o matching do Passo 5 permanecem válidos. O Passo 6 adiciona somente coletores HTTP/parsers isolados da baseline `df1701ba5427a04954093e8ebed63f26abb2b2b7`.
+A fundação, SQLite, matching e coletores dos Passos 3–6 permanecem válidos. O Passo 7 adiciona a camada de automação do Windows baseada diretamente em `DesktopControllerV5` da baseline `df1701ba5427a04954093e8ebed63f26abb2b2b7`.
 
-A UI continua mínima. AutomationService, schedulers, notificações Windows, PDF, Editor de Vídeo, extrator/downloader e empacotamento portable não foram iniciados.
+Não existe uma classe Kotlin ativa chamada `AutomationService` no Desktop V8 analisado. A classe Python `monitor_noticias.automation.AutomationService` é o nome arquitetural dado à extração do motor que no Kotlin vive dentro de `DesktopControllerV5`; comportamento, ordem, guards e cadências vêm do Kotlin.
 
-## Fluxo de entrada
+A UI continua mínima. Windows startup/proxy, notificações nativas, PDF, Editor de Vídeo, extrator/downloader e empacotamento portable continuam fora deste passo.
 
-`run.py` → `monitor_noticias.app.application.Application` → `QApplication` → `monitor_noticias.ui.main_window.MainWindow`.
+## Camadas
 
-## Camadas existentes
+- `monitor_noticias.app.preferences`: compatibilidade de SharedPreferences Desktop baseada em arquivo `.properties`.
+- `monitor_noticias.automation.models`: `LiveSearchProgress` e contratos mínimos de resultado.
+- `monitor_noticias.automation.clock`: relógio local injetável para testes; runtime usa relógio do sistema.
+- `monitor_noticias.automation.settings`: chaves/defaults de automação da baseline.
+- `monitor_noticias.automation.service`: scheduler de 30 s, guards, lanes, estado, progresso e cancelamento cooperativo.
+- `monitor_noticias.collectors.*`: permanece responsável por rede/parsing; não é duplicado no scheduler.
+- `monitor_noticias.matching`: permanece responsável por matching; não é duplicado no scheduler.
+- `monitor_noticias.database`: permanece responsável por SQLite; o scheduler não contém SQL.
 
-- `monitor_noticias.app`: bootstrap, paths, logging e exceções.
-- `monitor_noticias.database`: SQLite, `NewsDb`, `VideoDb`.
-- `monitor_noticias.models`: `News`, `Demand`, `VideoItem`, `MediaSource`, `VideoSource`.
-- `monitor_noticias.matching`: regras puras de notícias/vídeos.
-- `monitor_noticias.networking`: transporte HTTP comum somente quando o contrato é compatível.
-- `monitor_noticias.collectors.news`: Google News RSS e Últimas Notícias.
-- `monitor_noticias.collectors.video`: Globoplay, YouTube, portal genérico e página direta.
+## Topologia de execução
 
-## Networking
+O Kotlin usa `CoroutineScope(SupervisorJob() + Dispatchers.Default)`, `newsJob` e `videoJob` separados, com `newsBusy` compartilhado entre notícias/demandas e `videoBusy` separado.
 
-### `HttpClient`
+O equivalente Python usa:
 
-Usa `requests.Session` e mantém:
+1. uma thread daemon para o loop de 30 segundos;
+2. um executor serial (`max_workers=1`) para notícias/demandas;
+3. um executor serial (`max_workers=1`) para vídeos.
 
-- GET e POST JSON;
-- timeouts de conexão/leitura separados;
-- redirects habilitados;
-- headers passados por coletor;
-- limite de corpo quando o Kotlin usa `maxBodySize`;
-- proxies opcionais por injeção, sem implementar ainda a configuração global do MIG-040.
+Isso preserva a topologia observada: notícias e demandas são mutuamente exclusivas; vídeo pode rodar simultaneamente com uma delas. Não foram criados pools por fonte nem paralelismo adicional.
 
-Não existe retry genérico. Retry é responsabilidade de cada coletor quando comprovado no Kotlin.
+## Scheduling
 
-## Coletores de notícias
+### Notícias
 
-### Google News
+Default 30 min; mínimo 15. Vencimento: `now - lastNewsAutoAt >= interval * 60000`. O timestamp é persistido antes de iniciar `search_news()`.
 
-`GoogleNewsCollector` porta `NewsRepository.fetchGoogleNews`: URL pt-BR, GET, UA `MonitorNoticiasAndroid/3.0`, connect 8 s, read 10 s, XML RSS, campos `title/link/pubDate/description/source`, snippet máximo 500. Falha retorna `None`, como `runCatching(...).getOrNull()`.
+### Demandas
 
-### Últimas Notícias
+Default 60 min; mínimo 15. Usa a mesma lane de notícias e só é testada no `else if` após notícias; por isso notícia vencida tem prioridade. Timestamp também é persistido antes do job.
 
-`NewsLatestCollector` porta o coletor direto das seis fontes: CNN, Metrópoles, Folha, R7, Jovem Pan e O Globo. Mantém UA, Accept-Language, Referer Google, timeout 12 s, limite 3,5 MB, seleção de links/artigos, metadata e match local. O coletor retorna `Outcome(failed=True)` quando a página de listagem falha.
+### Vídeos
 
-## Coletores de vídeo
+Horários padrão: `08:00`, `12:00`, `15:00`, `19:00`, `21:00`. Usa horário local do sistema, compara apenas `HH:mm` e impede duplicação pela chave `yyyy-MM-dd-HH-mm` em `desktop_auto_video_slot`.
 
-### Globoplay Trechos
+O loop não implementa catch-up explícito para um minuto perdido. Comportamento do sistema operacional em suspensão/retomada além dessa regra: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-`GloboplayTrechosCollector` preserva o fluxo conhecido: rota estável → landing `/t/<token>` → seed de `/v/<id>` → descoberta por busca → até dois seeds → `/cenas/` → anchors/JSON serializado. Mantém timeout 14 s, corpo 8 MB, máximo 2 páginas de programa e máximo 48 trechos. MIG-028 permanece `EM TESTE` até confronto integral de todas as rotas estáveis.
+## Execução manual e automática
 
-### Globoplay Edições
+A automação chama os mesmos métodos públicos usados por disparos manuais: notícias → `search_news`, demandas → `search_all_demands`, vídeos → `search_videos`. Dessa forma não existem dois motores com regras diferentes.
 
-`GloboplayEditionCollector` preserva descoberta de programa, identificação de edição por `dd/MM/yyyy`, janela do dia limitada a `capturedAt`, abertura da edição e extração de trechos. MIG-027 permanece `EM TESTE` porque limites específicos por categoria de fonte ainda exigem confronto integral com o catálogo Kotlin.
+## Estado e progresso
 
-### Globoplay Jarvis
+Não foram inventados enums `IDLE/RUNNING/...`. O estado preserva os campos concretos do Controller: `newsBusy`, `videoBusy`, `status`, `videoStatus`, progresso de notícias/vídeos, durações e fontes de vídeo instáveis.
 
-`GloboplayJarvisCollector` usa POST `https://cloud-jarvis.globo.com/graphql`, payload/operationName/query original, headers `x-platform-id`, `x-device-id`, `x-client-version`, connect 8 s/read 12 s e somente 2 tentativas com espera de 350 ms. Expande queries com a regra especial de 7 de Setembro e singularização comprovada. Mantém orçamento de 48 enriquecimentos de data em `/v/<id>`.
+`LiveSearchProgress` reproduz os campos e a fração do Kotlin. O serviço expõe callback `on_state` desacoplado da UI; futura camada PySide6 pode transformar isso em sinais sem acoplar widgets ao motor.
 
-### YouTube
+## Retry e timeout
 
-`YouTubeCollector` usa a aba `/videos` como caminho principal, detecta channelId, consulta RSS como apoio para data/descrição e prefere o item RSS quando o mesmo vídeo aparece em ambos. g1 e Domingo Espetacular mantêm os channel IDs oficiais do Desktop Kotlin. HTML usa timeout 18 s; RSS usa 16 s; máximo 40 itens.
+Não existe retry no scheduler Desktop analisado. Não existe timeout global de job comprovado. Logo a automação Python não adiciona nenhum. Retry/timeout continuam responsabilidade das camadas de coleta já migradas.
 
-### Portal HTML genérico
+## Cancelamento
 
-`WebsiteVideoCollector` representa `fetchWebsite/fetchSearchWebsite/fetchPageLinks`: monta a query com `searchPrefix`, resolve links relativos, aplica validação de URL específica, extrai título/summary e deduplica por canonicalKey. Ele retorna candidatos; não persiste no banco.
+O Kotlin cancela o `Job` correspondente e a coroutine propaga `CancellationException`. O Python usa `CancellationToken` e preserva os mesmos guards/status. A equivalência durante uma chamada de I/O já bloqueada permanece `EM TESTE` até os repositories reais consumirem o token entre operações.
 
-### Página direta
+## Persistência
 
-`DirectVideoPageResolver` representa `resolveDirectVideoPage`: canonical/og:url, título, descrição, JSON/metadata estruturada, data publicada, sinal de vídeo e summary enriquecido até 1800 caracteres.
+`SharedPreferences` grava em `data/prefs/monitor_prefs.properties`, mantendo escalares em texto e StringSet em Base64 URL-safe sem padding, separado por `|`. A gravação usa arquivo temporário e substituição.
 
-## Matching e persistência
+Compatibilidade byte a byte com `java.util.Properties.store` ainda não foi confrontada; por isso MIG-003 está `EM TESTE`.
 
-Os coletores reutilizam as funções do Passo 5. Não há cópia de matcher dentro dos coletores quando o Kotlin faz matching no repository. Nenhum coletor grava diretamente em SQLite; `NewsDb`/`VideoDb` continuam separados.
+## Fronteira com repositories
+
+Os business repositories completos (`NewsRepository`/`VideoRepository`) ainda não foram migrados no destino. Para não inventar uma implementação parcial dentro do scheduler, `AutomationService` depende de protocolos `NewsRunner` e `VideoRunner`.
+
+Esses runners deverão, em passo próprio, conectar coletores + matching + DAOs com as regras exatas dos repositories Kotlin. Até isso ocorrer, o motor de scheduling pode ser validado deterministicamente com fakes, mas não é declarado integração end-to-end de rede/banco.
 
 ## Testes
 
-O Passo 6 adiciona fixtures controladas, testes unitários, integração de transporte e golden cases. A suíte completa local, incluindo Passos 3–5, passou com 49 testes e 0 falhas. `compileall` também passou.
+64 testes passaram, 0 falhas, incluindo toda a regressão dos Passos 3–6. `compileall` passou. Os testes de automação usam relógio/fakes e não aguardam horários reais nem dependem da Internet.
 
 ## Ainda não migrado
 
 - orchestration completa de `NewsRepository`/`VideoRepository`;
-- `AutomationService`/scheduler;
-- classificação de fonte instável no fluxo completo;
-- SharedPreferences/VideoTermStore persistente;
-- proxy global/configuração/credenciais;
+- ligação end-to-end dos runners com collectors/matching/DAO;
+- cancelamento comprovado dentro de I/O bloqueante;
+- compatibilidade byte a byte de SharedPreferences JVM;
+- `VideoTermStore` persistente;
+- proxy global e startup Windows;
+- notificações Windows nativas;
 - UI completa;
-- Windows notifications/startup;
 - Editor de Vídeo;
 - Editor PDF;
 - extrator/downloader;
-- empacotamento portable.
+- portable final.
