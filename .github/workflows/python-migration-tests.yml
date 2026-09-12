@@ -28,6 +28,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install Qt runtime libraries on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -35,6 +40,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q src
       - name: Run complete test suite
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: python -m pytest -q
 
 # Step 8: matrix Windows/Ubuntu valida regressão completa e integrações nativas com dados fictícios.
+# Step 9: a mesma matriz executa também os testes reais da UI PySide6 em modo offscreen.
