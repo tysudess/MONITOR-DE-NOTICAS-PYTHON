@@ -5,7 +5,6 @@ from .core import (
     ExtractorPortableStateStore,
     ExtractorQuality,
     GloboplaySessionStore,
-    YtDlpUpdater,
     classify_source,
     direct_media_candidates,
     globoplay_m3u8_candidates,
@@ -13,6 +12,7 @@ from .core import (
     normalize_r7_url,
     r7_media_candidates,
 )
+from .updater import YtDlpUpdater
 
 __all__ = [
     "EXTRACTOR_QUALITIES", "ExtractorCancelled", "ExtractorEngine",
