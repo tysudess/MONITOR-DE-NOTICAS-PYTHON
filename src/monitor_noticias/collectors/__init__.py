@@ -1,1 +1,1 @@
-"""Placeholder estrutural. Implementação funcional será adicionada em passo MIG específico."""
+"""Coletores isolados equivalentes à baseline Kotlin V8."""

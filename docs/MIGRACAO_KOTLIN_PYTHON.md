@@ -10,11 +10,14 @@
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-## Estado após o Passo 5
+## Estado após o Passo 6
 
-Foram aprovados por equivalência de regra pura: MIG-017, MIG-018, MIG-019, MIG-020, MIG-025, MIG-032, MIG-084 e MIG-085.
-MIG-024 está `BLOQUEADO` porque sua persistência depende de SharedPreferences/MIG-003, ainda pendente.
-MIG-005 a MIG-013 continuam `EM TESTE` até confronto com cópia runtime real dos bancos.
+Coletores migrados isoladamente e cobertos por fixtures: Google News RSS, Últimas Notícias, Globoplay Trechos, Globoplay Edições, Globoplay Jarvis, YouTube, portal HTML genérico e enriquecimento de página direta.
+
+- `MIG-015`, `MIG-021`, `MIG-029`, `MIG-030`, `MIG-031`, `MIG-034`, `MIG-086` e `MIG-087`: `APROVADO` por contrato estático + parsing/error/output fixture.
+- `MIG-027` e `MIG-028`: `EM TESTE`, pois a implementação principal está funcional, mas o catálogo/limites específicos de todas as rotas Globoplay ainda não foram confrontados integralmente fonte a fonte.
+- `MIG-024`: `BLOQUEADO` por depender de `MIG-003`/SharedPreferences.
+- `MIG-005` a `MIG-013`: permanecem `EM TESTE` aguardando banco runtime real.
 
 ## Checklist oficial
 
@@ -34,26 +37,26 @@ MIG-005 a MIG-013 continuam `EM TESTE` até confronto com cópia runtime real do
 | MIG-012 | Banco | Remoção de listings genéricos | EM TESTE |
 | MIG-013 | Banco | Reparo de matches armazenados | EM TESTE |
 | MIG-014 | Notícias | Janela padrão de 24h | PENDENTE |
-| MIG-015 | Notícias | Google News RSS | PENDENTE |
+| MIG-015 | Notícias | Google News RSS | APROVADO |
 | MIG-016 | Notícias | Planejamento de queries por termo/fonte | PENDENTE |
 | MIG-017 | Notícias | Identidade storyKey | APROVADO |
 | MIG-018 | Notícias | Preservação da primeira captura/NOVO | APROVADO |
 | MIG-019 | Notícias | Matching subjectMatches | APROVADO |
 | MIG-020 | Notícias | Matching fonte/veículo | APROVADO |
-| MIG-021 | Notícias | Collector direto Últimas Notícias | PENDENTE |
+| MIG-021 | Notícias | Collector direto Últimas Notícias | APROVADO |
 | MIG-022 | Notícias | Busca individual de demanda | PENDENTE |
 | MIG-023 | Vídeos | Janela padrão de 24h | PENDENTE |
 | MIG-024 | Vídeos | VideoTermStore independente | BLOQUEADO |
 | MIG-025 | Vídeos | VideoMatchPolicy | APROVADO |
 | MIG-026 | Vídeos | Planejamento source scan x term query | PENDENTE |
-| MIG-027 | Vídeos | Globoplay Edições | PENDENTE |
-| MIG-028 | Vídeos | Globoplay Trechos | PENDENTE |
-| MIG-029 | Vídeos | Globoplay Jarvis global | PENDENTE |
-| MIG-030 | Vídeos | Coleta YouTube canal | PENDENTE |
-| MIG-031 | Vídeos | Enriquecimento de página direta | PENDENTE |
+| MIG-027 | Vídeos | Globoplay Edições | EM TESTE |
+| MIG-028 | Vídeos | Globoplay Trechos | EM TESTE |
+| MIG-029 | Vídeos | Globoplay Jarvis global | APROVADO |
+| MIG-030 | Vídeos | Coleta YouTube canal | APROVADO |
+| MIG-031 | Vídeos | Enriquecimento de página direta | APROVADO |
 | MIG-032 | Vídeos | Canonical URLs e merge | APROVADO |
 | MIG-033 | Vídeos | Classificação de fonte instável | PENDENTE |
-| MIG-034 | Vídeos | Fontes Desktop extras g1/Domingo Espetacular | PENDENTE |
+| MIG-034 | Vídeos | Fontes Desktop extras g1/Domingo Espetacular | APROVADO |
 | MIG-035 | Automação | Loop residente | PENDENTE |
 | MIG-036 | Automação | Intervalo automático de notícias | PENDENTE |
 | MIG-037 | Automação | Intervalo automático de demandas | PENDENTE |
@@ -105,19 +108,37 @@ MIG-005 a MIG-013 continuam `EM TESTE` até confronto com cópia runtime real do
 | MIG-083 | Build | BUILD-SHA e hash do ZIP | PENDENTE |
 | MIG-084 | Vídeos | Priorização estável de candidatos Globoplay | APROVADO |
 | MIG-085 | Vídeos | Filtros/exclusões puros de candidato direto | APROVADO |
+| MIG-086 | Vídeos | Coletor HTML genérico de portal/busca | APROVADO |
+| MIG-087 | Networking | Transporte HTTP compatível e injetável para coletores | APROVADO |
 
-## Observações do Passo 5
+## Relação Kotlin → Python dos coletores
 
-- Matching de notícias e vídeos permanece separado porque o Kotlin possui regras diferentes.
-- `VideoMatchPolicy.phraseMatches` mantém frase vazia = `false`; `VideoRepository.phraseMatches` mantém frase vazia = `true`.
-- `storyKey`, `mergeNews`, `subjectMatches`, `demandVehicleMatches` e `sourceMatchesStrict` foram portados diretamente do `NewsRepository.kt`.
-- `canonicalizeUrl`, `canonicalKey`, `mergeVideo`, `sourceMatchesDemand`, prioridade Globoplay e filtros puros de candidato foram portados do `VideoRepository.kt`.
-- A limpeza conceitual de termos foi portada como helper puro, mas MIG-024 não foi concluído porque a persistência em SharedPreferences não foi migrada.
-- Nenhum coletor HTTP, automação ou UI foi conectado.
+| Kotlin | Python |
+|---|---|
+| `NewsRepository.fetchGoogleNews` | `collectors.news.GoogleNewsCollector` |
+| `NewsLatestCollector` | `collectors.news.NewsLatestCollector` |
+| `GloboplayTrechosCollector` | `collectors.video.GloboplayTrechosCollector` |
+| `GloboplayEditionCollector` | `collectors.video.GloboplayEditionCollector` |
+| `GloboplayJarvisCollector` | `collectors.video.GloboplayJarvisCollector` |
+| `VideoRepository.fetchYoutube` | `collectors.video.YouTubeCollector` |
+| `VideoRepository.fetchWebsite/fetchSearchWebsite` | `collectors.video.WebsiteVideoCollector` |
+| `VideoRepository.resolveDirectVideoPage` | `collectors.video.DirectVideoPageResolver` |
+| `DesktopVideoSources.extras` | `collectors.video.DESKTOP_VIDEO_EXTRAS` |
+
+## Observações do Passo 6
+
+- O cliente HTTP é injetável para testes, mas usa `requests.Session` em runtime.
+- Jsoup foi traduzido para BeautifulSoup apenas na camada de parsing HTML; seletores, ordem e filtros relevantes foram preservados.
+- Não há retry genérico. Jarvis mantém exatamente 2 tentativas e 350 ms entre tentativas.
+- Google News preserva GET, URL, UA, connect timeout 8 s e read timeout 10 s.
+- Últimas Notícias preserva as seis rotas diretas, UA, Accept-Language, Referer, timeout 12 s, limite de 3,5 MB e máximo 20 resultados.
+- YouTube preserva aba `/videos` como caminho principal, RSS como apoio/fallback, timeouts 18 s/16 s e limite de 40 itens.
+- O proxy completo permanece responsabilidade de MIG-040; o transporte aceita proxies injetados, mas nenhuma credencial/configuração nova foi criada.
+- Nenhum coletor grava automaticamente no banco; persistência e orchestration continuam nos repositories futuros.
 
 ## Regra de numeração
 
-Os identificadores MIG-001 a MIG-085 são permanentes. Não renumerar, agrupar, reutilizar ou substituir números. Novos itens futuros devem receber novos identificadores após MIG-085.
+Os identificadores MIG-001 a MIG-087 são permanentes. Não renumerar, agrupar, reutilizar ou substituir números. Novos itens futuros devem receber novos identificadores após MIG-087.
 
 ## Regra de aprovação
 

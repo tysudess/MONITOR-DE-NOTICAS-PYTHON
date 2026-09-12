@@ -105,7 +105,7 @@ COMPORTAMENTO ORIGINAL: reparo de banco chama `VideoMatchPolicy.phraseMatches`.
 DECISÃO: no Passo 4 foi portada a política mínima necessária.  
 JUSTIFICATIVA: MIG-013 depende dela.  
 EVIDÊNCIA NO KOTLIN: `DesktopVideoDb.kt`, `VideoMatchPolicy.kt`.  
-IMPACTO: Passo 5 agora valida e conclui MIG-025.  
+IMPACTO: Passo 5 validou e concluiu MIG-025.  
 REVERSÍVEL: Sim.
 
 ## DEC-010
@@ -115,7 +115,7 @@ MIG RELACIONADO: MIG-019, MIG-020, MIG-025
 COMPONENTE: Matchers separados  
 COMPORTAMENTO ORIGINAL: `NewsRepository.subjectMatches`, `VideoMatchPolicy.phraseMatches` e `VideoRepository.phraseMatches` não possuem semântica idêntica.  
 DECISÃO: manter implementações separadas.  
-JUSTIFICATIVA: notícias não usam flexões; vídeo usa flexões/7 de Setembro; frase vazia é `false` no `VideoMatchPolicy` e `true` no matcher privado do `VideoRepository`.  
+JUSTIFICATIVA: notícias não usam flexões; vídeo usa flexões/7 de Setembro; frase vazia difere entre as duas funções de vídeo.  
 EVIDÊNCIA NO KOTLIN: `NewsRepository.kt`, `VideoMatchPolicy.kt`, `VideoRepository.kt`.  
 IMPACTO: não existe matcher genérico único.  
 REVERSÍVEL: Não sem alterar comportamento.
@@ -126,11 +126,11 @@ DATA: 2026-09-12
 MIG RELACIONADO: MIG-019, MIG-020, MIG-025, MIG-084, MIG-085  
 COMPONENTE: Normalização Unicode/regex  
 COMPORTAMENTO ORIGINAL: JVM usa NFD, remove `\p{Mn}+`, troca `[^a-z0-9]+` por espaço e aplica trim.  
-DECISÃO: em Python usar `unicodedata.normalize("NFD")`, remover caracteres `category == "Mn"` e aplicar `re.sub(r"[^a-z0-9]+", " ", ...)`.  
-JUSTIFICATIVA: Python `re` não implementa `\p{Mn}` nativamente; a adaptação preserva o resultado.  
-EVIDÊNCIA NO KOTLIN: normalizadores de `NewsRepository`, `VideoRepository` e `VideoMatchPolicy`.  
-IMPACTO: mesma equivalência de acentos/case nos golden cases.  
-REVERSÍVEL: Sim, desde que resultados permaneçam equivalentes.
+DECISÃO: em Python usar `unicodedata.normalize("NFD")`, remover `category == "Mn"` e `re.sub(r"[^a-z0-9]+", " ", ...)`.  
+JUSTIFICATIVA: adaptação sintática equivalente.  
+EVIDÊNCIA NO KOTLIN: normalizadores dos repositories/policy.  
+IMPACTO: mesma equivalência de acentos/case.  
+REVERSÍVEL: Sim, preservando resultados.
 
 ## DEC-012
 ID DA DECISÃO: DEC-012  
@@ -138,10 +138,10 @@ DATA: 2026-09-12
 MIG RELACIONADO: MIG-024, MIG-003  
 COMPONENTE: VideoTermStore  
 COMPORTAMENTO ORIGINAL: termos de vídeo são persistidos em SharedPreferences com chaves `video_terms_v400*`.  
-DECISÃO: não implementar persistência do VideoTermStore neste passo; portar somente a função pura de limpeza/ordenação. Marcar MIG-024 `BLOQUEADO` até MIG-003.  
-JUSTIFICATIVA: não inventar storage temporário diferente.  
+DECISÃO: não implementar persistência antes de MIG-003; portar somente limpeza/ordenação pura.  
+JUSTIFICATIVA: não inventar storage alternativo.  
 EVIDÊNCIA NO KOTLIN: `VideoTermStore.kt`.  
-IMPACTO: regra conceitual testável; persistência ainda ausente.  
+IMPACTO: MIG-024 permanece `BLOQUEADO`.  
 REVERSÍVEL: Sim.
 
 ## DEC-013
@@ -150,21 +150,21 @@ DATA: 2026-09-12
 MIG RELACIONADO: MIG-032, MIG-085  
 COMPONENTE: Canonicalização de URL  
 COMPORTAMENTO ORIGINAL: `java.net.URI` canonicaliza YouTube e remove query/fragment de URLs não-YouTube.  
-DECISÃO: usar `urllib.parse.urlsplit/urlunsplit` somente como adaptação sintática, preservando a mesma saída.  
-JUSTIFICATIVA: equivalente padrão Python sem biblioteca externa.  
+DECISÃO: usar `urllib.parse.urlsplit/urlunsplit` preservando saída.  
+JUSTIFICATIVA: equivalente padrão Python.  
 EVIDÊNCIA NO KOTLIN: `VideoRepository.canonicalizeUrl`.  
-IMPACTO: golden cases protegem YouTube `/watch`, `/shorts`, `/live`, `youtu.be` e URL normal.  
-REVERSÍVEL: Sim, se equivalência for mantida.
+IMPACTO: golden cases protegem formatos principais.  
+REVERSÍVEL: Sim, mantendo equivalência.
 
 ## DEC-014
 ID DA DECISÃO: DEC-014  
 DATA: 2026-09-12  
 MIG RELACIONADO: MIG-084  
 COMPONENTE: Prioridade Globoplay  
-COMPORTAMENTO ORIGINAL: `prioritizeGloboplayCandidates` ordena primeiro candidatos com match superficial de termo/demanda e preserva a ordem original como desempate.  
-DECISÃO: reproduzir como ordenação estável booleana, sem pontuação adicional.  
+COMPORTAMENTO ORIGINAL: candidatos com match superficial vêm primeiro e a ordem original desempata.  
+DECISÃO: ordenação estável booleana, sem pontuação adicional.  
 JUSTIFICATIVA: não inventar score.  
-EVIDÊNCIA NO KOTLIN: `VideoRepository.kt`.  
+EVIDÊNCIA NO KOTLIN: `VideoRepository.prioritizeGloboplayCandidates`.  
 IMPACTO: matched primeiro, ordem original dentro dos grupos.  
 REVERSÍVEL: Não sem alterar resultado.
 
@@ -173,9 +173,45 @@ ID DA DECISÃO: DEC-015
 DATA: 2026-09-12  
 MIG RELACIONADO: MIG-017 a MIG-020, MIG-025, MIG-032, MIG-084, MIG-085  
 COMPONENTE: Escopo do Passo 5  
-COMPORTAMENTO ORIGINAL: as regras puras estão dentro dos repositories, mas rede/coletores são responsabilidades adicionais.  
-DECISÃO: extrair somente regras determinísticas para `matching/`; não iniciar HTTP, scraping, scheduler ou UI.  
-JUSTIFICATIVA: permite equivalência isolada sem criar comportamento acima da camada.  
-EVIDÊNCIA NO KOTLIN: ordem e funções privadas dos repositories ativos.  
-IMPACTO: coletores continuam pendentes.  
+COMPORTAMENTO ORIGINAL: regras puras convivem com rede/coletores dentro dos repositories.  
+DECISÃO: extrair somente regras determinísticas para `matching/`.  
+JUSTIFICATIVA: equivalência isolada sem antecipar HTTP/scheduler/UI.  
+EVIDÊNCIA NO KOTLIN: funções privadas dos repositories ativos.  
+IMPACTO: coletores ficaram para Passo 6.  
 REVERSÍVEL: Sim.
+
+## DEC-016
+ID DA DECISÃO: DEC-016  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-015, MIG-021, MIG-027 a MIG-031, MIG-086, MIG-087  
+COMPONENTE: HTTP e parsing HTML  
+COMPORTAMENTO ORIGINAL: Kotlin usa `HttpURLConnection` para Google/Jarvis e Jsoup para páginas HTML/XML, com timeouts/headers próprios por coletor.  
+DECISÃO: usar `requests` para transporte HTTP e `BeautifulSoup` para parsing compatível com seletores CSS; manter timeouts, headers, redirects, métodos e limites de corpo por coletor.  
+JUSTIFICATIVA: bibliotecas Python adequadas sem alterar endpoints ou estratégia.  
+EVIDÊNCIA NO KOTLIN: `NewsRepository.kt`, `NewsLatestCollector.kt`, `Globoplay*Collector.kt`, `VideoRepository.kt`.  
+IMPACTO: adicionadas dependências `requests>=2.32,<3` e `beautifulsoup4>=4.12,<5`.  
+REVERSÍVEL: Sim, se comportamento permanecer equivalente.
+
+## DEC-017
+ID DA DECISÃO: DEC-017  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-087, MIG-040  
+COMPONENTE: Transporte injetável e proxy  
+COMPORTAMENTO ORIGINAL: proxy é aplicado externamente pelo Controller/JVM; coletores não possuem UI própria de proxy.  
+DECISÃO: `HttpClient` aceita `proxies` por injeção, mas não cria configuração, credenciais nem UI de proxy neste passo.  
+JUSTIFICATIVA: permitir o mesmo caminho futuro sem antecipar MIG-040.  
+EVIDÊNCIA NO KOTLIN: `DesktopControllerV5.applyProxySettings` e coletores ativos.  
+IMPACTO: MIG-040 continua `PENDENTE`; nenhum segredo foi criado.  
+REVERSÍVEL: Sim.
+
+## DEC-018
+ID DA DECISÃO: DEC-018  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-027, MIG-028  
+COMPONENTE: Aprovação parcial Globoplay Edições/Trechos  
+COMPORTAMENTO ORIGINAL: esses coletores possuem catálogo de rotas e limites específicos por fonte, além de descoberta dinâmica.  
+DECISÃO: manter ambos em `EM TESTE` apesar do caminho principal implementado e coberto por fixture, até confronto integral de todas as rotas/limites do catálogo Kotlin.  
+JUSTIFICATIVA: não declarar equivalência integral com cobertura parcial.  
+EVIDÊNCIA NO KOTLIN: `GloboplayEditionCollector.kt`, `GloboplayTrechosCollector.kt`.  
+IMPACTO: código utilizável em testes isolados; aprovação final adiada.  
+REVERSÍVEL: Sim após equivalência integral.

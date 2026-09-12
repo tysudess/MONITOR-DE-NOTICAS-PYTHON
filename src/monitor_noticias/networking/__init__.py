@@ -1,1 +1,3 @@
-"""Placeholder estrutural. Implementação funcional será adicionada em passo MIG específico."""
+from .http_client import HttpClient, HttpResult
+
+__all__ = ["HttpClient", "HttpResult"]
