@@ -7,30 +7,38 @@
 - Baseline funcional: Build SHA `df1701ba5427a04954093e8ebed63f26abb2b2b7` + transformações do workflow da release V8.
 - Branch de migração: `migration/python-foundation`.
 
+O comportamento comprovado na baseline é a fonte da verdade. Lacunas não são preenchidas por suposição. Quando algo não é comprovado: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+
 ## Estados permitidos
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-## Estado após o Passo 8
+## Estado após o Passo 9
 
-O Passo 8 adiciona somente infraestrutura de rede/proxy e integrações Windows comprovadas: configuração de proxy global, migração de host legado, senha protegida com DPAPI CurrentUser, startup por HKCU Run, notificação por tray, execução de subprocessos sem `shell=True` e testes Windows isolados. Interface completa, Editor de Vídeo, Editor PDF, extrator/downloader e portable final permanecem fora do escopo.
+Os Passos 1 a 8 permanecem preservados. O Passo 9 adiciona a shell principal PySide6, navegação, páginas principais, integração visual de proxy/startup/automação, catálogo de notícias da tela Fontes, tray/close-to-tray e testes de GUI reais em Qt offscreen.
 
-O Kotlin Desktop ativo **não usa JNA nem Windows Credential Manager**. Nenhum target de Credential Manager foi inventado. Também não foi encontrada persistência principal em AppData/LocalAppData/Documents/Downloads/ProgramData/UserProfile; o motor Desktop usa raiz portable e `data/`.
+A UI não duplica business logic. O destino ainda declara que os business `NewsRepository` e `VideoRepository` completos não foram migrados; por isso a execução real de notícias/vídeos/demanda individual permanece bloqueada na composição padrão. Os testes injetam uma `AutomationPort` fake somente para provar o encadeamento da UI, não para fingir engine de produção.
 
-A baseline possui uma inconsistência objetiva: `DesktopControllerV5` usa default/migração `proxy-7dn.mb`, mas a tela do Build SHA ainda chama `saveProxy(..., "proxy-7db.mb", 6060, ...)`. Como a UI não é migrada neste passo, a camada Python preserva a regra do Controller e aceita host do chamador; não cria correção visual antecipada.
+Editor PDF, Extrator e Editor de Vídeo aparecem somente como pontos de navegação/placeholder. Seus motores continuam fora do Passo 9.
 
-## MIG trabalhados no Passo 8
+## MIG trabalhados no Passo 9
 
-- `MIG-039` — Iniciar com Windows: `EM TESTE`.
-- `MIG-040` — Proxy geral: `EM TESTE`.
-- `MIG-041` — Migração `proxy-7db.mb` → `proxy-7dn.mb`: `APROVADO`.
-- `MIG-087` — Transporte HTTP injetável: permanece `APROVADO`; passa a aceitar configuração real do proxy sem mudar o caminho sem proxy.
-- `MIG-090` — DPAPI CurrentUser compatível com o formato comprovado: `EM TESTE`.
-- `MIG-091` — Adaptador de notificações Windows/tray: `EM TESTE`.
-- `MIG-092` — Processo oculto/árvore de processo Windows: `EM TESTE`.
-- `MIG-093` — Senha de proxy protegida + migração de plaintext legado: `EM TESTE`.
-
-`MIG-049` e `MIG-056` foram apenas referenciados porque seus arquivos Kotlin comprovam o contrato DPAPI; continuam `PENDENTE` porque pertencem ao extrator, que não foi migrado neste passo.
+- `MIG-004` — tray/execução residente: avançou para `EM TESTE`.
+- `MIG-039` — startup visual: permanece `EM TESTE` até executável final.
+- `MIG-040` — proxy visual: permanece `EM TESTE` até composição completa do transporte/repositories.
+- `MIG-091` — notificação/tray: permanece `EM TESTE` até desktop interativo final.
+- `MIG-094` — MainWindow/sidebar/QStackedWidget/close-to-tray: `EM TESTE`.
+- `MIG-095` — Dashboard/Início: `EM TESTE`.
+- `MIG-096` — tela Notícias: `BLOQUEADO` pela ausência do business NewsRepository.
+- `MIG-097` — tela Vídeos: `BLOQUEADO` pela ausência do business VideoRepository e por lacuna de período personalizado.
+- `MIG-098` — tela Demandas: `BLOQUEADO` para busca individual pela ausência do NewsRepository; CRUD local está testado.
+- `MIG-099` — tela Termos: `BLOQUEADO` por `MIG-024` para termos de vídeo.
+- `MIG-100` — tela Fontes: `BLOQUEADO` para equivalência integral porque `VideoSourceCatalog` base não existe no destino; notícias/especializadas estão portadas.
+- `MIG-101` — Histórico: `APROVADO`.
+- `MIG-102` — Configurações: `EM TESTE`.
+- `MIG-103` — Parar buscas/progresso/status: `EM TESTE` até jobs reais dos repositories.
+- `MIG-104` — integração visual de PDF/Extrator/Editor de Vídeo sem motores: `APROVADO` para o escopo do Passo 9.
+- `MIG-105` — testes Qt/navegação/equivalência em Windows+Ubuntu: `APROVADO`.
 
 ## Checklist oficial
 
@@ -39,7 +47,7 @@ A baseline possui uma inconsistência objetiva: `DesktopControllerV5` usa defaul
 | MIG-001 | Infraestrutura | Baseline congelada df1701 + workflow | PENDENTE |
 | MIG-002 | Infraestrutura | Resolução de raiz portable | PENDENTE |
 | MIG-003 | Infraestrutura | SharedPreferences portable | EM TESTE |
-| MIG-004 | Infraestrutura | Tray e execução residente | PENDENTE |
+| MIG-004 | Infraestrutura | Tray e execução residente | EM TESTE |
 | MIG-005 | Banco | Schema news | EM TESTE |
 | MIG-006 | Banco | Migrations runtime news/demands | EM TESTE |
 | MIG-007 | Banco | Tabela terms e seed | EM TESTE |
@@ -122,86 +130,135 @@ A baseline possui uma inconsistência objetiva: `DesktopControllerV5` usa defaul
 | MIG-084 | Vídeos | Priorização estável de candidatos Globoplay | APROVADO |
 | MIG-085 | Vídeos | Filtros/exclusões puros de candidato direto | APROVADO |
 | MIG-086 | Vídeos | Coletor HTML genérico de portal/busca | APROVADO |
-| MIG-087 | Networking | Transporte HTTP compatível e injetável para coletores | APROVADO |
-| MIG-088 | Automação | Orquestração Desktop manual/automática e lanes de concorrência | APROVADO |
-| MIG-089 | Automação | Progresso, status, durações e resultado operacional Desktop | APROVADO |
+| MIG-087 | Networking | Transporte HTTP compatível/injetável | APROVADO |
+| MIG-088 | Automação | Orquestração Desktop e lanes | APROVADO |
+| MIG-089 | Automação | Progresso/status/durações | APROVADO |
 | MIG-090 | Windows/Segurança | DPAPI CurrentUser compatível | EM TESTE |
 | MIG-091 | Windows | Adaptador de notificação pelo tray | EM TESTE |
-| MIG-092 | Windows | Execução oculta e encerramento de árvore de processos | EM TESTE |
-| MIG-093 | Networking/Segurança | Senha de proxy DPAPI e migração segura do legado | EM TESTE |
+| MIG-092 | Windows | Processo oculto/árvore de processo | EM TESTE |
+| MIG-093 | Segurança | Senha proxy DPAPI e migração segura | EM TESTE |
+| MIG-094 | UI | MainWindow, sidebar, stack, tray, close-to-tray | EM TESTE |
+| MIG-095 | UI | Dashboard/Início e ações rápidas | EM TESTE |
+| MIG-096 | UI | Notícias, filtros, períodos, progresso e ações | BLOQUEADO |
+| MIG-097 | UI | Vídeos, filtros, progresso, instabilidades e ações | BLOQUEADO |
+| MIG-098 | UI | Demandas, CRUD e ações | BLOQUEADO |
+| MIG-099 | UI | Gestão visual de termos | BLOQUEADO |
+| MIG-100 | UI | Fontes, catálogo, filtros e seleção | BLOQUEADO |
+| MIG-101 | UI | Histórico notícias/vídeos e limpeza | APROVADO |
+| MIG-102 | UI | Configurações proxy/startup/automação | EM TESTE |
+| MIG-103 | UI | Parar buscas, progresso e status | EM TESTE |
+| MIG-104 | UI | Pontos visuais PDF/Extrator/Editor Vídeo | APROVADO |
+| MIG-105 | UI/Testes | Smoke, navegação e equivalência Qt | APROVADO |
 
-## Inventário Windows comprovado
+## Inventário das telas ativas
 
-| Função | Kotlin | API/mecanismo | Entrada | Saída | Risco | MIG |
-|---|---|---|---|---|---|---|
-| Proxy global | `DesktopControllerV5` | propriedades JVM + `Authenticator` | enable/host/port/user/pass | proxy HTTP/HTTPS | alto | MIG-040 |
-| Migração host | `DesktopControllerV5.migrateProxyHost` | SharedPreferences | 7db/vazio | 7dn | baixo | MIG-041 |
-| Teste proxy | `DesktopControllerV5.testProxyConnection` | Jsoup | configuração | sucesso/erro textual | médio | MIG-040 |
-| Startup | `DesktopControllerV5.configureWindowsStartup` | `reg.exe` | bool + executável | HKCU Run | médio | MIG-039 |
-| Notificação | `DashboardV5Main` | Compose Tray | título/mensagem | toast/tray | baixo | MIG-091 |
-| DPAPI proxy extrator | `ExtractorPortableStateStore` | `ProtectedData` | texto UTF-8 | Base64 DPAPI | alto | MIG-090 |
-| DPAPI sessão | `GloboplaySessionStore` | `ProtectedData` | cookies | Base64 DPAPI | alto | MIG-090 |
-| Processo oculto | `HiddenWindowsProcess` | ProcessBuilder/PowerShell/taskkill | argv/env/cwd | processo/exit | médio | MIG-092 |
+| Tela | Origem Kotlin | Acesso | Dados/serviço | Estado Python |
+|---|---|---|---|---|
+| Início | `V5HomeScreen` | sidebar HOME | Controller/DB/automação | migrada, EM TESTE |
+| Notícias | `V5NewsScreen` | sidebar NEWS | NewsRepository/Controller | widget migrado, engine BLOQUEADO |
+| Vídeos | `V5VideosScreen` | sidebar VIDEOS | VideoRepository/Controller | widget migrado, engine BLOQUEADO |
+| Demandas | `V5DemandsScreen` | sidebar DEMANDS | NewsDb/NewsRepository | CRUD migrado, busca individual BLOQUEADA |
+| Fontes | `V5SourcesScreen` | sidebar SOURCES | SourceCatalog/DesktopVideoSources | notícias completas, vídeo parcial |
+| Histórico | `V5HistoryScreen` | sidebar HISTORY | NewsDb/VideoDb | APROVADO |
+| Termos | `V5TermsScreen` | sidebar TERMS | NewsDb/VideoTermStore | notícia funcional, vídeo BLOQUEADO |
+| Parar buscas | `V5StopScreen` | sidebar STOP | Controller/AutomationService | EM TESTE |
+| Configurações | `V5SettingsScreen` | sidebar SETTINGS | prefs/proxy/startup/automação | EM TESTE |
+| Editor PDF | `PdfEditorScreenV2` | sidebar PDF_EDITOR | motor PDF | placeholder visual |
+| Extrator | `ExtractorVideoScreen` | sidebar EXTRACTOR | motor extrator | placeholder visual |
+| Editor Vídeo | build patch + `VideoEditorScreen` | sidebar VIDEO_EDITOR | PySide editor externo | placeholder visual |
 
-Credential Manager: **não encontrado**. JNA: **não encontrado**. Não há dependência JNA no módulo Desktop.
+## Hierarquia da janela
 
-## Proxy
+- Título: `Monitor de Notícias - Windows Portable v4.0.2`.
+- Tamanho inicial: 1600×960.
+- Sidebar: 258.
+- Fechar: oculta para tray.
+- Sair: fecha controller e encerra a janela.
+- Timer de UI: 250 ms.
+- Estado maximizado inicial: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+- Tamanho mínimo explícito: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+- Posição inicial explícita: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-Defaults comprovados: desativado, host `proxy-7dn.mb`, porta `6060`, usuário/senha vazios. Porta é limitada a `1..65535`. Proxy pronto exige enabled + host + porta válida + usuário + senha. Labels preservados: `Proxy desativado`, `Proxy pronto`, `Proxy requer configuração`.
+## Menu e navegação
 
-O transporte Python monta o mesmo proxy para HTTP e HTTPS e injeta em `requests`; quando desativado, `proxies=None`, preservando o caminho sem proxy. O teste usa `https://www.google.com/generate_204`, UA `Mozilla/5.0 MonitorDeNoticias/4.0.2`, timeout 12 s e aceita HTTP 200..399.
+A ordem final é:
 
-## SEGURANÇA DE CREDENCIAIS
+`Início → Notícias → Vídeos → Demandas → Fontes → Histórico → Termos → Parar buscas → Configurações → Editor de PDF → Extrator de Vídeos → Editor de Vídeo`.
 
-### Contrato original protegido
+A última seção é adicionada pelo script de integração da release, portanto não foi inferida apenas do arquivo estático.
 
-Os stores do extrator usam Windows DPAPI com `DataProtectionScope.CurrentUser`, entropy adicional `null`, bytes UTF-8 e arquivo contendo Base64 do blob protegido. A implementação Python usa diretamente `CryptProtectData`/`CryptUnprotectData` via `ctypes`, sem depender de Python global ou pywin32.
+## Dashboard
 
-### Senha do proxy Desktop
+Foram migrados os indicadores e ações principais. Não foram inventados KPIs. O bloco meteorológico/decorativo do Compose não foi reproduzido e nenhum serviço de clima novo foi criado.
 
-A baseline `DesktopControllerV5` grava `desktop_proxy_password` em SharedPreferences como texto. O Passo 8 proíbe explicitamente reduzir segurança ou manter senha em texto puro. Por isso a migração Python preserva todas as demais chaves e semânticas, mas move a senha para `data/prefs/desktop_proxy_password.dpapi` usando DPAPI CurrentUser.
+## Notícias
 
-Compatibilidade legada: se `desktop_proxy_password` existir em um arquivo antigo, o Python tenta protegê-lo primeiro e somente após sucesso remove a chave em claro. Se a proteção falhar, a chave não é apagada automaticamente. Senha, blob DPAPI e plaintext descriptografado nunca são registrados em log.
+A UI possui busca, `Só demandas`, períodos Hoje/24h/7d/30d/personalizado, botão buscar, parar, progresso/status e ações Abrir/WhatsApp/Copiar.
 
-Credential Manager: **NÃO DETERMINADO PELO CÓDIGO ANALISADO como mecanismo usado; nenhuma chamada/target foi encontrada. Portanto não foi implementado.**
+A execução real permanece bloqueada porque `NewsRepository` completo ainda não existe no destino. A UI não faz requests diretamente.
 
-## Registry e startup
+## Vídeos
 
-Contrato preservado:
+A UI possui busca, períodos rápidos, executar/parar, progresso/status, fontes instáveis e ações Abrir/WhatsApp/Copiar. O período personalizado do Kotlin ainda não foi reproduzido. A execução real permanece bloqueada pelo `VideoRepository` ausente.
 
-- HIVE: `HKEY_CURRENT_USER`.
-- PATH: `Software\Microsoft\Windows\CurrentVersion\Run`.
-- VALUE NAME: `MonitorDeNoticias`.
-- TYPE: `REG_SZ`.
-- enable: valor é o caminho do executável entre aspas.
-- disable: remove o valor.
+## Demandas
 
-O Python usa `winreg` diretamente em vez de `reg.exe`, reproduzindo a mesma API do Registro. Em desenvolvimento não grava caminho do interpretador: enable sem executável explícito só funciona quando `sys.frozen` indica o executável empacotado. Testes usam backend/chave isolados.
+CRUD local de adicionar/excluir usa `NewsDb`. `Buscar todas` usa a porta de automação quando injetada. Busca individual aguarda o business `NewsRepository`; não foi simulada no runtime.
 
-## Notificações
+## Termos
 
-Os únicos eventos automáticos continuam os do `AutomationService`: notícias/demandas/vídeos novos. O adaptador chama `QSystemTrayIcon.showMessage(title, message)` e não adiciona ação, duração ou ícone. Duração, clique e ícone específicos: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**. Falha de notificação continua não derrubando a execução.
+Termos de notícias usam o CRUD real do `NewsDb`. Termos de vídeo permanecem visíveis como área da tela, mas não podem ser mutados porque `MIG-024` segue bloqueado.
 
-## Processos
+## Fontes
 
-`HiddenProcessRunner` usa lista de argumentos, `shell=False`, cwd e environment explícitos. No Windows usa `STARTF_USESHOWWINDOW/SW_HIDE` e `CREATE_NO_WINDOW`; PowerShell recebe `-WindowStyle Hidden`. Encerramento de árvore usa `taskkill.exe /PID <pid> /T /F`, com `kill()` como fallback. Não foi criado `shell=True`.
+Catálogo de notícias/especializadas portado integralmente: 160 fontes, 27 estados e 7 opções de região. A página inclui tabs, busca, região, estado, modo todos os veículos, selecionar/limpar visíveis e todas/nenhuma.
 
-## Paths especiais
+`VideoSourceCatalog` base ainda não foi migrado; somente `youtube-g1` e `youtube-domingo-espetacular` aparecem no catálogo de vídeo do destino. Isso é bloqueio explícito, não substituição.
 
-O motor Desktop analisado usa raiz portable e `data/`. Nenhum uso ativo de AppData, LocalAppData, Roaming, Documents, Downloads, Desktop, ProgramData ou UserProfile foi encontrado para essas funções. Portanto nenhuma pasta especial nova foi inventada.
+## Histórico
 
-## Testes do Passo 8
+Usa `NewsDb.listNews(2000)` e `VideoDb.listAll(2000)`, tabs e limpeza por tipo. Testes de DB/UI passaram.
 
-Foram adicionados testes unitários/equivalência para defaults, host legado, labels, porta, autenticação, ausência de senha, migração de plaintext, redaction, startup/Registry, notificações, execução de processo, argumentos com espaços e arquivo inexistente.
+## Configurações
 
-Há testes Windows reais isolados para:
+Proxy usa infraestrutura segura do Passo 8 e teste de conexão em thread. Startup usa `StartupManager`. Automação grava as preferências reais já migradas.
 
-- DPAPI round-trip com segredo fictício;
-- interoperabilidade Python ↔ `.NET ProtectedData` CurrentUser;
-- `winreg` em `HKCU\Software\MonitorDeNoticias\Tests\Step8`, com limpeza ao final.
+O campo de senha usa modo password, é limpo após salvar e não repõe plaintext descriptografado no refresh. Isso difere do Kotlin por requisito explícito de segurança.
 
-A workflow `python-migration-tests.yml` executa a suíte completa em Ubuntu e Windows. Nenhuma fixture contém senha/token/cookie/blob real.
+Cards completos de última/próxima execução e `Executar agora` por categoria ainda não foram reproduzidos; `MIG-102` permanece `EM TESTE`.
+
+## Atalhos, double-click e menus de contexto
+
+Nenhum keyboard shortcut ativo nem double-click foi encontrado no `DashboardV5Main.kt` revisado; portanto nenhum foi inventado.
+
+Menus de contexto adicionais ao tray: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+
+## Testes do Passo 9
+
+A suíte adiciona testes para:
+
+- instanciar MainWindow;
+- título e tamanho inicial;
+- 12 seções e navegação completa;
+- close-to-tray;
+- termos e demandas CRUD;
+- histórico local;
+- chamadas manuais via AutomationPort fake;
+- indisponibilidade explícita quando business repositories não existem;
+- proxy/startup/campo password;
+- catálogo de fontes;
+- ordem/labels das seções;
+- constantes visuais;
+- placeholders de ferramentas.
+
+A workflow executa `compileall` e toda a suíte em Windows e Ubuntu. Qt roda em `offscreen`; no Linux são instaladas apenas as libs de runtime necessárias. O último run do Passo 9 passou nos dois sistemas.
+
+## Validação manual
+
+Não foi realizada uma sessão humana interativa com desktop gráfico. A aplicação foi instanciada e todas as páginas foram percorridas por testes reais do Qt em modo offscreen nos dois sistemas. Portanto qualquer afirmação de inspeção visual humana seria incorreta.
 
 ## Regras permanentes
 
-Os identificadores `MIG-001` a `MIG-093` são permanentes. Não renumerar ou reutilizar. Um MIG somente pode ser marcado `APROVADO` após comparação objetiva com a baseline e validação compatível com sua natureza.
+Os identificadores `MIG-001` a `MIG-105` são permanentes. Não renumerar, agrupar, reutilizar ou substituir números. Novos itens futuros devem receber identificadores após `MIG-105`.
+
+Um MIG somente pode ser marcado `APROVADO` após comparação objetiva com a baseline e validação compatível com sua natureza. Widget existente com motor fake/stub ou dependência ausente não é aprovação funcional.
