@@ -14,8 +14,9 @@ from monitor_noticias.ui.catalog import NEWS_SOURCES, SPECIALIZED, VIDEO_SOURCES
 from monitor_noticias.ui.controller import MainUiController
 from monitor_noticias.ui.pages import (
     DemandsPage, HistoryPage, HomePage, NewsPage, PlaceholderPage, SettingsPage,
-    SourcesPage, StopPage, TermsPage, VideosPage,
+    StopPage, TermsPage, VideosPage,
 )
+from monitor_noticias.ui.source_page import SourcesPage
 from monitor_noticias.ui.sections import SECTION_ORDER, Section
 from monitor_noticias.ui.theme import APP_STYLESHEET
 from monitor_noticias.windows.notifications import WindowsTrayNotifier
