@@ -13,6 +13,7 @@ from monitor_noticias.app.paths import AppPaths
 from monitor_noticias.ui.catalog import NEWS_SOURCES, SPECIALIZED, VIDEO_SOURCES
 from monitor_noticias.ui.controller import MainUiController
 from monitor_noticias.ui.extractor_page import ExtractorPage
+from monitor_noticias.ui.pdf_editor_page import PdfEditorPage
 from monitor_noticias.ui.pages import (
     DemandsPage, HistoryPage, HomePage, NewsPage, PlaceholderPage, SettingsPage,
     StopPage, TermsPage, VideosPage,
@@ -71,13 +72,15 @@ class MainWindow(QMainWindow):
             Section.HOME: HomePage(self.controller), Section.NEWS: NewsPage(self.controller), Section.VIDEOS: VideosPage(self.controller),
             Section.DEMANDS: DemandsPage(self.controller), Section.SOURCES: SourcesPage(self.controller), Section.HISTORY: HistoryPage(self.controller),
             Section.TERMS: TermsPage(self.controller), Section.STOP: StopPage(self.controller), Section.SETTINGS: SettingsPage(self.controller),
-            Section.PDF_EDITOR: PlaceholderPage(self.controller,"Editor de PDF","Ponto de navegação preservado. O motor completo do Editor PDF será migrado em passo posterior."),
+            Section.PDF_EDITOR: PdfEditorPage(self.paths.root),
             Section.EXTRACTOR: ExtractorPage(self.paths.root),
-            Section.VIDEO_EDITOR: PlaceholderPage(self.controller,"Editor de Vídeo","Ponto de navegação preservado. O Editor de Vídeo completo não é migrado no Passo 10."),
+            Section.VIDEO_EDITOR: PlaceholderPage(self.controller,"Editor de Vídeo","Ponto de navegação preservado. O Editor de Vídeo completo não é migrado no Passo 11."),
         }
         for section in SECTION_ORDER: self.stack.addWidget(self.pages[section])
         home=self.pages[Section.HOME]
         if isinstance(home,HomePage): home.navigate.connect(lambda name:self.navigate(Section[name]))
+        pdf_page=self.pages[Section.PDF_EDITOR]
+        if isinstance(pdf_page,PdfEditorPage): pdf_page.back_requested.connect(lambda:self.navigate(Section.HOME))
         footer=QHBoxLayout(); self.footer_left=QLabel(); self.footer_left.setObjectName("muted"); footer.addWidget(self.footer_left); footer.addStretch(); self.footer_right=QLabel(); self.footer_right.setObjectName("muted"); footer.addWidget(self.footer_right); cl.addLayout(footer); outer.addWidget(content,1)
 
     def _build_tray(self) -> None:
