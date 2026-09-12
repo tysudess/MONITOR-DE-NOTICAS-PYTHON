@@ -1,97 +1,179 @@
 # Arquitetura da migração Python
 
-## Estado após o Passo 7
+## Fonte da verdade
 
-A fundação, SQLite, matching e coletores dos Passos 3–6 permanecem válidos. O Passo 7 adiciona a camada de automação do Windows baseada diretamente em `DesktopControllerV5` da baseline `df1701ba5427a04954093e8ebed63f26abb2b2b7`.
+A migração usa `tysudess/noticias-monitor`, Build SHA `df1701ba5427a04954093e8ebed63f26abb2b2b7`, mais as transformações do workflow V8. O destino é `tysudess/MONITOR-DE-NOTICAS-PYTHON`, branch `migration/python-foundation`.
 
-Não existe uma classe Kotlin ativa chamada `AutomationService` no Desktop V8 analisado. A classe Python `monitor_noticias.automation.AutomationService` é o nome arquitetural dado à extração do motor que no Kotlin vive dentro de `DesktopControllerV5`; comportamento, ordem, guards e cadências vêm do Kotlin.
+## Estado após o Passo 8
 
-A UI continua mínima. Windows startup/proxy, notificações nativas, PDF, Editor de Vídeo, extrator/downloader e empacotamento portable continuam fora deste passo.
+A fundação, SQLite, models, matching, coletores e AutomationService permanecem separados. O Passo 8 acrescenta somente infraestrutura de rede/proxy e integrações Windows comprovadas. UI completa, PDF, Editor de Vídeo, extrator independente e build portable final permanecem pendentes.
 
-## Camadas
+Fluxo de camadas relevante:
 
-- `monitor_noticias.app.preferences`: compatibilidade de SharedPreferences Desktop baseada em arquivo `.properties`.
-- `monitor_noticias.automation.models`: `LiveSearchProgress` e contratos mínimos de resultado.
-- `monitor_noticias.automation.clock`: relógio local injetável para testes; runtime usa relógio do sistema.
-- `monitor_noticias.automation.settings`: chaves/defaults de automação da baseline.
-- `monitor_noticias.automation.service`: scheduler de 30 s, guards, lanes, estado, progresso e cancelamento cooperativo.
-- `monitor_noticias.collectors.*`: permanece responsável por rede/parsing; não é duplicado no scheduler.
-- `monitor_noticias.matching`: permanece responsável por matching; não é duplicado no scheduler.
-- `monitor_noticias.database`: permanece responsável por SQLite; o scheduler não contém SQL.
+`AutomationService` → porta de notificação → `WindowsTrayNotifier`
 
-## Topologia de execução
+`collectors`/futuros repositories → `HttpClient` → proxy injetado por `ProxySettings`
 
-O Kotlin usa `CoroutineScope(SupervisorJob() + Dispatchers.Default)`, `newsJob` e `videoJob` separados, com `newsBusy` compartilhado entre notícias/demandas e `videoBusy` separado.
+`ProxySettings` → `SharedPreferences` para dados não secretos + `DpapiTextStore` para senha
 
-O equivalente Python usa:
+`StartupManager` → `winreg` → HKCU Run
 
-1. uma thread daemon para o loop de 30 segundos;
-2. um executor serial (`max_workers=1`) para notícias/demandas;
-3. um executor serial (`max_workers=1`) para vídeos.
+`HiddenProcessRunner` → `subprocess`/Win32 flags + `taskkill.exe`
 
-Isso preserva a topologia observada: notícias e demandas são mutuamente exclusivas; vídeo pode rodar simultaneamente com uma delas. Não foram criados pools por fonte nem paralelismo adicional.
+## Networking
 
-## Scheduling
+### HttpClient
 
-### Notícias
+Continua usando `requests.Session`, timeouts separados quando o coletor os define, redirects e headers próprios. O caminho sem proxy continua `proxies=None`. O Passo 8 não introduz retry genérico nem proxy SOCKS.
 
-Default 30 min; mínimo 15. Vencimento: `now - lastNewsAutoAt >= interval * 60000`. O timestamp é persistido antes de iniciar `search_news()`.
+### ProxySettings
 
-### Demandas
+Responsabilidades:
 
-Default 60 min; mínimo 15. Usa a mesma lane de notícias e só é testada no `else if` após notícias; por isso notícia vencida tem prioridade. Timestamp também é persistido antes do job.
+- carregar `desktop_proxy_enabled`;
+- carregar/migrar `desktop_proxy_host`;
+- limitar `desktop_proxy_port` a 1..65535;
+- carregar `desktop_proxy_username`;
+- obter senha exclusivamente do secret store protegido;
+- construir proxy HTTP/HTTPS para `requests`;
+- executar o teste `generate_204` com o contrato da baseline.
 
-### Vídeos
+Defaults: host `proxy-7dn.mb`, porta 6060, disabled, username/senha vazios.
 
-Horários padrão: `08:00`, `12:00`, `15:00`, `19:00`, `21:00`. Usa horário local do sistema, compara apenas `HH:mm` e impede duplicação pela chave `yyyy-MM-dd-HH-mm` em `desktop_auto_video_slot`.
+A baseline contém um conflito entre a tela (`proxy-7db.mb`) e o Controller (migração/default `proxy-7dn.mb`). Como o Passo 8 não migra a UI, a camada mantém o contrato do Controller e não altera a tela original.
 
-O loop não implementa catch-up explícito para um minuto perdido. Comportamento do sistema operacional em suspensão/retomada além dessa regra: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+## SEGURANÇA DE CREDENCIAIS
 
-## Execução manual e automática
+### DPAPI
 
-A automação chama os mesmos métodos públicos usados por disparos manuais: notícias → `search_news`, demandas → `search_all_demands`, vídeos → `search_videos`. Dessa forma não existem dois motores com regras diferentes.
+`monitor_noticias.windows.dpapi` chama diretamente:
 
-## Estado e progresso
+- `CryptProtectData`;
+- `CryptUnprotectData`;
+- `LocalFree`.
 
-Não foram inventados enums `IDLE/RUNNING/...`. O estado preserva os campos concretos do Controller: `newsBusy`, `videoBusy`, `status`, `videoStatus`, progresso de notícias/vídeos, durações e fontes de vídeo instáveis.
+Escopo: CurrentUser, equivalente a `DataProtectionScope.CurrentUser`.
 
-`LiveSearchProgress` reproduz os campos e a fração do Kotlin. O serviço expõe callback `on_state` desacoplado da UI; futura camada PySide6 pode transformar isso em sinais sem acoplar widgets ao motor.
+Entropy adicional: `null`/ausente.
 
-## Retry e timeout
+Encoding do segredo: UTF-8.
 
-Não existe retry no scheduler Desktop analisado. Não existe timeout global de job comprovado. Logo a automação Python não adiciona nenhum. Retry/timeout continuam responsabilidade das camadas de coleta já migradas.
+Persistência: Base64 do blob DPAPI em arquivo texto. Nenhum plaintext é versionado ou persistido pelo novo caminho.
 
-## Cancelamento
+Imports de DLL são lazy: em não-Windows, importar o pacote não falha; a operação DPAPI levanta `WindowsIntegrationUnavailable` somente se chamada.
 
-O Kotlin cancela o `Job` correspondente e a coroutine propaga `CancellationException`. O Python usa `CancellationToken` e preserva os mesmos guards/status. A equivalência durante uma chamada de I/O já bloqueada permanece `EM TESTE` até os repositories reais consumirem o token entre operações.
+### Senha do proxy
 
-## Persistência
+A baseline Desktop armazena `desktop_proxy_password` em SharedPreferences. Por requisito explícito do Passo 8, o Python não mantém esse risco. A senha passa para `data/prefs/desktop_proxy_password.dpapi`.
 
-`SharedPreferences` grava em `data/prefs/monitor_prefs.properties`, mantendo escalares em texto e StringSet em Base64 URL-safe sem padding, separado por `|`. A gravação usa arquivo temporário e substituição.
+Migração legada segura:
 
-Compatibilidade byte a byte com `java.util.Properties.store` ainda não foi confrontada; por isso MIG-003 está `EM TESTE`.
+1. detectar chave plaintext antiga;
+2. proteger com DPAPI CurrentUser;
+3. persistir o blob protegido;
+4. somente depois remover `desktop_proxy_password` do `.properties`.
 
-## Fronteira com repositories
+Falha em proteger não apaga a senha legada. Logs nunca recebem senha, token, blob ou plaintext descriptografado. Mensagens de erro do teste de proxy redigem a senha crua e percent-encoded.
 
-Os business repositories completos (`NewsRepository`/`VideoRepository`) ainda não foram migrados no destino. Para não inventar uma implementação parcial dentro do scheduler, `AutomationService` depende de protocolos `NewsRunner` e `VideoRunner`.
+### Credential Manager
 
-Esses runners deverão, em passo próprio, conectar coletores + matching + DAOs com as regras exatas dos repositories Kotlin. Até isso ocorrer, o motor de scheduling pode ser validado deterministicamente com fakes, mas não é declarado integração end-to-end de rede/banco.
+Não foram encontradas chamadas `CredRead`/`CredWrite`, target name, credential type ou persistence mode na baseline Desktop. Não existe dependência JNA no módulo. Logo Credential Manager e JNA não foram implementados.
+
+## Windows Registry / startup
+
+`StartupManager` preserva:
+
+- HIVE: HKCU;
+- path: `Software\Microsoft\Windows\CurrentVersion\Run`;
+- value: `MonitorDeNoticias`;
+- type: `REG_SZ`;
+- dado: caminho do executável entre aspas;
+- disable: delete do value.
+
+Diferença técnica: Python usa `winreg`, não chama `reg.exe`. O efeito no Registro é o mesmo. Para evitar caminho de desenvolvimento, `StartupManager.configure(True)` sem caminho explícito somente grava quando `sys.frozen` está ativo. Testes injetam caminho/backend isolados.
+
+## Notificações Windows
+
+O Kotlin envia `Notification(title, message)` pelo TrayState. O Python usa `WindowsTrayNotifier`, um adaptador sobre `QSystemTrayIcon.showMessage(title, message)`. Não adiciona duração, ação ou ícone não comprovados. Falha permanece não fatal.
+
+Eventos continuam pertencendo ao AutomationService:
+
+- notícias/demandas quando há novos resultados;
+- vídeos quando há novos vídeos relevantes.
+
+A camada Windows não duplica regra de negócio.
+
+## Execução de processos
+
+`HiddenProcessRunner` substitui `HiddenWindowsProcess` com a mesma responsabilidade operacional:
+
+- argv não vazio;
+- cwd explícito;
+- environment adicional;
+- stderr pode ser unido ao stdout;
+- PowerShell recebe `-WindowStyle Hidden` quando necessário;
+- Windows usa `STARTF_USESHOWWINDOW`, `SW_HIDE` e `CREATE_NO_WINDOW`;
+- `shell=False` sempre;
+- timeout encerra árvore;
+- `taskkill.exe /PID /T /F` encerra descendentes no Windows;
+- exit code e output são retornados.
+
+Não foi migrado nenhum comando específico de ffmpeg/ffprobe/yt-dlp neste passo; apenas a infraestrutura nativa compartilhável.
+
+## Paths Windows
+
+A baseline Desktop usa `PortablePaths.appRoot` e `data/`. Não foi encontrado uso ativo de AppData, LocalAppData, Roaming, Documents, Downloads, Desktop, ProgramData ou UserProfile para o núcleo deste passo. Não há nova camada de known folders.
+
+## Matriz Kotlin/API → Python
+
+| Kotlin / mecanismo | API real | Python |
+|---|---|---|
+| `ProtectedData.Protect/Unprotect(CurrentUser)` via PowerShell | Windows DPAPI | `ctypes` + `CryptProtectData/CryptUnprotectData` |
+| `reg add/delete` HKCU Run | Windows Registry | `winreg` |
+| Compose `trayState.sendNotification` | Shell/tray notification Qt | `QSystemTrayIcon.showMessage` |
+| `ProcessBuilder` + PowerShell hidden | CreateProcess/console flags | `subprocess.Popen`, `CREATE_NO_WINDOW`, `STARTF_USESHOWWINDOW` |
+| `taskkill.exe /PID /T /F` | process-tree termination | mesmo `taskkill.exe`, argv seguro |
+| JVM proxy properties + Authenticator | authenticated HTTP proxy | `requests` proxies com credenciais percent-encoded |
+
+JNA → Python: não aplicável; JNA não existe na baseline ativa.
+
+Credential Manager → Python: não aplicável; nenhum uso foi encontrado.
+
+## Integração com coletores
+
+`ProxySettings.requests_proxies()` entrega o dicionário usado pelo `HttpClient`. Com proxy desativado, retorna `None`, preservando testes e comportamento dos coletores do Passo 6. A orquestração completa dos repositories continua pendente, portanto `MIG-040` permanece `EM TESTE`.
+
+## Integração com AutomationService
+
+O AutomationService já recebe uma porta `notify(title, message)`. O Passo 8 fornece `WindowsTrayNotifier` para essa porta. Nenhum scheduler, sequência ou regra de notificação foi duplicado.
 
 ## Testes
 
-64 testes passaram, 0 falhas, incluindo toda a regressão dos Passos 3–6. `compileall` passou. Os testes de automação usam relógio/fakes e não aguardam horários reais nem dependem da Internet.
+Cobertura adicionada:
 
-## Ainda não migrado
+- proxy disabled/defaults;
+- host legado 7db→7dn;
+- porta e autenticação;
+- senha ausente;
+- migração de plaintext para secret store;
+- ausência de segredo no `.properties`;
+- redaction em erro;
+- contrato do teste generate_204;
+- Registry/startup por backend fake;
+- adaptador de notificação;
+- subprocess exit/stdout/stderr/argumento com espaços/arquivo ausente;
+- DPAPI real Windows;
+- interoperabilidade DPAPI Python ↔ .NET ProtectedData;
+- Registry real em chave de teste isolada e limpa ao final.
 
-- orchestration completa de `NewsRepository`/`VideoRepository`;
-- ligação end-to-end dos runners com collectors/matching/DAO;
-- cancelamento comprovado dentro de I/O bloqueante;
-- compatibilidade byte a byte de SharedPreferences JVM;
-- `VideoTermStore` persistente;
-- proxy global e startup Windows;
-- notificações Windows nativas;
-- UI completa;
-- Editor de Vídeo;
-- Editor PDF;
-- extrator/downloader;
-- portable final.
+A workflow `Python migration tests` executa `compileall` e a suíte completa em Ubuntu e Windows. Os testes específicos de DPAPI/Registry são pulados fora do Windows e executados no job Windows.
+
+## Pendências deliberadas
+
+- UI de configurações completa;
+- composição real de repositories e coletores com ProxySettings;
+- teste visual de toast/tray no desktop interativo;
+- validação do startup no executável final empacotado;
+- integração final dos stores DPAPI do extrator/Globoplay;
+- Credential Manager: não existe na baseline, portanto não é pendência de implementação;
+- caminhos especiais Windows: não usados no motor analisado.

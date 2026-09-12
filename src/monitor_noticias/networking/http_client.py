@@ -1,7 +1,11 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import requests
+
+if TYPE_CHECKING:
+    from .proxy import ProxySettings
+
 
 @dataclass(slots=True)
 class HttpResult:
@@ -9,10 +13,21 @@ class HttpResult:
     text: str
     headers: dict[str, str]
 
+
 class HttpClient:
     def __init__(self, session: requests.Session | None = None, proxies: dict[str, str] | None = None):
         self.session = session or requests.Session()
         self.proxies = proxies
+
+    @classmethod
+    def from_proxy_settings(
+        cls,
+        proxy_settings: "ProxySettings",
+        *,
+        session: requests.Session | None = None,
+    ) -> "HttpClient":
+        """Liga a configuração global do Desktop ao transporte usado pelos coletores."""
+        return cls(session=session, proxies=proxy_settings.requests_proxies())
 
     def get_text(self, url: str, *, headers: dict[str, str] | None = None, connect_timeout: float, read_timeout: float, max_body_bytes: int | None = None) -> str:
         response = self.session.get(url, headers=headers or {}, timeout=(connect_timeout, read_timeout), allow_redirects=True, proxies=self.proxies)

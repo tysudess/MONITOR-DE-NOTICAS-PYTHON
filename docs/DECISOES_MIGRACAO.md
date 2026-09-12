@@ -1,289 +1,134 @@
 # Decisões de migração
 
-## DEC-001
-ID DA DECISÃO: DEC-001  
+## Decisões anteriores preservadas
+
+As decisões `DEC-001` a `DEC-024` continuam válidas e não são renumeradas. Resumo permanente:
+
+| DEC | Escopo | Decisão preservada |
+|---|---|---|
+| DEC-001 | Runtime | Python 3.12.x |
+| DEC-002 | UI toolkit | PySide6 6.9.1 |
+| DEC-003 | Paths | raiz portable centralizada em AppPaths |
+| DEC-004 | Binários | não substituir binários externos antes do passo próprio |
+| DEC-005 | Git | desenvolvimento em `migration/python-foundation` |
+| DEC-006 | SQLite | `sqlite3`, SQL explícito, sem ORM |
+| DEC-007 | DAO/repository | não criar repository parcial no Passo 4 |
+| DEC-008 | Banco real | fixtures temporárias; MIG de DB continuam EM TESTE |
+| DEC-009 | VideoMatchPolicy | política mínima portada e validada no Passo 5 |
+| DEC-010 | Matchers | manter matchers de notícia/vídeo separados |
+| DEC-011 | Unicode | NFD + remoção Mn + regex equivalente |
+| DEC-012 | VideoTermStore | persistência aguardava SharedPreferences |
+| DEC-013 | URLs | canonicalização com urllib mantendo saída |
+| DEC-014 | Globoplay | prioridade estável booleana, sem score inventado |
+| DEC-015 | Passo 5 | extrair somente regras determinísticas |
+| DEC-016 | HTTP/parsing | requests + BeautifulSoup preservando contratos |
+| DEC-017 | Proxy futuro | HttpClient aceita proxies por injeção |
+| DEC-018 | Globoplay parcial | Edições/Trechos permanecem EM TESTE |
+| DEC-019 | Scheduler | thread de loop + lanes seriais equivalentes |
+| DEC-020 | Relógio | datetime local do sistema |
+| DEC-021 | Automation/repositories | portas NewsRunner/VideoRunner |
+| DEC-022 | Retry/timeout | AutomationService não adiciona retry/timeout global |
+| DEC-023 | SharedPreferences | propriedades + StringSet compatível, MIG-003 EM TESTE |
+| DEC-024 | Cancelamento | token cooperativo, MIG-042 EM TESTE |
+
+Os detalhes históricos continuam rastreáveis pelos commits anteriores da branch.
+
+## DEC-025
+ID DA DECISÃO: DEC-025  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-001, MIG-081  
-COMPONENTE: Runtime Python  
-COMPORTAMENTO ORIGINAL: O build V8 aprovado usa Python 3.12 para empacotar o Editor PySide6.  
-DECISÃO: Adotar Python 3.12.x.  
-JUSTIFICATIVA: Preservar a linha de runtime comprovada.  
-EVIDÊNCIA NO KOTLIN: workflow da release V8 / Build SHA `df1701ba5427a04954093e8ebed63f26abb2b2b7`.  
-IMPACTO: `requires-python >=3.12,<3.13`.  
+MIG RELACIONADO: MIG-040, MIG-041, MIG-087  
+COMPONENTE: Proxy global Desktop  
+COMPORTAMENTO ORIGINAL: `DesktopControllerV5` mantém enabled, host, port, username e password; default host `proxy-7dn.mb`, porta 6060; migra `proxy-7db.mb`/vazio para `proxy-7dn.mb`; aplica HTTP e HTTPS e testa `https://www.google.com/generate_204`.  
+DECISÃO: criar `ProxySettings` e continuar injetando proxies no `HttpClient`; quando disabled, não passar proxy.  
+JUSTIFICATIVA: preservar a separação Controller/configuração → transporte sem criar tipo de proxy novo.  
+EVIDÊNCIA NO KOTLIN: `DesktopControllerV5.kt`, Build SHA df1701.  
+IMPACTO: MIG-040 `EM TESTE`; MIG-041 `APROVADO`.  
+REVERSÍVEL: Sim, desde que o contrato permaneça igual.
+
+## DEC-026
+ID DA DECISÃO: DEC-026  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-040, MIG-093  
+COMPONENTE: Senha do proxy  
+COMPORTAMENTO ORIGINAL: o Controller Desktop grava `desktop_proxy_password` em SharedPreferences plaintext.  
+DECISÃO: **não reproduzir plaintext**; armazenar senha em `data/prefs/desktop_proxy_password.dpapi` usando DPAPI CurrentUser. Se existir chave legada plaintext, proteger primeiro e removê-la somente depois de persistência protegida bem-sucedida.  
+JUSTIFICATIVA: requisito explícito do Passo 8: não reduzir segurança e não guardar senha em texto puro.  
+EVIDÊNCIA NO KOTLIN: `DesktopControllerV5.proxyPassword/saveProxy`; contrato DPAPI comprovado em `ExtractorPortableStateStore` e `GloboplaySessionStore`.  
+IMPACTO: adaptação deliberada de segurança; host/porta/usuário/enable permanecem nas mesmas chaves.  
+REVERSÍVEL: somente se houver decisão explícita de aceitar plaintext, o que violaria o Passo 8.
+
+## DEC-027
+ID DA DECISÃO: DEC-027  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-090, MIG-093  
+COMPONENTE: DPAPI  
+COMPORTAMENTO ORIGINAL: PowerShell chama `System.Security.Cryptography.ProtectedData.Protect/Unprotect`, entropy `null`, `DataProtectionScope.CurrentUser`; arquivo armazena Base64 do blob; payload original é UTF-8.  
+DECISÃO: usar `ctypes` para `CryptProtectData`/`CryptUnprotectData` e `LocalFree`, sem pywin32 obrigatório; manter CurrentUser, sem entropy e Base64 externo.  
+JUSTIFICATIVA: reproduzir diretamente a API nativa usada pelo .NET, sem subprocesso PowerShell para o novo secret store.  
+EVIDÊNCIA NO KOTLIN: `ExtractorPortableStateStore.kt`, `GloboplaySessionStore.kt`.  
+IMPACTO: teste de interoperabilidade Python ↔ .NET ProtectedData executável em Windows.  
+REVERSÍVEL: Sim se outra implementação continuar byte/escopo compatível.
+
+## DEC-028
+ID DA DECISÃO: DEC-028  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-039  
+COMPONENTE: Inicialização com Windows  
+COMPORTAMENTO ORIGINAL: `reg add/delete` em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value `MonitorDeNoticias`, REG_SZ, dado `"<current process command>"`.  
+DECISÃO: usar `winreg` para escrever/remover exatamente o mesmo hive/path/name/type/data; em desenvolvimento não inferir `python.exe`, e sim só usar `sys.executable` automaticamente quando `sys.frozen`.  
+JUSTIFICATIVA: mesmo efeito nativo, sem gravar caminho de desenvolvimento no Registro.  
+EVIDÊNCIA NO KOTLIN: `DesktopControllerV5.configureWindowsStartup`.  
+IMPACTO: MIG-039 permanece `EM TESTE` até executável final empacotado; construção/Registry isolado são testados.  
 REVERSÍVEL: Sim.
 
-## DEC-002
-ID DA DECISÃO: DEC-002  
+## DEC-029
+ID DA DECISÃO: DEC-029  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-068 a MIG-077, MIG-081  
-COMPONENTE: Toolkit de UI  
-COMPORTAMENTO ORIGINAL: Editor final usa PySide6 6.9.1.  
-DECISÃO: Manter PySide6 6.9.1.  
-JUSTIFICATIVA: Não substituir toolkit já validado.  
-EVIDÊNCIA NO KOTLIN: workflow/release V8.  
-IMPACTO: Fundação Qt.  
-REVERSÍVEL: Sim, mediante nova evidência.
-
-## DEC-003
-ID DA DECISÃO: DEC-003  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-002, MIG-003  
-COMPONENTE: Paths  
-COMPORTAMENTO ORIGINAL: Portable resolve dados relativamente à aplicação.  
-DECISÃO: Centralizar em `AppPaths`, nunca CWD.  
-JUSTIFICATIVA: Preservar comportamento portable.  
-EVIDÊNCIA NO KOTLIN: `PortablePaths`/`Context.filesDir`.  
-IMPACTO: caminhos centrais.  
+MIG RELACIONADO: MIG-091, MIG-088, MIG-089  
+COMPONENTE: Notificações  
+COMPORTAMENTO ORIGINAL: `DashboardV5Main` injeta callback no Controller e chama `trayState.sendNotification(Notification(title, message))`; erros são envolvidos por `runCatching`.  
+DECISÃO: fornecer `WindowsTrayNotifier`, adaptador callable sobre `QSystemTrayIcon.showMessage(title, message)`, sem duração/ação/ícone adicional.  
+JUSTIFICATIVA: PySide6 já é a UI alvo e o AutomationService já expõe a porta notify; não duplicar regras.  
+EVIDÊNCIA NO KOTLIN: `DashboardV5Main.kt`.  
+IMPACTO: falha de notificação é logada e não derruba automação. Clique/duração/ícone: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.  
 REVERSÍVEL: Sim.
 
-## DEC-004
-ID DA DECISÃO: DEC-004  
+## DEC-030
+ID DA DECISÃO: DEC-030  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-082  
-COMPONENTE: Binários externos  
-COMPORTAMENTO ORIGINAL: Portable contém FFmpeg/FFprobe e demais binários em `bin`.  
-DECISÃO: Não baixar/substituir binários antes do passo próprio.  
-JUSTIFICATIVA: evitar versão não comprovada.  
-EVIDÊNCIA NO KOTLIN: workflow V8.  
-IMPACTO: dependência permanece pendente.  
+MIG RELACIONADO: MIG-092  
+COMPONENTE: Processos Windows  
+COMPORTAMENTO ORIGINAL: `HiddenWindowsProcess` usa ProcessBuilder, PowerShell oculto e `taskkill.exe /PID /T /F`; combina stderr/stdout.  
+DECISÃO: usar `subprocess` com argv em lista, `shell=False`, cwd/environment explícitos, `CREATE_NO_WINDOW` + `STARTF_USESHOWWINDOW/SW_HIDE` e o mesmo taskkill para árvore.  
+JUSTIFICATIVA: reproduz o efeito nativo e melhora segurança de quoting sem inventar shell.  
+EVIDÊNCIA NO KOTLIN: `HiddenWindowsProcess.kt`.  
+IMPACTO: chamadas específicas de ffmpeg/yt-dlp permanecem nos passos próprios.  
 REVERSÍVEL: Sim.
 
-## DEC-005
-ID DA DECISÃO: DEC-005  
+## DEC-031
+ID DA DECISÃO: DEC-031  
 DATA: 2026-09-12  
-MIG RELACIONADO: MIG-001  
-COMPONENTE: Git  
-COMPORTAMENTO ORIGINAL: repositório destino estava vazio.  
-DECISÃO: bootstrap mínimo em `main` e desenvolvimento em `migration/python-foundation`.  
-JUSTIFICATIVA: necessidade técnica de commit-base.  
-EVIDÊNCIA: estado observado do repositório destino.  
-IMPACTO: isolamento da migração.  
+MIG RELACIONADO: Passo 8  
+COMPONENTE: JNA / Credential Manager  
+COMPORTAMENTO ORIGINAL: nenhuma dependência JNA e nenhuma chamada `CredRead`/`CredWrite`/target de Credential Manager foram encontradas no módulo Desktop ativo.  
+DECISÃO: não adicionar JNA, pywin32 Credential Manager, target name, credential type ou persistence mode.  
+JUSTIFICATIVA: criar isso seria inventar uma estratégia inexistente.  
+EVIDÊNCIA NO KOTLIN: `desktop/build.gradle.kts`, árvore/arquivos e revisão por referências.  
+IMPACTO: relatório final registra “não usado / não migrado”.  
+REVERSÍVEL: Sim caso futura evidência da baseline prove uso real.
+
+## DEC-032
+ID DA DECISÃO: DEC-032  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-039, MIG-040, MIG-090 a MIG-093  
+COMPONENTE: Validação Windows  
+COMPORTAMENTO ORIGINAL: DPAPI e Registry dependem de Windows real.  
+DECISÃO: adicionar workflow de testes em matriz Ubuntu/Windows. No Windows, usar somente segredo fictício e chave isolada `HKCU\Software\MonitorDeNoticias\Tests\Step8`, removida ao final; nunca tocar a entrada real de startup nos testes automatizados.  
+JUSTIFICATIVA: mocks não são prova suficiente para DPAPI/Registry.  
+EVIDÊNCIA: requisito de validação do Passo 8.  
+IMPACTO: MIGs nativos continuam `EM TESTE` até integração final mesmo com CI verde.  
 REVERSÍVEL: Sim.
 
-## DEC-006
-ID DA DECISÃO: DEC-006  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-005 a MIG-013  
-COMPONENTE: SQLite Python  
-COMPORTAMENTO ORIGINAL: SQL explícito via sqlite-jdbc, WAL e busy timeout 5000.  
-DECISÃO: usar `sqlite3` padrão, SQL explícito e `SQLiteConnection`, sem ORM.  
-JUSTIFICATIVA: tradução direta.  
-EVIDÊNCIA NO KOTLIN: `DesktopNewsDb.kt`, `DesktopVideoDb.kt`.  
-IMPACTO: nenhuma dependência externa de banco.  
-REVERSÍVEL: Sim.
+## Regra de segurança
 
-## DEC-007
-ID DA DECISÃO: DEC-007  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-005 a MIG-013  
-COMPONENTE: DAO x repository  
-COMPORTAMENTO ORIGINAL: repositories também executam rede/coletores.  
-DECISÃO: Passo 4 migrou somente `NewsDb`/`VideoDb`.  
-JUSTIFICATIVA: evitar repository parcial inventado.  
-EVIDÊNCIA NO KOTLIN: responsabilidades dos arquivos ativos.  
-IMPACTO: repositories completos permanecem futuros.  
-REVERSÍVEL: Sim.
-
-## DEC-008
-ID DA DECISÃO: DEC-008  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-005 a MIG-013  
-COMPONENTE: Banco real  
-COMPORTAMENTO ORIGINAL: bancos runtime não são versionados.  
-DECISÃO: fixtures SQLite temporárias e MIG em `EM TESTE` até banco real.  
-JUSTIFICATIVA: não fingir confronto inexistente.  
-EVIDÊNCIA NO KOTLIN: caminhos e DAOs da baseline.  
-IMPACTO: aprovação final adiada.  
-REVERSÍVEL: Sim.
-
-## DEC-009
-ID DA DECISÃO: DEC-009  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-013, MIG-025  
-COMPONENTE: VideoMatchPolicy  
-COMPORTAMENTO ORIGINAL: reparo de banco chama `VideoMatchPolicy.phraseMatches`.  
-DECISÃO: no Passo 4 foi portada a política mínima necessária.  
-JUSTIFICATIVA: MIG-013 depende dela.  
-EVIDÊNCIA NO KOTLIN: `DesktopVideoDb.kt`, `VideoMatchPolicy.kt`.  
-IMPACTO: Passo 5 agora valida e conclui MIG-025.  
-REVERSÍVEL: Sim.
-
-## DEC-010
-ID DA DECISÃO: DEC-010  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-019, MIG-020, MIG-025  
-COMPONENTE: Matchers separados  
-COMPORTAMENTO ORIGINAL: `NewsRepository.subjectMatches`, `VideoMatchPolicy.phraseMatches` e `VideoRepository.phraseMatches` não possuem semântica idêntica.  
-DECISÃO: manter implementações separadas.  
-JUSTIFICATIVA: notícias não usam flexões; vídeo usa flexões/7 de Setembro; frase vazia é `false` no `VideoMatchPolicy` e `true` no matcher privado do `VideoRepository`.  
-EVIDÊNCIA NO KOTLIN: `NewsRepository.kt`, `VideoMatchPolicy.kt`, `VideoRepository.kt`.  
-IMPACTO: não existe um matcher genérico único.  
-REVERSÍVEL: Não sem alterar comportamento.
-
-## DEC-011
-ID DA DECISÃO: DEC-011  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-019, MIG-020, MIG-025, MIG-084, MIG-085  
-COMPONENTE: Normalização Unicode/regex  
-COMPORTAMENTO ORIGINAL: JVM usa NFD, remove `\p{Mn}+`, troca `[^a-z0-9]+` por espaço e aplica trim.  
-DECISÃO: em Python usar `unicodedata.normalize("NFD")`, remover caracteres `category == "Mn"` e aplicar `re.sub(r"[^a-z0-9]+", " ", ...)`.  
-JUSTIFICATIVA: Python `re` não implementa `\p{Mn}` nativamente; a adaptação preserva o resultado.  
-EVIDÊNCIA NO KOTLIN: normalizadores de `NewsRepository`, `VideoRepository` e `VideoMatchPolicy`.  
-IMPACTO: mesma equivalência de acentos/case nos golden cases.  
-REVERSÍVEL: Sim, desde que resultados permaneçam equivalentes.
-
-## DEC-012
-ID DA DECISÃO: DEC-012  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-024, MIG-003  
-COMPONENTE: VideoTermStore  
-COMPORTAMENTO ORIGINAL: termos de vídeo são persistidos em SharedPreferences com chaves `video_terms_v400*`.  
-DECISÃO: não implementar persistência do VideoTermStore neste passo; portar somente a função pura de limpeza/ordenação. Marcar MIG-024 `BLOQUEADO` até MIG-003.  
-JUSTIFICATIVA: não inventar storage temporário diferente.  
-EVIDÊNCIA NO KOTLIN: `VideoTermStore.kt`.  
-IMPACTO: regra conceitual testável; persistência ainda ausente.  
-REVERSÍVEL: Sim.
-
-## DEC-013
-ID DA DECISÃO: DEC-013  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-032, MIG-085  
-COMPONENTE: Canonicalização de URL  
-COMPORTAMENTO ORIGINAL: `java.net.URI` canonicaliza YouTube e remove query/fragment de URLs não-YouTube.  
-DECISÃO: usar `urllib.parse.urlsplit/urlunsplit` somente como adaptação sintática, preservando a mesma saída.  
-JUSTIFICATIVA: equivalente padrão Python sem biblioteca externa.  
-EVIDÊNCIA NO KOTLIN: `VideoRepository.canonicalizeUrl`.  
-IMPACTO: golden cases protegem YouTube `/watch`, `/shorts`, `/live`, `youtu.be` e URL normal.  
-REVERSÍVEL: Sim, se equivalência for mantida.
-
-## DEC-014
-ID DA DECISÃO: DEC-014  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-084  
-COMPONENTE: Prioridade Globoplay  
-COMPORTAMENTO ORIGINAL: `prioritizeGloboplayCandidates` ordena primeiro candidatos com match superficial de termo/demanda e preserva a ordem original como desempate.  
-DECISÃO: reproduzir como ordenação estável booleana, sem pontuação adicional.  
-JUSTIFICATIVA: não inventar score.  
-EVIDÊNCIA NO KOTLIN: `VideoRepository.kt`.  
-IMPACTO: matched primeiro, ordem original dentro dos grupos.  
-REVERSÍVEL: Não sem alterar resultado.
-
-## DEC-015
-ID DA DECISÃO: DEC-015  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-017 a MIG-020, MIG-025, MIG-032, MIG-084, MIG-085  
-COMPONENTE: Escopo do Passo 5  
-COMPORTAMENTO ORIGINAL: as regras puras estão dentro dos repositories, mas rede/coletores são responsabilidades adicionais.  
-DECISÃO: extrair somente regras determinísticas para `matching/`; não iniciar HTTP, scraping, scheduler ou UI.  
-JUSTIFICATIVA: permite equivalência isolada sem criar comportamento acima da camada.  
-EVIDÊNCIA NO KOTLIN: ordem e funções privadas dos repositories ativos.  
-IMPACTO: coletores continuam pendentes.  
-REVERSÍVEL: Sim.
-
-## DEC-016
-ID DA DECISÃO: DEC-016  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-015, MIG-021, MIG-027 a MIG-031, MIG-086, MIG-087  
-COMPONENTE: HTTP e parsing HTML  
-COMPORTAMENTO ORIGINAL: Kotlin usa HttpURLConnection/Jsoup com contratos próprios.  
-DECISÃO: usar requests + BeautifulSoup preservando endpoints, headers, timeouts, redirects e limites.  
-JUSTIFICATIVA: adaptação Python sem mudar estratégia.  
-EVIDÊNCIA NO KOTLIN: repositories e coletores ativos.  
-IMPACTO: dependências HTTP do Passo 6.  
-REVERSÍVEL: Sim, se equivalência for mantida.
-
-## DEC-017
-ID DA DECISÃO: DEC-017  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-087, MIG-040  
-COMPONENTE: Transporte injetável e proxy  
-COMPORTAMENTO ORIGINAL: proxy é aplicado externamente pelo Controller/JVM.  
-DECISÃO: HttpClient aceita proxies injetados, sem configuração/credenciais/UI.  
-JUSTIFICATIVA: não antecipar MIG-040.  
-EVIDÊNCIA NO KOTLIN: DesktopControllerV5 e coletores.  
-IMPACTO: MIG-040 permanece PENDENTE.  
-REVERSÍVEL: Sim.
-
-## DEC-018
-ID DA DECISÃO: DEC-018  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-027, MIG-028  
-COMPONENTE: Aprovação parcial Globoplay Edições/Trechos  
-COMPORTAMENTO ORIGINAL: catálogo/limites específicos por fonte.  
-DECISÃO: manter EM TESTE até confronto integral do catálogo.  
-JUSTIFICATIVA: não aprovar cobertura parcial.  
-EVIDÊNCIA NO KOTLIN: GloboplayEditionCollector.kt e GloboplayTrechosCollector.kt.  
-IMPACTO: aprovação final adiada.  
-REVERSÍVEL: Sim após equivalência integral.
-
-## DEC-019
-ID DA DECISÃO: DEC-019  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-035 a MIG-038, MIG-088  
-COMPONENTE: Engine de scheduling Desktop  
-COMPORTAMENTO ORIGINAL: `DesktopControllerV5` usa `CoroutineScope(SupervisorJob()+Dispatchers.Default)`, loop com `delay(30_000L)`, `newsJob/newsBusy` e `videoJob/videoBusy` separados.  
-DECISÃO: Python usa uma thread de loop + executor serial para notícias/demandas + executor serial independente para vídeos.  
-JUSTIFICATIVA: preserva a topologia e evita bloquear futura UI sem paralelizar fontes.  
-EVIDÊNCIA NO KOTLIN: `DesktopControllerV5.automationLoop`, `searchNews`, `searchAllDemands`, `searchVideos`.  
-IMPACTO: notícias/demandas são mutuamente exclusivas; vídeos podem coexistir.  
-REVERSÍVEL: Sim, desde que a topologia permaneça equivalente.
-
-## DEC-020
-ID DA DECISÃO: DEC-020  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-038, MIG-088  
-COMPONENTE: Relógio/timezone  
-COMPORTAMENTO ORIGINAL: vídeos usam `LocalDateTime.now()` e formatação local `HH:mm`; não há conversão UTC.  
-DECISÃO: runtime Python usa datetime local do sistema; abstração de relógio existe apenas para testes determinísticos.  
-JUSTIFICATIVA: testar agendamento sem esperar horas sem alterar regra.  
-EVIDÊNCIA NO KOTLIN: `DesktopControllerV5.automationLoop`.  
-IMPACTO: nenhuma timezone explícita adicionada.  
-REVERSÍVEL: Sim.
-
-## DEC-021
-ID DA DECISÃO: DEC-021  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-088, MIG-014, MIG-016, MIG-022, MIG-023, MIG-026, MIG-033  
-COMPONENTE: Fronteira AutomationService ↔ repositories  
-COMPORTAMENTO ORIGINAL: Controller chama `NewsRepository` e `VideoRepository`; não reimplementa collectors/matching/SQL.  
-DECISÃO: `AutomationService` recebe protocolos `NewsRunner`/`VideoRunner`; não criar repository parcial dentro do scheduler.  
-JUSTIFICATIVA: os business repositories completos ainda não existem no destino e inventá-los violaria a separação dos passos.  
-EVIDÊNCIA NO KOTLIN: `DesktopControllerV5`; no destino, `repositories/__init__.py` registra a ausência dos repositories completos.  
-IMPACTO: scheduling é testável, integração end-to-end permanece pendente.  
-REVERSÍVEL: Sim.
-
-## DEC-022
-ID DA DECISÃO: DEC-022  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-035 a MIG-038, MIG-087  
-COMPONENTE: Retry e timeout da automação  
-COMPORTAMENTO ORIGINAL: o loop Desktop não adiciona retry nem timeout global de job.  
-DECISÃO: não adicionar retry externo ou timeout genérico no AutomationService; manter retries/timeouts nas camadas onde já existem.  
-JUSTIFICATIVA: evitar retry duplicado e valores inventados.  
-EVIDÊNCIA NO KOTLIN: `DesktopControllerV5.automationLoop` e métodos de busca.  
-IMPACTO: uma falha do runner encerra aquela execução e o próximo disparo segue a cadência persistida.  
-REVERSÍVEL: Não sem alterar comportamento.
-
-## DEC-023
-ID DA DECISÃO: DEC-023  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-003, MIG-024, MIG-035 a MIG-038  
-COMPONENTE: SharedPreferences Desktop  
-COMPORTAMENTO ORIGINAL: `data/prefs/monitor_prefs.properties`, `java.util.Properties`, gravação temporária e StringSet Base64 URL-safe sem padding separado por `|`.  
-DECISÃO: implementar os tipos/chaves necessários em Python e manter MIG-003 `EM TESTE` até confronto com arquivo real produzido pela JVM.  
-JUSTIFICATIVA: a semântica utilizada pela automação está coberta, mas equivalência byte a byte de escaping/comentários de `Properties.store` ainda não foi provada.  
-EVIDÊNCIA NO KOTLIN: `desktop/src/main/kotlin/android/content/Context.kt`.  
-IMPACTO: configurações e timestamps do scheduler persistem; VideoTermStore ainda não é aprovado.  
-REVERSÍVEL: Sim.
-
-## DEC-024
-ID DA DECISÃO: DEC-024  
-DATA: 2026-09-12  
-MIG RELACIONADO: MIG-042, MIG-088  
-COMPONENTE: Cancelamento  
-COMPORTAMENTO ORIGINAL: Kotlin cancela o Job/coroutine e trata `CancellationException`.  
-DECISÃO: Python usa token cooperativo, preserva guards e textos de estado, mas MIG-042 fica `EM TESTE` até os repositories/HTTP consumirem o token entre operações.  
-JUSTIFICATIVA: `Future.cancel()` não interrompe com segurança uma função Python já executando; fingir cancelamento forçado mudaria a semântica.  
-EVIDÊNCIA NO KOTLIN: `stopNewsSearch`, `stopVideoSearch` e catches de `CancellationException`.  
-IMPACTO: cancelamento de fakes/etapas cooperativas é comprovado; I/O bloqueante real ainda precisa validação.  
-REVERSÍVEL: Sim.
+Nenhuma decisão autoriza logar senha, token, cookie, credential blob ou plaintext descriptografado. Fixtures e testes usam somente valores artificiais.

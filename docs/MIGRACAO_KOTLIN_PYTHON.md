@@ -5,22 +5,32 @@
 - Repositório original: `tysudess/noticias-monitor`
 - Repositório destino: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
 - Baseline funcional: Build SHA `df1701ba5427a04954093e8ebed63f26abb2b2b7` + transformações do workflow da release V8.
+- Branch de migração: `migration/python-foundation`.
 
 ## Estados permitidos
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-## Estado após o Passo 7
+## Estado após o Passo 8
 
-O motor automático efetivo do Windows não está em uma classe Kotlin chamada `AutomationService`: ele reside em `DesktopControllerV5`, principalmente em `automationLoop()`, `searchNews()`, `searchAllDemands()`, `searchVideos()` e funções de cancelamento. O Python usa o nome `AutomationService` como camada desacoplada para portar esse motor, não para inventar um scheduler novo.
+O Passo 8 adiciona somente infraestrutura de rede/proxy e integrações Windows comprovadas: configuração de proxy global, migração de host legado, senha protegida com DPAPI CurrentUser, startup por HKCU Run, notificação por tray, execução de subprocessos sem `shell=True` e testes Windows isolados. Interface completa, Editor de Vídeo, Editor PDF, extrator/downloader e portable final permanecem fora do escopo.
 
-Aprovados neste passo por comparação estática direta e testes determinísticos: `MIG-035`, `MIG-036`, `MIG-037`, `MIG-038`, `MIG-088` e `MIG-089`.
+O Kotlin Desktop ativo **não usa JNA nem Windows Credential Manager**. Nenhum target de Credential Manager foi inventado. Também não foi encontrada persistência principal em AppData/LocalAppData/Documents/Downloads/ProgramData/UserProfile; o motor Desktop usa raiz portable e `data/`.
 
-`MIG-003` passou para `EM TESTE`: existe persistência `data/prefs/monitor_prefs.properties` com escalares e StringSet Base64 URL-safe, mas a compatibilidade byte a byte com um arquivo produzido pela JVM ainda não foi confrontada.
+A baseline possui uma inconsistência objetiva: `DesktopControllerV5` usa default/migração `proxy-7dn.mb`, mas a tela do Build SHA ainda chama `saveProxy(..., "proxy-7db.mb", 6060, ...)`. Como a UI não é migrada neste passo, a camada Python preserva a regra do Controller e aceita host do chamador; não cria correção visual antecipada.
 
-`MIG-042` passou para `EM TESTE`: a camada Python preserva guards, estados e cancelamento cooperativo, porém a interrupção de uma operação HTTP já bloqueada só poderá ser validada quando os repositories completos estiverem ligados ao token.
+## MIG trabalhados no Passo 8
 
-`MIG-014`, `MIG-016`, `MIG-022`, `MIG-023`, `MIG-026` e `MIG-033` continuam `PENDENTE`, pois pertencem à orchestration completa de `NewsRepository`/`VideoRepository`, que ainda não existe no destino. O AutomationService depende de portas (`NewsRunner`/`VideoRunner`) e não duplica coletores, matching ou SQL.
+- `MIG-039` — Iniciar com Windows: `EM TESTE`.
+- `MIG-040` — Proxy geral: `EM TESTE`.
+- `MIG-041` — Migração `proxy-7db.mb` → `proxy-7dn.mb`: `APROVADO`.
+- `MIG-087` — Transporte HTTP injetável: permanece `APROVADO`; passa a aceitar configuração real do proxy sem mudar o caminho sem proxy.
+- `MIG-090` — DPAPI CurrentUser compatível com o formato comprovado: `EM TESTE`.
+- `MIG-091` — Adaptador de notificações Windows/tray: `EM TESTE`.
+- `MIG-092` — Processo oculto/árvore de processo Windows: `EM TESTE`.
+- `MIG-093` — Senha de proxy protegida + migração de plaintext legado: `EM TESTE`.
+
+`MIG-049` e `MIG-056` foram apenas referenciados porque seus arquivos Kotlin comprovam o contrato DPAPI; continuam `PENDENTE` porque pertencem ao extrator, que não foi migrado neste passo.
 
 ## Checklist oficial
 
@@ -64,9 +74,9 @@ Aprovados neste passo por comparação estática direta e testes determinístico
 | MIG-036 | Automação | Intervalo automático de notícias | APROVADO |
 | MIG-037 | Automação | Intervalo automático de demandas | APROVADO |
 | MIG-038 | Automação | Horários automáticos de vídeos | APROVADO |
-| MIG-039 | Windows | Iniciar com Windows | PENDENTE |
-| MIG-040 | Windows | Proxy geral | PENDENTE |
-| MIG-041 | Windows | Migração proxy-7db→proxy-7dn | PENDENTE |
+| MIG-039 | Windows | Iniciar com Windows | EM TESTE |
+| MIG-040 | Windows | Proxy geral | EM TESTE |
+| MIG-041 | Windows | Migração proxy-7db→proxy-7dn | APROVADO |
 | MIG-042 | Controle | Cancelamento de buscas | EM TESTE |
 | MIG-043 | Extrator | Cinco presets de qualidade | PENDENTE |
 | MIG-044 | Extrator | Download genérico yt-dlp | PENDENTE |
@@ -115,103 +125,83 @@ Aprovados neste passo por comparação estática direta e testes determinístico
 | MIG-087 | Networking | Transporte HTTP compatível e injetável para coletores | APROVADO |
 | MIG-088 | Automação | Orquestração Desktop manual/automática e lanes de concorrência | APROVADO |
 | MIG-089 | Automação | Progresso, status, durações e resultado operacional Desktop | APROVADO |
+| MIG-090 | Windows/Segurança | DPAPI CurrentUser compatível | EM TESTE |
+| MIG-091 | Windows | Adaptador de notificação pelo tray | EM TESTE |
+| MIG-092 | Windows | Execução oculta e encerramento de árvore de processos | EM TESTE |
+| MIG-093 | Networking/Segurança | Senha de proxy DPAPI e migração segura do legado | EM TESTE |
 
-## Pipeline Desktop comprovado
+## Inventário Windows comprovado
 
-### Notícias automáticas
+| Função | Kotlin | API/mecanismo | Entrada | Saída | Risco | MIG |
+|---|---|---|---|---|---|---|
+| Proxy global | `DesktopControllerV5` | propriedades JVM + `Authenticator` | enable/host/port/user/pass | proxy HTTP/HTTPS | alto | MIG-040 |
+| Migração host | `DesktopControllerV5.migrateProxyHost` | SharedPreferences | 7db/vazio | 7dn | baixo | MIG-041 |
+| Teste proxy | `DesktopControllerV5.testProxyConnection` | Jsoup | configuração | sucesso/erro textual | médio | MIG-040 |
+| Startup | `DesktopControllerV5.configureWindowsStartup` | `reg.exe` | bool + executável | HKCU Run | médio | MIG-039 |
+| Notificação | `DashboardV5Main` | Compose Tray | título/mensagem | toast/tray | baixo | MIG-091 |
+| DPAPI proxy extrator | `ExtractorPortableStateStore` | `ProtectedData` | texto UTF-8 | Base64 DPAPI | alto | MIG-090 |
+| DPAPI sessão | `GloboplaySessionStore` | `ProtectedData` | cookies | Base64 DPAPI | alto | MIG-090 |
+| Processo oculto | `HiddenWindowsProcess` | ProcessBuilder/PowerShell/taskkill | argv/env/cwd | processo/exit | médio | MIG-092 |
 
-`tick de 30 s` → `desktop_automatic_monitoring` → verifica `desktop_news_automatic` e intervalo → guard `newsBusy` → grava `desktop_auto_news_at` **antes** do job → chama o mesmo `searchNews()` usado manualmente → repository progressivo → progresso/status → resultado/notificação opcional → `finally`: duração e `newsBusy=false`.
+Credential Manager: **não encontrado**. JNA: **não encontrado**. Não há dependência JNA no módulo Desktop.
 
-Intervalo padrão: 30 minutos. Mínimo: 15 minutos.
+## Proxy
 
-### Demandas automáticas
+Defaults comprovados: desativado, host `proxy-7dn.mb`, porta `6060`, usuário/senha vazios. Porta é limitada a `1..65535`. Proxy pronto exige enabled + host + porta válida + usuário + senha. Labels preservados: `Proxy desativado`, `Proxy pronto`, `Proxy requer configuração`.
 
-No mesmo tick e na mesma lane de notícias: após verificar notícias, demandas entram somente no `else if`. Portanto, quando ambas estão vencidas, notícias têm prioridade. Guard: `newsBusy`. A timestamp `desktop_auto_demands_at` é gravada antes do job e é chamado o mesmo `searchAllDemands()` usado manualmente.
+O transporte Python monta o mesmo proxy para HTTP e HTTPS e injeta em `requests`; quando desativado, `proxies=None`, preservando o caminho sem proxy. O teste usa `https://www.google.com/generate_204`, UA `Mozilla/5.0 MonitorDeNoticias/4.0.2`, timeout 12 s e aceita HTTP 200..399.
 
-Intervalo padrão: 60 minutos. Mínimo: 15 minutos.
+## SEGURANÇA DE CREDENCIAIS
 
-### Vídeos automáticos
+### Contrato original protegido
 
-No mesmo tick, mas em lane independente: verifica `desktop_video_automatic` e `videoBusy` → obtém hora local do sistema → compara `HH:mm` com `desktop_video_schedule_times` → monta chave `yyyy-MM-dd-HH-mm` → compara com `desktop_auto_video_slot` → grava slot e `desktop_auto_video_at` antes do job → chama o mesmo `searchVideos()` manual.
+Os stores do extrator usam Windows DPAPI com `DataProtectionScope.CurrentUser`, entropy adicional `null`, bytes UTF-8 e arquivo contendo Base64 do blob protegido. A implementação Python usa diretamente `CryptProtectData`/`CryptUnprotectData` via `ctypes`, sem depender de Python global ou pywin32.
 
-Horários padrão: `08:00`, `12:00`, `15:00`, `19:00`, `21:00`.
+### Senha do proxy Desktop
 
-Não há catch-up explícito de um minuto de vídeo perdido. Comportamento específico do SO em suspensão/retomada, além dessa regra observável: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+A baseline `DesktopControllerV5` grava `desktop_proxy_password` em SharedPreferences como texto. O Passo 8 proíbe explicitamente reduzir segurança ou manter senha em texto puro. Por isso a migração Python preserva todas as demais chaves e semânticas, mas move a senha para `data/prefs/desktop_proxy_password.dpapi` usando DPAPI CurrentUser.
 
-## Concorrência e dupla execução
+Compatibilidade legada: se `desktop_proxy_password` existir em um arquivo antigo, o Python tenta protegê-lo primeiro e somente após sucesso remove a chave em claro. Se a proteção falhar, a chave não é apagada automaticamente. Senha, blob DPAPI e plaintext descriptografado nunca são registrados em log.
 
-- notícias e demandas compartilham a mesma lane/guard e nunca iniciam juntas pelo Controller;
-- vídeos usam lane/guard independente e podem coexistir com notícias ou demandas;
-- disparo manual e automático usam os mesmos métodos;
-- segundo disparo do mesmo grupo enquanto `busy=true` é ignorado;
-- não existe paralelização por fonte adicionada pelo AutomationService.
+Credential Manager: **NÃO DETERMINADO PELO CÓDIGO ANALISADO como mecanismo usado; nenhuma chamada/target foi encontrada. Portanto não foi implementado.**
 
-No Python isso é reproduzido com um `ThreadPoolExecutor(max_workers=1)` para notícias/demandas, outro de um worker para vídeos e uma thread leve de scheduler. A escolha de threads evita bloquear a futura UI Qt, sem aumentar a concorrência observada no Kotlin.
+## Registry e startup
 
-## Retry e timeout
+Contrato preservado:
 
-O `automationLoop()` Desktop não adiciona retry externo nem timeout global de job. Portanto o Python também não cria esses mecanismos. Retries e timeouts permanecem nas camadas onde já foram comprovados (por exemplo, coletores do Passo 6). Não há duplicação de retry.
+- HIVE: `HKEY_CURRENT_USER`.
+- PATH: `Software\Microsoft\Windows\CurrentVersion\Run`.
+- VALUE NAME: `MonitorDeNoticias`.
+- TYPE: `REG_SZ`.
+- enable: valor é o caminho do executável entre aspas.
+- disable: remove o valor.
 
-Timeout global da automação completa: **NÃO DETERMINADO PELO CÓDIGO ANALISADO** — nenhum timeout desse tipo foi encontrado no motor Desktop analisado.
+O Python usa `winreg` diretamente em vez de `reg.exe`, reproduzindo a mesma API do Registro. Em desenvolvimento não grava caminho do interpretador: enable sem executável explícito só funciona quando `sys.frozen` indica o executável empacotado. Testes usam backend/chave isolados.
 
-## Timezone e relógio
+## Notificações
 
-O scheduler de vídeos usa `LocalDateTime.now()`: horário local do sistema, sem timezone explícita e sem conversão UTC. A abstração `SystemClock` existe apenas para testes; em runtime usa relógio/local datetime do sistema.
+Os únicos eventos automáticos continuam os do `AutomationService`: notícias/demandas/vídeos novos. O adaptador chama `QSystemTrayIcon.showMessage(title, message)` e não adiciona ação, duração ou ícone. Duração, clique e ícone específicos: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**. Falha de notificação continua não derrubando a execução.
 
-Tratamento especial de alteração manual do relógio do Windows, suspensão/retomada e DST: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**. A regra comprovada continua sendo a comparação do minuto local atual e a chave diária/minuto.
+## Processos
 
-## Progresso, estado e relatório operacional
+`HiddenProcessRunner` usa lista de argumentos, `shell=False`, cwd e environment explícitos. No Windows usa `STARTF_USESHOWWINDOW/SW_HIDE` e `CREATE_NO_WINDOW`; PowerShell recebe `-WindowStyle Hidden`. Encerramento de árvore usa `taskkill.exe /PID <pid> /T /F`, com `kill()` como fallback. Não foi criado `shell=True`.
 
-`LiveSearchProgress` mantém exatamente: `active`, `kind`, `startedAt`, `finishedAt`, `completed`, `total`, `currentSource`, `currentQuery`, `found`, `newCount`, `errors`; `fraction` é `completed/total` limitado a 0..1 e zero quando `total<=0`.
+## Paths especiais
 
-O Desktop não possui um `AutoReport` rico no caminho analisado. O resultado operacional é composto por status textual, progresso, duração da última busca de notícias/vídeos, lista de fontes de vídeo instáveis e os objetos de resultado retornados pelos repositories. Não foi criado relatório “melhorado”.
+O motor Desktop analisado usa raiz portable e `data/`. Nenhum uso ativo de AppData, LocalAppData, Roaming, Documents, Downloads, Desktop, ProgramData ou UserProfile foi encontrado para essas funções. Portanto nenhuma pasta especial nova foi inventada.
 
-## Persistência de automação
+## Testes do Passo 8
 
-Persistidos no mesmo conceito de SharedPreferences Desktop:
+Foram adicionados testes unitários/equivalência para defaults, host legado, labels, porta, autenticação, ausência de senha, migração de plaintext, redaction, startup/Registry, notificações, execução de processo, argumentos com espaços e arquivo inexistente.
 
-- `desktop_automatic_monitoring`;
-- `desktop_news_automatic`;
-- `desktop_demand_automatic`;
-- `desktop_video_automatic`;
-- `desktop_news_interval`;
-- `desktop_demand_interval`;
-- `desktop_video_schedule_times`;
-- `desktop_auto_news_at`;
-- `desktop_auto_demands_at`;
-- `desktop_auto_video_at`;
-- `desktop_auto_video_slot`.
+Há testes Windows reais isolados para:
 
-Estado transitório (`busy`, progress corrente, status e Futures/tokens) permanece em memória. Próxima execução calculada/persistida para o scheduler Desktop: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**; o código observado não persiste uma próxima execução.
+- DPAPI round-trip com segredo fictício;
+- interoperabilidade Python ↔ `.NET ProtectedData` CurrentUser;
+- `winreg` em `HKCU\Software\MonitorDeNoticias\Tests\Step8`, com limpeza ao final.
 
-## Integração pendente com repositories
+A workflow `python-migration-tests.yml` executa a suíte completa em Ubuntu e Windows. Nenhuma fixture contém senha/token/cookie/blob real.
 
-O destino ainda não possui `NewsRepository` e `VideoRepository` completos. `AutomationService` recebe `NewsRunner` e `VideoRunner` por protocolo para que o Passo 7 possa validar scheduling/concorrência/estado sem recriar scraping, matching ou SQL. A ligação real dos coletores + matching + banco dentro desses repositories continua pendente.
+## Regras permanentes
 
-## Testes do Passo 7
-
-A suíte completa passou com 64 testes e 0 falhas, incluindo todos os testes anteriores. Foram adicionados casos de:
-
-- defaults e mínimos;
-- prioridade notícias sobre demandas;
-- execução de demanda quando notícia não venceu;
-- horário local exato de vídeo e chave anti-duplicação;
-- ausência de catch-up para minuto perdido;
-- coexistência notícia/vídeo;
-- guard contra dupla execução;
-- mesmo caminho manual/automático;
-- cancelamento cooperativo e limpeza de busy;
-- ausência de retry externo;
-- cálculo de progresso;
-- round-trip de preferências e StringSet Base64;
-- golden cases de intervalos/slot.
-
-`python -m compileall -q src` também passou.
-
-## Regra de numeração
-
-Os identificadores MIG-001 a MIG-089 são permanentes. Não renumerar, agrupar, reutilizar ou substituir números. Novos itens futuros devem receber novos identificadores após MIG-089.
-
-## Regra de aprovação
-
-Um MIG somente pode ser marcado `APROVADO` após comparação objetiva com a baseline válida. A existência de código Python “parecido” não é critério de aprovação.
+Os identificadores `MIG-001` a `MIG-093` são permanentes. Não renumerar ou reutilizar. Um MIG somente pode ser marcado `APROVADO` após comparação objetiva com a baseline e validação compatível com sua natureza.
