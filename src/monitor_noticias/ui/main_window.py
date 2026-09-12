@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 from monitor_noticias.app.paths import AppPaths
 from monitor_noticias.ui.catalog import NEWS_SOURCES, SPECIALIZED, VIDEO_SOURCES
 from monitor_noticias.ui.controller import MainUiController
+from monitor_noticias.ui.extractor_page import ExtractorPage
 from monitor_noticias.ui.pages import (
     DemandsPage, HistoryPage, HomePage, NewsPage, PlaceholderPage, SettingsPage,
     StopPage, TermsPage, VideosPage,
@@ -71,8 +72,8 @@ class MainWindow(QMainWindow):
             Section.DEMANDS: DemandsPage(self.controller), Section.SOURCES: SourcesPage(self.controller), Section.HISTORY: HistoryPage(self.controller),
             Section.TERMS: TermsPage(self.controller), Section.STOP: StopPage(self.controller), Section.SETTINGS: SettingsPage(self.controller),
             Section.PDF_EDITOR: PlaceholderPage(self.controller,"Editor de PDF","Ponto de navegação preservado. O motor completo do Editor PDF será migrado em passo posterior."),
-            Section.EXTRACTOR: PlaceholderPage(self.controller,"Extrator de Vídeos","Ponto de navegação preservado. O extrator/downloader independente não é migrado no Passo 9."),
-            Section.VIDEO_EDITOR: PlaceholderPage(self.controller,"Editor de Vídeo","Ponto de navegação preservado. O Editor de Vídeo completo não é migrado no Passo 9."),
+            Section.EXTRACTOR: ExtractorPage(self.paths.root),
+            Section.VIDEO_EDITOR: PlaceholderPage(self.controller,"Editor de Vídeo","Ponto de navegação preservado. O Editor de Vídeo completo não é migrado no Passo 10."),
         }
         for section in SECTION_ORDER: self.stack.addWidget(self.pages[section])
         home=self.pages[Section.HOME]
