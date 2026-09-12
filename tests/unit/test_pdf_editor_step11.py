@@ -93,6 +93,16 @@ def test_include_cover_adds_first_page_and_custom_cover_persists(tmp_path):
     reloaded=PdfEditorModel(tmp_path); assert reloaded.custom_cover==tmp_path/"data"/"capa_padrao_usuario.png"
 
 
+def test_bundled_default_cover_asset_is_decodable_and_used():
+    repo_root=Path(__file__).resolve().parents[2]
+    asset=repo_root/"resources"/"pdf-default-cover.b64"
+    assert asset.is_file() and asset.stat().st_size>1000
+    model=PdfEditorModel(repo_root)
+    image=model.current_cover_image()
+    assert image.width>0 and image.height>0
+    assert image.getbbox() is not None
+
+
 def test_password_protected_pdf_is_not_bypassed(tmp_path):
     writer=PdfWriter(); writer.add_blank_page(width=200,height=300); writer.encrypt("secret")
     protected=tmp_path/"protected.pdf"
