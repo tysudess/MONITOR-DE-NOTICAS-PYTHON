@@ -2,259 +2,180 @@
 
 ## Fonte da verdade
 
-A migração usa `tysudess/noticias-monitor`, Build SHA `df1701ba5427a04954093e8ebed63f26abb2b2b7`, mais as transformações do workflow da release V8. O destino é `tysudess/MONITOR-DE-NOTICAS-PYTHON`, branch `migration/python-foundation`.
+A migração usa `tysudess/noticias-monitor`, Build SHA `df1701ba5427a04954093e8ebed63f26abb2b2b7`, **mais as transformações executadas por** `.github/workflows/release-v8-extractor-tab-portable.yml`. O destino é `tysudess/MONITOR-DE-NOTICAS-PYTHON`, branch `migration/python-foundation`.
 
-A regra permanente é preservar o motor e o comportamento comprovados. Quando uma dependência necessária ainda não existe no destino, a camada superior não a recria por conveniência.
+A regra permanente é preservar o motor e o comportamento comprovados. Quando algo não é comprovado: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-## Arquitetura atual após o Passo 9
+## Arquitetura atual após o Passo 10
 
 ```text
 Application
 └─ MainWindow (PySide6 QMainWindow)
-   ├─ Sidebar
-   │  ├─ Início
-   │  ├─ Notícias
-   │  ├─ Vídeos
-   │  ├─ Demandas
-   │  ├─ Fontes
-   │  ├─ Histórico
-   │  ├─ Termos
-   │  ├─ Parar buscas
-   │  ├─ Configurações
-   │  ├─ Editor de PDF [placeholder visual]
-   │  ├─ Extrator de Vídeos [placeholder visual]
-   │  └─ Editor de Vídeo [placeholder visual]
-   ├─ QStackedWidget
-   │  ├─ HomePage
-   │  ├─ NewsPage
-   │  ├─ VideosPage
-   │  ├─ DemandsPage
-   │  ├─ SourcesPage
-   │  ├─ HistoryPage
-   │  ├─ TermsPage
-   │  ├─ StopPage
-   │  ├─ SettingsPage
-   │  └─ três páginas-placeholder de ferramentas
-   └─ QSystemTrayIcon
-      ├─ Abrir
-      ├─ Buscar notícias agora
-      ├─ Buscar vídeos agora
-      ├─ Buscar demandas agora
-      ├─ Parar buscas
-      └─ Sair
+   ├─ páginas do Monitor migradas no Passo 9
+   ├─ Editor de PDF [placeholder]
+   ├─ Extrator de Vídeos [ExtractorPage REAL]
+   └─ Editor de Vídeo [placeholder]
 
-UI widgets
-   ↓
-MainUiController
-   ├─ NewsDb / VideoDb
-   ├─ SharedPreferences
-   ├─ ProxySettings
-   ├─ StartupManager
-   └─ AutomationService/AutomationPort [injetável]
+ExtractorPage (PySide6)
+   ├─ Download
+   │  ├─ URL
+   │  ├─ 5 presets de qualidade
+   │  ├─ BAIXAR VÍDEO / CANCELAR / Abrir Vídeos
+   │  ├─ progresso/status
+   │  └─ QThread → ExtractorEngine
+   ├─ Histórico
+   │  └─ ExtractorPortableStateStore
+   └─ Configurações
+      ├─ GloboplaySessionStore (DPAPI CurrentUser)
+      ├─ launcher do GloboplayLoginHelper.exe, quando empacotado
+      └─ YtDlpUpdater
 
-AutomationService
-   ↓
-NewsRunner / VideoRunner
-   ↓
-Business repositories [ainda ausentes no destino]
+ExtractorEngine
+   ├─ yt-dlp.exe (nightly no pacote da release)
+   ├─ yt-dlp-stable.exe (Globoplay)
+   ├─ ffmpeg.exe
+   ├─ ffprobe.exe
+   ├─ deno.exe
+   ├─ YouTube normal
+   ├─ YouTube Live: snapshot HLS congelado + fallback temporal limitado
+   ├─ Globoplay: URL → globo:ID → HLS → HTML m3u8
+   ├─ R7/Record: página → candidatos HTML
+   └─ Genérico: yt-dlp → candidatos HTML/mídia direta
+
+Windows
+   ├─ HiddenProcessRunner: subprocessos ocultos + kill da árvore
+   └─ DpapiTextStore: sessão Globoplay protegida
 ```
 
-## Regra UI x lógica
+## Fronteira UI x motor
 
-Widgets PySide6 não contêm SQL, scraping, matching nem scheduling. `MainUiController` é uma camada fina que:
+A UI não contém parsing de sites nem monta comandos de mídia. `ExtractorPage` coleta URL/qualidade, cria um worker em `QThread`, encaminha progresso e aciona cancelamento. A montagem de comandos, roteamento por fonte, retry, HLS, FFprobe, FFmpeg, cookies e erros pertence a `monitor_noticias.extractor`.
 
-- carrega listas recentes do banco;
-- executa CRUD já disponível de termos de notícias e demandas;
-- limpa históricos;
-- lê/grava preferências de seleção de fontes;
-- chama `ProxySettings` e `StartupManager`;
-- encaminha comandos ao `AutomationService` quando uma porta real é injetada;
-- sincroniza status/progresso do serviço para a UI.
+O cancelamento preserva dois níveis da release: a UI incrementa um token de operação para ignorar callbacks antigos e o engine encerra a árvore do processo ativo por `HiddenProcessRunner.destroy_tree()`.
 
-O destino ainda não possui os business `NewsRepository` e `VideoRepository` completos. Por isso a `MainWindow` padrão não fabrica runners falsos. Os botões de busca ficam indisponíveis no runtime padrão até essa composição existir. Nos testes, uma porta fake é injetada apenas para validar o encadeamento UI → controller → service.
+## Motor real do Extrator
 
-## MainWindow
+A release não usa um downloader Python inventado. O motor comprovado é uma composição de:
 
-Contrato reproduzido do Dashboard V5 ativo:
+- `yt-dlp.exe`;
+- `yt-dlp-stable.exe`;
+- `ffmpeg.exe`;
+- `ffprobe.exe`;
+- `deno.exe`;
+- fallbacks HTML próprios;
+- snapshot HLS próprio para YouTube Live;
+- cookies Globoplay protegidos por DPAPI;
+- helper Chromium/PySide6 para login Globoplay;
+- updater seguro de yt-dlp.
 
-- título: `Monitor de Notícias - Windows Portable v4.0.2`;
-- tamanho inicial: 1600×960;
-- sidebar de 258 px;
-- `QStackedWidget` para as páginas principais;
-- timer Qt de 250 ms para sincronização visual segura no thread da GUI;
-- fechar a janela oculta para o tray;
-- encerramento real ocorre pela ação `Sair`;
-- menu do tray reproduz as ações do Kotlin;
-- ícone `monitor-icon.svg` foi preservado do projeto original.
+As versões exatas de yt-dlp e Deno são **NÃO DETERMINADO PELO CÓDIGO ANALISADO**, porque o workflow baixa `latest` no momento do build. O workflow tenta FFmpeg BtbN `ffmpeg-n9.0-latest-win64-gpl-9.0.zip` e usa Gyan `ffmpeg-release-essentials.zip` como fallback; qual fonte concreta venceu no artefato final é **NÃO DETERMINADO PELO CÓDIGO ANALISADO** sem inspecionar o binário/log do build.
 
-Tamanho mínimo, estado inicial maximizado e posição inicial específica: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+## Qualidades
 
-## Navegação e seções
+O contrato contém exatamente cinco presets:
 
-A ordem final considera a transformação de build que adiciona `VIDEO_EDITOR` depois de `EXTRACTOR`:
+| Label | Limite | Selector primário | Compat |
+|---|---:|---|---|
+| 360p | 360 | `bv*[height<=360][ext=mp4]+ba[ext=m4a]/b[height<=360][ext=mp4]/bv*[height<=360]+ba/b[height<=360]/b` | `b[height<=360][ext=mp4]/b[height<=360]/b` |
+| 480p | 480 | `bv*[height<=480][ext=mp4]+ba[ext=m4a]/b[height<=480][ext=mp4]/bv*[height<=480]+ba/b[height<=480]/b` | `b[height<=480][ext=mp4]/b[height<=480]/b` |
+| 720p HD | 720 | `bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]/b` | `b[height<=720][ext=mp4]/b[height<=720]/b` |
+| 1080p Full HD | 1080 | `bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/bv*[height<=1080]+ba/b[height<=1080]/b` | `b[height<=1080][ext=mp4]/b[height<=1080]/b` |
+| Melhor disponível | sem limite | `bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b` | `b[ext=mp4]/b` |
 
-1. Início
-2. Notícias
-3. Vídeos
-4. Demandas
-5. Fontes
-6. Histórico
-7. Termos
-8. Parar buscas
-9. Configurações
-10. Editor de PDF
-11. Extrator de Vídeos
-12. Editor de Vídeo
+Índice padrão: `1` = `480p`.
 
-Editor PDF, Extrator e Editor de Vídeo possuem somente integração visual neste passo. Seus motores não foram migrados.
+## Comando yt-dlp base
 
-## Telas principais
+O engine preserva:
 
-### HomePage
+`--no-playlist --newline --progress --windows-filenames --trim-filenames 180 --continue --retries 10 --fragment-retries 10 --retry-sleep http:linear=1::3 --retry-sleep fragment:linear=1::3 --socket-timeout 30 --ffmpeg-location <bin> -f <selector> --merge-output-format mp4 --remux-video mp4 -o "Videos/%(title).150B [%(id)s].%(ext)s" --print "after_move:FINAL_FILE:%(filepath)s"`.
 
-Reproduz os indicadores de notícias, vídeos, vídeos recentes, demandas, fontes, resumo operacional e ações rápidas. Não cria KPI novo.
+Se Deno existe, adiciona `--js-runtimes deno:<path>`. Cookies/referer/proxy só são acrescentados quando o fluxo os fornece.
 
-O bloco meteorológico/decorativo e alguns detalhes puramente visuais do Compose não foram reproduzidos neste passo; isso não foi substituído por outra fonte ou API.
+## Retry de compatibilidade
 
-### NewsPage
+A segunda tentativa usa `quality.compat` somente quando o erro primário contém `403`, `forbidden`, `requested format`, `format is not available`, `qualidade escolhida não está disponível` ou `player response`. Erros de autenticação não disparam esse retry.
 
-Contém:
+## YouTube normal e Live
 
-- busca textual por título/fonte/termo/demanda;
-- filtro `Só demandas`;
-- períodos Hoje, 24 horas, 7 dias, 30 dias e período personalizado;
-- execução, parada, progresso e status;
-- tabela de resultados;
-- abrir, WhatsApp e copiar link.
+O probe usa `--ignore-config --no-playlist --dump-single-json --skip-download --socket-timeout 30`. Após o patch da release, `post_live` **não** é live ativa; somente `is_live=true` ou `live_status=is_live` usa o fluxo de live.
 
-A execução real fica condicionada à futura composição do business repository.
+### Snapshot HLS
 
-### VideosPage
+O fluxo principal de live:
 
-Contém busca textual, períodos rápidos, execução/parada, progresso/status, painel de fontes instáveis e ações Abrir/WhatsApp/Copiar.
+1. repete o probe com timeout 25 e `--ffmpeg-location`;
+2. determina o ponto final no instante do clique;
+3. escolhe variante HLS muxada com áudio+vídeo, preferindo não ultrapassar a altura desejada;
+4. lê a playlist, resolve URLs relativas e valida a janela DVR;
+5. acrescenta `#EXT-X-ENDLIST` para congelar a janela;
+6. tenta FFmpeg `-c copy`;
+7. se necessário, transcodifica para H.264/AAC (`libx264`, `veryfast`, CRF 20, `yuv420p`, AAC 160k, `+faststart`).
 
-O período personalizado da tela Kotlin ainda não foi reproduzido. O editor de vídeo permanece fora do escopo.
+Fallback temporal yt-dlp: `--live-from-start --hls-use-mpegts --download-sections *00:00:00-HH:MM:SS --force-keyframes-at-cuts --concurrent-fragments 4`. Se o início não puder ser determinado com segurança, o download é interrompido para não acompanhar a transmissão indefinidamente.
 
-### DemandsPage
+## H.264 / FFprobe
 
-Reproduz a tela ativa do V5: veículo, assunto, Adicionar, Buscar todas, listagem, última busca, encontrados, novos, Buscar e Excluir. Não foi inventada edição inline nem status visual que não existiam na tela ativa.
+Após YouTube normal/live, FFprobe consulta `v:0`/`codec_name`. `h264` e `avc1` são mantidos. Outros codecs passam pela conversão H.264/AAC da baseline. Falha na conversão preserva o arquivo original.
 
-A busca individual de uma demanda permanece bloqueada pela ausência do business `NewsRepository`.
+## Globoplay
 
-### TermsPage
+Usa `yt-dlp-stable.exe` quando disponível. Ordem final:
 
-Termos de notícias usam o CRUD existente em `NewsDb`. A coluna de termos de vídeo é visível, mas sua mutação permanece bloqueada porque `VideoTermStore` ainda é `MIG-024 BLOQUEADO`.
+1. URL original;
+2. `globo:<id>` quando ID é detectado;
+3. URL original com `--hls-use-mpegts --downloader m3u8:native`;
+4. até 15 candidatos `.m3u8` extraídos do HTML.
 
-### SourcesPage
+Base Globoplay: `--force-ipv4 --ignore-config --no-mtime`. O runtime cookie vem de `data/extractor/globoplay.session.dpapi`, DPAPI CurrentUser, e é materializado temporariamente apenas durante a operação.
 
-Usa tabs Notícias/Vídeos/Mídia especializada e reproduz:
+O login interno depende de `data/extractor/runtime/GloboplayLoginHelper.exe` (>20 MB), com `--output` e `--profile-dir`. O Passo 10 implementa o launcher, mas o helper binário pertence à montagem da release/portable e não é criado neste passo; por isso o login real permanece bloqueado até o passo de empacotamento.
 
-- busca textual;
-- Região;
-- Estado;
-- `TODOS OS VEÍCULOS — SEM EXCEÇÃO`;
-- Selecionar visíveis;
-- Limpar visíveis;
-- Todas;
-- Nenhuma;
-- checkboxes por fonte.
+## R7/Record
 
-O catálogo de notícias foi portado do `SourceCatalog.kt`: 13 nacionais + 135 estaduais + 12 especializadas = 160 fontes.
+Base `--force-ipv4 --no-mtime`. Primeiro tenta a página; depois busca até 15 candidatos `.m3u8/.mp4/.m4v/.webm`. Um erro da página principal não é tratado como diagnóstico final de DRM antes de testar os candidatos.
 
-O catálogo base de vídeos (`VideoSourceCatalog.kt`) ainda não possui módulo equivalente no destino. A UI usa apenas os dois extras Desktop já migrados: `youtube-g1` e `youtube-domingo-espetacular`. `VIDEO_CATALOG_COMPLETE=False` registra explicitamente essa lacuna.
+## Genérico
 
-### HistoryPage
+URL direta `.m3u8/.mp4/.m4v/.webm/.mov` vai direto ao engine. Caso contrário, tenta yt-dlp e depois até 15 candidatos HTML. O parser normaliza `\u0026`, `\/` e `&amp;`, usa User-Agent/Referer comprovados e exclui URLs de tracking/analytics/pixel.
 
-Tabs Notícias/Vídeos, carregando `listNews(2000)` e `listAll(2000)`, com limpeza por tipo.
+## Proxy do Extrator
 
-### StopPage
+O engine mantém parâmetro de proxy porque os fallbacks e comandos originais o suportam. Entretanto, a transformação final da release remove a UI própria de proxy e chama `engine.download(..., "")` e `GloboplayLoginWindow(..., "")`. Portanto o Passo 10 **não liga automaticamente o proxy geral do Monitor ao Extrator**. Fazer isso agora alteraria a release aprovada.
 
-Exibe status de Notícias/Demandas e Vídeos e encaminha `stop_news_search`, `stop_video_search` e `stop_all_searches` ao serviço quando disponível.
+## Persistência
 
-### SettingsPage
+`data/extractor/settings.properties` guarda `qualityIndex`; `history.txt` guarda até 50 caminhos distintos, mais recente primeiro; `globoplay.session.dpapi` guarda cookies protegidos por DPAPI CurrentUser. A pasta de saída é `Videos/`.
 
-Conecta:
+## Atualizador yt-dlp
 
-- proxy enabled/host/port/user/password;
-- salvar e aplicar;
-- teste de proxy em `QThread`, sem bloquear a GUI;
-- automação geral/notícias/demandas/vídeos;
-- intervalos de notícias/demandas;
-- horários de vídeo;
-- startup Windows.
+Baixa o stable oficial para `yt-dlp.update.tmp.exe`, exige >1 MB, valida `--version`, move a instalação anterior para `yt-dlp.backup.exe`, instala/substitui, valida novamente e só então apaga o backup. Em falha, tenta restaurar o anterior e preserva backup quando necessário. Timeouts: conexão 30 s, leitura 60 s, validação 30 s. User-Agent: `MonitorDeNoticias-Extractor/3.0.1`.
 
-O campo de senha usa `Password` e é limpo após salvar. Ao atualizar a tela, o Python não repõe a senha descriptografada no campo. Essa é uma adaptação deliberada de segurança, registrada em decisão de migração.
+## Testes do Passo 10
 
-A tela Kotlin possui cards mais ricos de automação com `Executar agora`, última/próxima execução. A versão Python atual ainda não reproduz todos esses elementos visuais, portanto a tela permanece `EM TESTE`.
+Foram adicionados testes de:
 
-## Networking e segurança
+- cinco presets e seletores;
+- classificação das fontes e normalização R7;
+- mídia direta e filtros HTML;
+- estado portable/histórico;
+- comando yt-dlp e progresso;
+- retry restrito a falhas compatíveis;
+- contrato FFprobe/H.264;
+- cancelamento da árvore de processo;
+- contrato visual do `ExtractorPage`;
+- equivalência explícita de rotas e qualidade.
 
-`ProxySettings` continua responsável pelo proxy autenticado e mantém senha em DPAPI CurrentUser. A UI nunca persiste senha diretamente.
+A matriz Windows/Ubuntu executa `compileall` e toda a regressão com Qt offscreen. O run do Passo 10 passou nos dois ambientes. Isso não substitui teste de download real com os cinco binários/helper da distribuição final.
 
-`StartupManager` continua usando HKCU Run e evita gravar caminho de desenvolvimento. A opção visual existe, mas validação do executável final depende do passo portable.
+## Pendências deliberadas após o Passo 10
 
-`WindowsTrayNotifier` usa `QSystemTrayIcon.showMessage(title, message)`; as regras de quando notificar permanecem no `AutomationService`.
-
-## Processos
-
-`HiddenProcessRunner` permanece fora dos widgets e usa `shell=False`, argv em lista e flags Windows comprovadas. O Passo 9 não adicionou chamadas de FFmpeg/FFprobe/yt-dlp.
-
-## Model/View e atualização
-
-As páginas de notícias, vídeos, demandas e histórico usam `QTableWidget`; fontes e termos usam `QListWidget`. A UI atualiza apenas a página corrente a cada 250 ms, além dos refreshes explícitos após CRUD/configuração.
-
-Operações de proxy usam worker thread. Buscas reais são responsabilidade do `AutomationService` e não fazem `requests` diretamente no clique da UI.
-
-## Atalhos, duplo clique e contexto
-
-Na revisão do `DashboardV5Main.kt` ativo não foram encontrados contratos ativos de keyboard shortcut ou double-click. Portanto nenhum atalho novo foi criado.
-
-Menus de contexto específicos além do tray: **NÃO DETERMINADO PELO CÓDIGO ANALISADO** na tela ativa revisada.
-
-## Testes de UI
-
-`tests/unit/test_ui_step9.py` usa Qt em modo `offscreen` e valida:
-
-- criação da MainWindow;
-- título/tamanho;
-- 12 entradas de navegação;
-- navegação para cada página;
-- close-to-tray;
-- CRUD de termo/demanda;
-- histórico DB;
-- encadeamento com AutomationPort fake;
-- ausência explícita de engine quando repositories não existem;
-- campo de senha;
-- proxy/startup;
-- catálogo de fontes.
-
-`tests/equivalence/test_ui_equivalence.py` protege ordem/labels das seções, constantes visuais principais, catálogo de notícias e placeholders de ferramentas.
-
-A workflow de migração instala as libs Qt necessárias no Ubuntu e executa `compileall` + toda a suíte em Windows e Ubuntu, com `QT_QPA_PLATFORM=offscreen`. O último run do Passo 9 passou nos dois sistemas.
-
-## Diferenças Compose → PySide6 registradas
-
-- `Window` Compose → `QMainWindow`;
-- navegação por composables condicionais → `QStackedWidget`;
-- `LazyColumn`/cards → tabelas/listas/widgets Qt;
-- `TrayState` → `QSystemTrayIcon`;
-- estado Compose observado por recomposição → `MainUiController` + timer Qt no thread da GUI;
-- ícones Material não foram copiados como pacote de assets; a navegação usa símbolos locais simples sem dependência remota.
-
-Não se exige pixel-perfect; perdas funcionais não são aceitas e, onde existem lacunas, os MIGs permanecem não aprovados.
-
-## Pendências deliberadas após o Passo 9
-
-- composição real de `NewsRepository`/`VideoRepository` no destino;
-- busca individual de demanda;
-- `VideoTermStore` persistente;
-- catálogo base `VideoSourceCatalog` no destino;
-- período personalizado da tela de vídeos;
-- cards completos de automação com última/próxima execução e `Executar agora`;
-- alguns estados vazios/badges visuais do Compose;
-- bloco meteorológico/decorativo do dashboard;
-- teste humano em desktop interativo; a validação automatizada atual é Qt offscreen em Windows/Ubuntu;
+- teste real de YouTube normal/live com binários da release;
+- teste real de R7/Record e Globoplay;
+- helper Globoplay empacotado;
+- confirmação das versões concretas dos binários presentes no ZIP da release;
+- portable final;
 - Editor PDF completo;
-- Extrator independente;
-- Editor de Vídeo completo;
-- portable final.
+- Editor de Vídeo completo.
+
+Os demais componentes e pendências dos Passos 1–9 permanecem válidos e não foram alterados pelo Passo 10.
