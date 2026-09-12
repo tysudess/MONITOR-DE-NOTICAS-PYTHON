@@ -1,1 +1,4 @@
-"""Placeholder estrutural. Implementação funcional será adicionada em passo MIG específico."""
+from .news import Demand, News
+from .video import VideoItem
+
+__all__ = ["Demand", "News", "VideoItem"]

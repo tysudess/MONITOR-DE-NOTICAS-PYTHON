@@ -45,6 +45,14 @@ class AppPaths:
         return self.root / "temp"
 
     @property
+    def news_db(self) -> Path:
+        return self.data / "news.db"
+
+    @property
+    def videos_db(self) -> Path:
+        return self.data / "videos.db"
+
+    @property
     def ffmpeg(self) -> Path:
         return self.bin / "ffmpeg.exe"
 

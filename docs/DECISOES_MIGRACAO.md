@@ -64,3 +64,55 @@ EVIDÊNCIA NO KOTLIN: Não aplicável; limitação do repositório destino obser
 IMPACTO: `main` recebe somente commit técnico de inicialização; fundação permanece isolada.  
 REVERSÍVEL: Sim.  
 OBSERVAÇÕES: Nenhuma alteração foi feita no repositório Kotlin.
+
+## DEC-006
+ID DA DECISÃO: DEC-006  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-005 a MIG-013  
+COMPONENTE: SQLite Python  
+COMPORTAMENTO ORIGINAL: Os DAOs Desktop usam SQL explícito via sqlite-jdbc, WAL e `busy_timeout=5000`.  
+DECISÃO: Usar exclusivamente `sqlite3` da biblioteca padrão, SQL explícito e uma camada central `SQLiteConnection`; não introduzir ORM.  
+JUSTIFICATIVA: É a tradução mais direta do motor atual e não altera schema nem semântica das consultas.  
+EVIDÊNCIA NO KOTLIN: `DesktopNewsDb.kt` e `DesktopVideoDb.kt` da baseline `df1701...`.  
+IMPACTO: Nenhuma dependência externa de banco foi adicionada.  
+REVERSÍVEL: Sim, mas somente com nova evidência e testes de equivalência.  
+OBSERVAÇÕES: `sqlite3.Row` é usado apenas para acesso a colunas; não muda o formato persistido.
+
+## DEC-007
+ID DA DECISÃO: DEC-007  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-005 a MIG-013  
+COMPONENTE: DAOs versus repositories de negócio  
+COMPORTAMENTO ORIGINAL: `NewsDb` e `VideoDb` concentram persistência; `NewsRepository` e `VideoRepository` também executam rede, coletores e regras de busca.  
+DECISÃO: Migrar neste passo apenas os DAOs `NewsDb` e `VideoDb`. Não criar versões parciais de `NewsRepository`/`VideoRepository`.  
+JUSTIFICATIVA: O Passo 4 proíbe migrar coletores e funcionalidades de busca; um repository parcial seria comportamento novo/incompleto.  
+EVIDÊNCIA NO KOTLIN: Dependências e responsabilidades dos arquivos ativos na baseline.  
+IMPACTO: O pacote `repositories` permanece reservado até o passo dos coletores.  
+REVERSÍVEL: Sim.  
+OBSERVAÇÕES: Nenhum repository genérico foi inventado.
+
+## DEC-008
+ID DA DECISÃO: DEC-008  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-005 a MIG-013  
+COMPONENTE: Teste de compatibilidade com banco existente  
+COMPORTAMENTO ORIGINAL: O Portable usa `data/news.db` e `data/videos.db`, criados em runtime.  
+DECISÃO: Usar fixtures SQLite temporárias derivadas literalmente do SQL Kotlin enquanto não houver uma cópia real de banco runtime disponível. Manter os MIG em `EM TESTE`, não `APROVADO`.  
+JUSTIFICATIVA: O repositório original não versiona `news.db` nem `videos.db`; não é correto fingir um confronto com dados reais.  
+EVIDÊNCIA NO KOTLIN: `Context.filesDir = PortablePaths.dataDir`, `DesktopNewsDb.kt`, `DesktopVideoDb.kt`.  
+IMPACTO: Compatibilidade estrutural e comportamental é testada, mas aprovação final aguarda banco real.  
+REVERSÍVEL: Sim.  
+OBSERVAÇÕES: Nenhum banco do usuário foi acessado ou alterado.
+
+## DEC-009
+ID DA DECISÃO: DEC-009  
+DATA: 2026-09-12  
+MIG RELACIONADO: MIG-013, dependência de MIG-025  
+COMPONENTE: VideoMatchPolicy  
+COMPORTAMENTO ORIGINAL: `VideoDb.repairStoredMatches()` usa `VideoMatchPolicy.phraseMatches()` para decidir update/delete.  
+DECISÃO: Portar somente `phraseMatches` e suas funções auxiliares exatas como dependência de MIG-013; não marcar MIG-025 como migrado.  
+JUSTIFICATIVA: O reparo do banco não pode ser fiel sem a mesma política, mas o Passo 4 não autoriza migrar o matching completo de busca.  
+EVIDÊNCIA NO KOTLIN: `DesktopVideoDb.kt` e `VideoMatchPolicy.kt`.  
+IMPACTO: MIG-013 pode ser testado; MIG-025 continua `PENDENTE`.  
+REVERSÍVEL: Sim.  
+OBSERVAÇÕES: A política não foi ampliada, simplificada nem substituída.

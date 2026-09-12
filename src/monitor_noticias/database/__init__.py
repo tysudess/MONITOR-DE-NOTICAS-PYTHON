@@ -1,1 +1,5 @@
-"""Placeholder estrutural. Implementação funcional será adicionada em passo MIG específico."""
+from .connection import SQLiteConnection
+from .news_db import NewsDb
+from .video_db import VideoDb
+
+__all__ = ["SQLiteConnection", "NewsDb", "VideoDb"]

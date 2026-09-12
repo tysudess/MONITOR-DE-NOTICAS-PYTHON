@@ -10,7 +10,9 @@
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-Neste Passo 3 **nenhum MIG foi aprovado**. A fundação cria infraestrutura para os passos seguintes, mas não substitui os critérios de equivalência Kotlin × Python.
+## Estado após o Passo 4
+
+MIG-005 a MIG-013 foram implementados e cobertos por testes com fixtures SQLite equivalentes ao SQL Kotlin. Permanecem `EM TESTE` porque o repositório original não contém uma cópia runtime real de `news.db` ou `videos.db` para confronto final. Nenhum outro MIG teve status alterado.
 
 ## Checklist oficial
 
@@ -20,15 +22,15 @@ Neste Passo 3 **nenhum MIG foi aprovado**. A fundação cria infraestrutura para
 | MIG-002 | Infraestrutura | Resolução de raiz portable | PENDENTE |
 | MIG-003 | Infraestrutura | SharedPreferences portable | PENDENTE |
 | MIG-004 | Infraestrutura | Tray e execução residente | PENDENTE |
-| MIG-005 | Banco | Schema news | PENDENTE |
-| MIG-006 | Banco | Migrations runtime news/demands | PENDENTE |
-| MIG-007 | Banco | Tabela terms e seed | PENDENTE |
-| MIG-008 | Banco | CRUD/status de demandas | PENDENTE |
-| MIG-009 | Banco | Deduplicação/upsert lógico de notícias | PENDENTE |
-| MIG-010 | Banco | Schema videos | PENDENTE |
-| MIG-011 | Banco | Compatibilidade sem migration automática de videos | PENDENTE |
-| MIG-012 | Banco | Remoção de listings genéricos | PENDENTE |
-| MIG-013 | Banco | Reparo de matches armazenados | PENDENTE |
+| MIG-005 | Banco | Schema news | EM TESTE |
+| MIG-006 | Banco | Migrations runtime news/demands | EM TESTE |
+| MIG-007 | Banco | Tabela terms e seed | EM TESTE |
+| MIG-008 | Banco | CRUD/status de demandas | EM TESTE |
+| MIG-009 | Banco | Deduplicação/upsert lógico de notícias | EM TESTE |
+| MIG-010 | Banco | Schema videos | EM TESTE |
+| MIG-011 | Banco | Compatibilidade sem migration automática de videos | EM TESTE |
+| MIG-012 | Banco | Remoção de listings genéricos | EM TESTE |
+| MIG-013 | Banco | Reparo de matches armazenados | EM TESTE |
 | MIG-014 | Notícias | Janela padrão de 24h | PENDENTE |
 | MIG-015 | Notícias | Google News RSS | PENDENTE |
 | MIG-016 | Notícias | Planejamento de queries por termo/fonte | PENDENTE |
@@ -99,6 +101,14 @@ Neste Passo 3 **nenhum MIG foi aprovado**. A fundação cria infraestrutura para
 | MIG-081 | Build | PyInstaller onedir do editor | PENDENTE |
 | MIG-082 | Build | Cinco binários portáteis | PENDENTE |
 | MIG-083 | Build | BUILD-SHA e hash do ZIP | PENDENTE |
+
+## Observações do Passo 4
+
+- `NewsDb` e `VideoDb` foram migrados como DAOs persistentes ativos.
+- `NewsRepository` e `VideoRepository` de negócio não foram parcialmente migrados, pois dependem de coletores/rede/matching fora do escopo.
+- O reparo de vídeo porta somente a dependência exata `VideoMatchPolicy.phraseMatches`; MIG-025 continua `PENDENTE`.
+- `sqlite3` da biblioteca padrão é usado sem ORM.
+- Nenhum banco runtime real do usuário foi aberto ou modificado.
 
 ## Regra de numeração
 
