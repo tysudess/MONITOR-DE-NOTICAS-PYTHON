@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import re
-import unicodedata
-
+from monitor_noticias.matching.common import normalize
 
 SEPTEMBER_7_EVENT_TOKENS = {
     "desfile", "desfiles", "comemoracao", "comemoracoes", "independencia"
@@ -11,12 +9,6 @@ STOP_WORDS = {
     "de", "do", "da", "dos", "das", "e", "em", "no", "na", "nos", "nas",
     "a", "o", "as", "os",
 }
-
-
-def _normalize(value: str) -> str:
-    decomposed = unicodedata.normalize("NFD", value.lower())
-    without_marks = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
-    return re.sub(r"[^a-z0-9]+", " ", without_marks).strip()
 
 
 def _inflection_variants(token: str) -> set[str]:
@@ -33,7 +25,6 @@ def _inflection_variants(token: str) -> set[str]:
         variants.add(token[:-2] + "aos")
     elif not token.endswith("s"):
         variants.add(token + "s")
-
     if token.endswith("res") and len(token) > 5:
         variants.add(token[:-2])
     elif token.endswith("is") and len(token) > 5:
@@ -61,21 +52,19 @@ def _matches_september_7_event(haystack: str, wanted: str) -> bool:
         return False
     hay_tokens = {token for token in haystack.split(" ") if token}
     return (
-        "7" in hay_tokens
-        and "setembro" in hay_tokens
+        "7" in hay_tokens and "setembro" in hay_tokens
         and any(token in SEPTEMBER_7_EVENT_TOKENS for token in hay_tokens)
     )
 
 
 def phrase_matches(text: str, phrase: str) -> bool:
-    """Port mínimo e literal da política usada por VideoDb.repairStoredMatches."""
-    haystack = _normalize(text)
-    wanted = _normalize(phrase)
+    """Equivalente ao objeto Kotlin VideoMatchPolicy, usado pelo reparo do banco."""
+    haystack = normalize(text)
+    wanted = normalize(phrase)
     if not wanted:
         return False
     if _matches_september_7_event(haystack, wanted):
         return True
-
     hay_tokens = {token for token in haystack.split(" ") if token}
     wanted_tokens = [token for token in wanted.split(" ") if token]
     if not wanted_tokens:
@@ -84,7 +73,6 @@ def phrase_matches(text: str, phrase: str) -> bool:
         return any(_token_equivalent(token, wanted_tokens[0]) for token in hay_tokens)
     if f" {wanted} " in f" {haystack} ":
         return True
-
     meaningful = [
         token for token in wanted_tokens
         if len(token) >= 3 and token not in STOP_WORDS

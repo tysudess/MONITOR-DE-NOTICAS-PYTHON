@@ -10,9 +10,11 @@
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-## Estado após o Passo 4
+## Estado após o Passo 5
 
-MIG-005 a MIG-013 foram implementados e cobertos por testes com fixtures SQLite equivalentes ao SQL Kotlin. Permanecem `EM TESTE` porque o repositório original não contém uma cópia runtime real de `news.db` ou `videos.db` para confronto final. Nenhum outro MIG teve status alterado.
+Foram aprovados por equivalência de regra pura: MIG-017, MIG-018, MIG-019, MIG-020, MIG-025, MIG-032, MIG-084 e MIG-085.
+MIG-024 está `BLOQUEADO` porque sua persistência depende de SharedPreferences/MIG-003, ainda pendente.
+MIG-005 a MIG-013 continuam `EM TESTE` até confronto com cópia runtime real dos bancos.
 
 ## Checklist oficial
 
@@ -34,22 +36,22 @@ MIG-005 a MIG-013 foram implementados e cobertos por testes com fixtures SQLite 
 | MIG-014 | Notícias | Janela padrão de 24h | PENDENTE |
 | MIG-015 | Notícias | Google News RSS | PENDENTE |
 | MIG-016 | Notícias | Planejamento de queries por termo/fonte | PENDENTE |
-| MIG-017 | Notícias | Identidade storyKey | PENDENTE |
-| MIG-018 | Notícias | Preservação da primeira captura/NOVO | PENDENTE |
-| MIG-019 | Notícias | Matching subjectMatches | PENDENTE |
-| MIG-020 | Notícias | Matching fonte/veículo | PENDENTE |
+| MIG-017 | Notícias | Identidade storyKey | APROVADO |
+| MIG-018 | Notícias | Preservação da primeira captura/NOVO | APROVADO |
+| MIG-019 | Notícias | Matching subjectMatches | APROVADO |
+| MIG-020 | Notícias | Matching fonte/veículo | APROVADO |
 | MIG-021 | Notícias | Collector direto Últimas Notícias | PENDENTE |
 | MIG-022 | Notícias | Busca individual de demanda | PENDENTE |
 | MIG-023 | Vídeos | Janela padrão de 24h | PENDENTE |
-| MIG-024 | Vídeos | VideoTermStore independente | PENDENTE |
-| MIG-025 | Vídeos | VideoMatchPolicy | PENDENTE |
+| MIG-024 | Vídeos | VideoTermStore independente | BLOQUEADO |
+| MIG-025 | Vídeos | VideoMatchPolicy | APROVADO |
 | MIG-026 | Vídeos | Planejamento source scan x term query | PENDENTE |
 | MIG-027 | Vídeos | Globoplay Edições | PENDENTE |
 | MIG-028 | Vídeos | Globoplay Trechos | PENDENTE |
 | MIG-029 | Vídeos | Globoplay Jarvis global | PENDENTE |
 | MIG-030 | Vídeos | Coleta YouTube canal | PENDENTE |
 | MIG-031 | Vídeos | Enriquecimento de página direta | PENDENTE |
-| MIG-032 | Vídeos | Canonical URLs e merge | PENDENTE |
+| MIG-032 | Vídeos | Canonical URLs e merge | APROVADO |
 | MIG-033 | Vídeos | Classificação de fonte instável | PENDENTE |
 | MIG-034 | Vídeos | Fontes Desktop extras g1/Domingo Espetacular | PENDENTE |
 | MIG-035 | Automação | Loop residente | PENDENTE |
@@ -101,18 +103,21 @@ MIG-005 a MIG-013 foram implementados e cobertos por testes com fixtures SQLite 
 | MIG-081 | Build | PyInstaller onedir do editor | PENDENTE |
 | MIG-082 | Build | Cinco binários portáteis | PENDENTE |
 | MIG-083 | Build | BUILD-SHA e hash do ZIP | PENDENTE |
+| MIG-084 | Vídeos | Priorização estável de candidatos Globoplay | APROVADO |
+| MIG-085 | Vídeos | Filtros/exclusões puros de candidato direto | APROVADO |
 
-## Observações do Passo 4
+## Observações do Passo 5
 
-- `NewsDb` e `VideoDb` foram migrados como DAOs persistentes ativos.
-- `NewsRepository` e `VideoRepository` de negócio não foram parcialmente migrados, pois dependem de coletores/rede/matching fora do escopo.
-- O reparo de vídeo porta somente a dependência exata `VideoMatchPolicy.phraseMatches`; MIG-025 continua `PENDENTE`.
-- `sqlite3` da biblioteca padrão é usado sem ORM.
-- Nenhum banco runtime real do usuário foi aberto ou modificado.
+- Matching de notícias e vídeos permanece separado porque o Kotlin possui regras diferentes.
+- `VideoMatchPolicy.phraseMatches` mantém frase vazia = `false`; `VideoRepository.phraseMatches` mantém frase vazia = `true`.
+- `storyKey`, `mergeNews`, `subjectMatches`, `demandVehicleMatches` e `sourceMatchesStrict` foram portados diretamente do `NewsRepository.kt`.
+- `canonicalizeUrl`, `canonicalKey`, `mergeVideo`, `sourceMatchesDemand`, prioridade Globoplay e filtros puros de candidato foram portados do `VideoRepository.kt`.
+- A limpeza conceitual de termos foi portada como helper puro, mas MIG-024 não foi concluído porque a persistência em SharedPreferences não foi migrada.
+- Nenhum coletor HTTP, automação ou UI foi conectado.
 
 ## Regra de numeração
 
-Os identificadores MIG-001 a MIG-083 são permanentes. Não renumerar, agrupar, reutilizar ou substituir números. Novos itens futuros devem receber novos identificadores após MIG-083.
+Os identificadores MIG-001 a MIG-085 são permanentes. Não renumerar, agrupar, reutilizar ou substituir números. Novos itens futuros devem receber novos identificadores após MIG-085.
 
 ## Regra de aprovação
 

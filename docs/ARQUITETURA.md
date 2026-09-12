@@ -1,102 +1,87 @@
 # Arquitetura da migração Python
 
-## Estado após o Passo 4
+## Estado após o Passo 5
 
-A fundação do Passo 3 continua válida. O Passo 4 adiciona somente a camada de dados equivalente ao Desktop Kotlin da baseline `df1701ba5427a04954093e8ebed63f26abb2b2b7`.
+A fundação do Passo 3 e a camada SQLite do Passo 4 permanecem válidas. O Passo 5 adiciona somente regras puras de negócio/matching da baseline `df1701ba5427a04954093e8ebed63f26abb2b2b7`.
+
+A UI continua mínima. Coletores HTTP, schedulers, automações e integrações Windows não foram ligados.
 
 ## Fluxo de entrada
 
 `run.py` → `monitor_noticias.app.application.Application` → `QApplication` → `monitor_noticias.ui.main_window.MainWindow`.
 
-A UI continua mínima. Nenhuma tela de negócio foi migrada neste passo.
+## Caminhos e dados
 
-## Caminhos
+`AppPaths` continua centralizando `resources/`, `data/`, `data/news.db`, `data/videos.db`, `bin/`, `logs/` e `temp/`.
 
-`AppPaths` centraliza a raiz e deriva:
+A camada de dados continua em:
 
-- `resources/`
-- `data/`
-- `data/news.db`
-- `data/videos.db`
-- `bin/`
-- `logs/`
-- `temp/`
-- `bin/ffmpeg.exe`
-- `bin/ffprobe.exe`
+- `monitor_noticias.database.connection`
+- `monitor_noticias.database.news_db`
+- `monitor_noticias.database.video_db`
 
-O Desktop Kotlin usa `Context.filesDir = PortablePaths.dataDir`; por isso os bancos permanecem em `data/news.db` e `data/videos.db`.
+MIG-005 a MIG-013 permanecem `EM TESTE` por falta de banco runtime real para confronto final.
 
-## Camada de dados
+## Models
 
-### `monitor_noticias.database.connection`
+Persistidos: `News`, `Demand`, `VideoItem`.
 
-`SQLiteConnection` é a camada central de conexão. Usa `sqlite3` da biblioteca padrão, `sqlite3.Row`, `PRAGMA journal_mode=WAL` e `PRAGMA busy_timeout=5000`. Operações compostas usam `BEGIN`/`COMMIT` e `ROLLBACK` em erro.
+Adicionados no Passo 5 somente porque são necessários às regras puras: `MediaSource` e `VideoSource`.
 
-### `monitor_noticias.database.news_db`
+Os catálogos completos de fontes não foram migrados.
 
-`NewsDb` reproduz o DAO Desktop Kotlin:
+## Matching
 
-- cria `news`, `terms` e `demands` com o mesmo SQL;
-- executa somente as migrations runtime comprovadas no Kotlin;
-- aplica o seed `DEFAULT_MONITOR_TERMS` com `INSERT OR IGNORE`;
-- implementa `insertNews`, `listRecent`, `listNews`, `listTerms`, `addTerm`, `removeTerm`, `listDemands`, `addDemand`, `updateDemandStatus`, `removeDemand` e `clearHistory`;
-- preserva a primeira `captured_at` de notícia em conflito de link;
-- promove `important` e `demand` somente de 0 para 1;
-- substitui `matched_term`/`matched_demand` somente quando o valor novo não é vazio.
+### `monitor_noticias.matching.common`
 
-### `monitor_noticias.database.video_db`
+Normalização: lowercase → Unicode NFD → remoção de marcas `Mn` → substituição de tudo que não seja `[a-z0-9]` por espaço → trim. `compact()` remove espaços depois da normalização.
 
-`VideoDb` reproduz o DAO Desktop Kotlin:
+### `monitor_noticias.matching.news_rules`
 
-- cria somente `videos` com o mesmo SQL;
-- **não cria migration automática de colunas**, porque a baseline Kotlin também não cria;
-- implementa `insert`, `removeInvalidListingEntries`, `repairStoredMatches`, `listRecent`, `listPeriod`, `listAll` e `clear`;
-- preserva `captured_at` em conflito de link;
-- mantém ordenação `published_at DESC, captured_at DESC`.
+Porta `story_key`, `merge_news`, `reuse_historical_identity`, `subject_matches`, `demand_vehicle_matches`, `source_matches_strict` e `publisher_host_key` do `NewsRepository.kt`.
 
-### Models persistidos
+Notícias usam tokens exatos no fallback de `subjectMatches`; não usam flexões.
 
-Foram migrados somente os models diretamente necessários à camada de persistência:
+### `monitor_noticias.matching.video_match_policy`
 
-- `News`
-- `Demand`
-- `VideoItem`
+Porta o objeto Kotlin `VideoMatchPolicy` usado pelo reparo do banco. Frase vazia retorna `false`.
 
-Os nomes conceituais, campos, opcionais lógicos e defaults do Kotlin foram preservados. Models de UI, progresso de busca e resultados de coletores continuam pendentes.
+### `monitor_noticias.matching.video_rules`
 
-### Dependência mínima de matching para reparo
+Porta regras puras privadas de `VideoRepository.kt`: matcher de vídeo do repository, equivalência de flexões, exceção de 7 de Setembro, `source_matches_demand`, canonicalização, merge, período, título/summary genéricos, validação de URL específica e prioridade estável de candidatos Globoplay.
 
-`VideoDb.repairStoredMatches` no Kotlin chama `VideoMatchPolicy.phraseMatches`. Para não alterar MIG-013, foi portado apenas esse mecanismo exato como dependência interna da camada de dados.
+A busca por rede e a resolução de páginas não fazem parte deste módulo.
 
-Isso **não aprova nem conclui MIG-025**. O matching completo de busca continua pendente.
+### `monitor_noticias.matching.term_rules`
 
-## Repositories
+`clean_video_terms()` porta somente `VideoTermStore.clean`: trim, remoção de vazios, distinct case-insensitive e ordenação case-insensitive.
 
-Os `NewsRepository.kt` e `VideoRepository.kt` originais combinam persistência com rede, coletores e regras de busca. Esses módulos não foram parcialmente recriados, porque isso produziria uma abstração nova e incompleta.
+A persistência `VideoTermStore` continua bloqueada até MIG-003/SharedPreferences.
 
-Nesta etapa, `NewsDb` e `VideoDb` são os DAOs persistentes ativos equivalentes. O pacote `repositories` permanece reservado para o passo em que os repositories de negócio completos puderem ser migrados com seus coletores.
+## Deduplicação lógica
 
-## Banco original e testes
+Notícias: identidade editorial por `storyKey`; histórico consultado por link antes de storyKey; reencontro preserva link histórico e primeira `capturedAt`; merge acumula termos sem repetir e promove `important`/`demand`.
 
-Nenhum banco runtime real foi modificado. O repositório Kotlin não contém cópias versionadas de `news.db` ou `videos.db`. Os testes de equivalência usam bancos temporários e fixtures criadas com o SQL literal da baseline.
+Vídeos: URLs são canonicalizadas antes do `canonicalKey`; YouTube converge para `/watch?v=<id>`; URL não-YouTube perde query/fragment; merge acumula termos, preserva demanda anterior quando a nova é vazia e usa `max(capturedAt)`.
 
-Por essa razão, MIG-005 a MIG-013 permanecem em `EM TESTE`, aguardando confronto adicional com uma cópia real de banco existente antes de `APROVADO`.
+## Prioridade e exclusões
 
-## Módulos ainda placeholders
+Globoplay usa somente prioridade booleana: candidatos com match superficial de Termo/Demanda vêm primeiro, preservando a ordem original como desempate.
 
-Continuam sem migração funcional:
+Filtros puros preservados: títulos curtos/genéricos, summaries genéricos, paths genéricos, validação específica por tipo de fonte e limite de palavra por token. Não há fuzzy matching, stemming, lematização, IA, embedding ou score adicional.
 
+## Testes
+
+O Passo 5 adiciona testes unitários e golden cases em `tests/equivalence/`, cobrindo acentos/case, palavra inteira x substring, frase multi-palavra, flexões, 7 de Setembro, canonicalização, prioridade estável e merge/deduplicação lógica.
+
+## Módulos ainda não migrados nesta etapa
+
+- coletores HTTP
+- repositories completos de busca/rede
+- automação/scheduler
 - UI completa
-- collectors/news
-- collectors/video
-- repositories de busca
-- automation
-- networking
-- Windows integrations
-- video editor
-- PDF editor
-- extraction/downloader
-
-## Dependências
-
-Nenhum ORM foi adicionado. A camada de dados usa exclusivamente `sqlite3` da biblioteca padrão do Python.
+- Windows/proxy/notificações
+- editor de vídeo
+- editor PDF
+- extrator/downloader
+- persistência completa do VideoTermStore
