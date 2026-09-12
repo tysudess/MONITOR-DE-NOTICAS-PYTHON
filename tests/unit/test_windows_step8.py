@@ -147,12 +147,12 @@ def test_process_runner_exit_stdout_and_space_argument(tmp_path):
     runner = HiddenProcessRunner()
     script = "import sys; print(sys.argv[1]); print('ERR', file=sys.stderr); raise SystemExit(7)"
     result = runner.run(
-        [sys.executable, "-c", script, "argumento com espaços"],
+        [sys.executable, "-c", script, "argumento com espacos"],
         directory=tmp_path,
         timeout=10,
     )
     assert result.exit_code == 7
-    assert "argumento com espaços" in result.output
+    assert "argumento com espacos" in result.output
     assert "ERR" in result.output
 
 
