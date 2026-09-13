@@ -7,7 +7,7 @@ class RuntimeUiController(MainUiController):
     """Controller de produção: somente ponte UI ↔ serviços reais."""
     def __init__(self, *, default_video_source_ids, video_term_store: VideoTermStore, **kwargs) -> None:
         self.default_video_source_ids=set(default_video_source_ids); self.video_term_store=video_term_store
-        self.video_terms=[]; self._last_news_busy=False; self._last_video_busy=False
+        self.video_terms=[]; self._last_news_busy=False; self._last_video_busy=False; self._runtime_closed=False
         super().__init__(**kwargs)
         self.video_terms=self.video_term_store.load(self.state.terms)
 
@@ -42,3 +42,8 @@ class RuntimeUiController(MainUiController):
 
     def set_notifier(self, notifier) -> None:
         if self.automation is not None: self.automation.notify=notifier
+
+    def close(self) -> None:
+        if self._runtime_closed: return
+        self._runtime_closed=True
+        super().close()
