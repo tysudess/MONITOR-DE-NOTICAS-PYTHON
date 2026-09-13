@@ -243,6 +243,11 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
         if not helper_resource.is_file() or helper_resource.stat().st_size <= 20_000_000:
             raise RuntimeError("Helper Globoplay empacotado ausente/incompleto.")
 
+        # A mídia geral mantém espaço/acentos para o gate de paths; a fixture HTTP
+        # do yt-dlp usa nome ASCII para não misturar dois contratos no mesmo teste.
+        extractor_source = media_dir / "extractor_fixture.mp4"
+        extractor_source.write_bytes(source.read_bytes())
+
         class QuietHandler(SimpleHTTPRequestHandler):
             def log_message(self, _format, *args):
                 return
@@ -251,18 +256,39 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         server_thread = threading.Thread(target=server.serve_forever, name="portable-http-fixture", daemon=True)
         server_thread.start()
+
+        # O runner/host pode possuir proxy por variável de ambiente. Para uma fixture
+        # estritamente loopback, isola-se apenas 127.0.0.1; o motor de produção não é alterado.
+        proxy_keys = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy", "NO_PROXY", "no_proxy")
+        saved_proxy_env = {key: os.environ.get(key) for key in proxy_keys}
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+            os.environ.pop(key, None)
+        os.environ["NO_PROXY"] = "127.0.0.1,localhost"
+        os.environ["no_proxy"] = "127.0.0.1,localhost"
         try:
-            local_url = f"http://127.0.0.1:{server.server_port}/{quote(source.name)}"
+            local_url = f"http://127.0.0.1:{server.server_port}/{quote(extractor_source.name)}"
+            # Prova que a fixture local responde antes de entregar a URL ao motor.
+            import requests
+            response = requests.get(local_url, timeout=5)
+            response.raise_for_status()
+            if len(response.content) != extractor_source.stat().st_size:
+                raise RuntimeError("Fixture HTTP local retornou tamanho divergente.")
+
             extractor.url.setText(local_url)
             extractor.quality_buttons[-1].setChecked(True)
             extractor.start_download()
             if not wait_until(
                 lambda: extractor._download_thread is None and not extractor.cancel_button.isEnabled(),
-                timeout=120.0,
+                timeout=90.0,
                 interval=0.05,
             ):
+                status_before_cancel = extractor.status.text()
                 extractor.cancel_download()
-                raise RuntimeError("Extrator empacotado excedeu o tempo do fluxo controlado.")
+                wait_until(lambda: extractor._download_thread is None, timeout=5.0)
+                raise RuntimeError(
+                    "Extrator empacotado excedeu o tempo do fluxo controlado. "
+                    f"Status antes do cancelamento: {status_before_cancel}"
+                )
             if "Download concluído:" not in extractor.status.text():
                 raise RuntimeError(f"Extrator empacotado falhou: {extractor.status.text()}")
             extractor_outputs = list(extractor.engine.videos_dir.glob("*"))
@@ -271,6 +297,11 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
             if extractor.history.count() < 1:
                 raise RuntimeError("Extrator empacotado não registrou histórico do download controlado.")
         finally:
+            for key, value in saved_proxy_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
             server.shutdown()
             server.server_close()
             server_thread.join(timeout=3.0)
