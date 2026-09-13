@@ -4,6 +4,7 @@ from dataclasses import replace
 from typing import Iterable
 
 from monitor_noticias.automation.models import LiveSearchProgress
+from monitor_noticias.collectors.news.latest import ROUTES
 from monitor_noticias.matching import demand_vehicle_matches, merge_news, source_matches_strict, story_key, subject_matches
 from monitor_noticias.models import News
 from .news_types import NewsSearchResult
@@ -15,10 +16,11 @@ def perform_news_search(repo, from_ms, to_ms, selected_sources, search_all_sourc
     terms = repo.db.listTerms() or repo.defaultTerms
     demands = [item for item in repo.db.listDemands() if item.active]
     started_at = repo.now_ms()
-    direct_sources = repo.latest.supported_sources(selected_sources, search_all_sources) if (
-        from_ms >= started_at - DIRECT_SCAN_MAX_WINDOW_MS and
-        to_ms >= started_at - DIRECT_SCAN_RECENCY_TOLERANCE_MS
-    ) else []
+    if from_ms >= started_at - DIRECT_SCAN_MAX_WINDOW_MS and to_ms >= started_at - DIRECT_SCAN_RECENCY_TOLERANCE_MS:
+        scope = repo.national_sources if search_all_sources else selected_sources
+        direct_sources = list({source.id:source for source in scope if source.id in ROUTES}.values())
+    else:
+        direct_sources = []
     tasks = [(term, term, "Google Notícias") for term in terms]
     if not search_all_sources and selected_sources and len(selected_sources) <= 24:
         for offset in range(0, len(selected_sources), 8):
