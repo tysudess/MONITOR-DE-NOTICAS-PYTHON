@@ -26,6 +26,13 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
         )
     )
     result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_name = result_path.stem.lower()
+    if result_name.endswith("-original"):
+        portable_news_link = "https://example.test/portable-noticia-smoke-1"
+    elif result_name.endswith("-moved"):
+        portable_news_link = "https://example.test/portable-noticia-smoke-2"
+    else:
+        portable_news_link = "https://example.test/portable-noticia-local"
     payload: dict[str, object] = {"ok": False, "root": str(root)}
 
     try:
@@ -380,7 +387,7 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
                     title="Marinha realiza exercício naval",
                     source="Fonte Teste",
                     date=published_at,
-                    link="https://example.test/portable-noticia",
+                    link=portable_news_link,
                     snippet="Operação da Marinha",
                     capturedAt=published_at,
                 )]
@@ -441,7 +448,7 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
         stored_news = news_db.listNews(10)
         if not stored_news or stored_news[0].matchedTerm != "MARINHA":
             raise RuntimeError("Pipeline de notícias não persistiu matching no SQLite.")
-        if not news_controller.state.news or news_controller.state.news[0].link != "https://example.test/portable-noticia":
+        if not news_controller.state.news or news_controller.state.news[0].link != portable_news_link:
             raise RuntimeError("Pipeline de notícias não retornou resultado ao estado da UI.")
         if not notification_events:
             raise RuntimeError("Evento de notícia nova não acionou callback de notificação.")
@@ -676,6 +683,7 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
             "startup_registry": True,
             "notification_event": bool(notification_events),
             "notification_wiring": True,
+            "notification_fixture_link": portable_news_link,
             "manual_video_in_out_ui": "NAO_APLICAVEL_BASELINE",
             "video_delete_reorder_ui": "NAO_APLICAVEL_BASELINE",
         })
