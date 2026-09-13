@@ -67,8 +67,15 @@ def exercise_qt_player(source: Path) -> tuple[int, int]:
     seek_position = player.position()
     assert abs(seek_position - 1000) <= 250, f"Seek fora da tolerância: {seek_position} ms"
     assert abs(audio.volume() - 0.85) < 0.01
+
+    # O editor original era um processo separado; fechar o processo liberava a
+    # mídia. O editor integrado reproduz esse teardown limpando a source.
     player.stop()
+    player.setSource(QUrl())
     video.close()
+    for _ in range(5):
+        app.processEvents()
+        time.sleep(0.02)
     return max_position, seek_position
 
 
