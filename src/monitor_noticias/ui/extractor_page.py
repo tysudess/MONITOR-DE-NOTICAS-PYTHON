@@ -74,6 +74,7 @@ class ExtractorPage(QWidget):
         self.updater = YtDlpUpdater(self.engine)
         self._operation_token = 0
         self._download_thread: QThread | None = None
+        self._download_worker: _DownloadWorker | None = None
         self._update_thread: QThread | None = None
         self._login_process: subprocess.Popen[object] | None = None
         self._login_waiter: threading.Thread | None = None
@@ -230,6 +231,7 @@ class ExtractorPage(QWidget):
 
         thread = QThread(self)
         worker = _DownloadWorker(self.engine, clean_url, index)
+        self._download_worker = worker
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.progress.connect(lambda pct, msg, t=token: self._download_progress(t, pct, msg))
@@ -280,6 +282,7 @@ class ExtractorPage(QWidget):
     def _clear_download_thread(self, thread: QThread) -> None:
         if self._download_thread is thread:
             self._download_thread = None
+            self._download_worker = None
         if not self.cancel_button.isEnabled():
             self._set_busy(False)
 
