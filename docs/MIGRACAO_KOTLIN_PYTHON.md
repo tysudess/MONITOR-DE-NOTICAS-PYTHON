@@ -5,45 +5,71 @@
 - Repositório original: `tysudess/noticias-monitor`
 - Baseline Kotlin auditada: `df1701ba5427a04954093e8ebed63f26abb2b2b7` + transformações do workflow V8.
 - Repositório destino: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
-- Branch: `migration/python-foundation`
-- Commit Python congelado para o Passo 13: `6419ee336f3015bd466afa8c2ac4e961ca7c6ff3`.
+- Branch de integração: `migration/python-foundation`.
+- Passo 13 congelou o Python em `6419ee336f3015bd466afa8c2ac4e961ca7c6ff3` para a auditoria.
+- Passo 14 recompôs o runtime real e foi validado por CI determinístico e smoke live antes desta atualização documental.
 
-O comportamento comprovado é a fonte da verdade. Lacunas não são preenchidas por suposição. Quando algo não é comprovado: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+O comportamento comprovado é a fonte da verdade. Lacunas não são preenchidas por suposição. Quando algo não é comprovado: **NÃO DETERMINADO PELO CÓDIGO ANALISADO.**
 
 ## Estados permitidos
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-## Passo 13 — conclusão da auditoria
+`APROVADO` significa equivalência objetiva dentro do escopo explícito do MIG. Existência de código, aparência semelhante ou teste verde isolado não bastam.
 
-A auditoria geral encontrou uma lacuna estrutural crítica: os componentes de coleta/matching existem parcialmente no Python, porém `NewsRepository` e `VideoRepository` de negócio não existem no destino e a aplicação real cria `MainWindow()` sem `AutomationService`. O próprio `MainUiController` informa que as buscas estão indisponíveis quando a automação não é injetada. Assim, a aplicação abre, lê bancos e renderiza telas, mas o fluxo operacional principal do Monitor não está ligado de ponta a ponta.
+## Passo 14 — composição e runtime real
 
-Também foi comprovado que o catálogo base `VideoSourceCatalog.kt` não foi migrado: a UI Python recebe apenas os dois extras Desktop (`youtube-g1` e `youtube-domingo-espetacular`). `VideoTermStore` independente continua ausente. A resolução de wrappers do Google News antes de abrir/copiar/compartilhar também não possui equivalente Python.
+O bloqueio estrutural encontrado no Passo 13 foi removido sem reescrever os motores já migrados. O fluxo de produção passou a ser:
 
-A suíte verde dos passos anteriores não invalida essas conclusões: há testes que explicitamente esperam `search_available == False` e apenas dois itens no catálogo de vídeos. Portanto, testes verdes não constituem equivalência global.
+```text
+run.py
+  → Application
+  → AppContainer
+     → AppPaths / SharedPreferences
+     → NewsDb / VideoDb
+     → ProxySettings / HTTP
+     → collectors existentes
+     → NewsRepository / VideoRepository
+     → RuntimeNewsRunner / RuntimeVideoRunner
+     → AutomationService
+     → RuntimeUiController
+  → MainWindow
+```
 
-## Alterações de status produzidas pelo Passo 13
+O `AppContainer` é composition root: ele monta dependências; não contém scraping, matching ou SQL de negócio.
 
-### Promovidos por equivalência direta revalidada
+Também foram ligados o `VideoTermStore` independente, catálogo base completo de vídeos, seleção real de fontes, runners de notícias/vídeos, busca individual de demanda no controller runtime, atualização da UI após as lanes terminarem, `newNewsLinks`/`newVideoLinks`, proxy dinâmico dos collectors e notificação tray.
 
-- `MIG-001`: baseline congelada e rastreada — `APROVADO`.
-- `MIG-005` a `MIG-013`: schemas, migrations, CRUD/upserts e reparos SQLite — `APROVADO`; código e testes de equivalência foram comparados diretamente, inclusive banco antigo/migration/transações/Unicode.
+### Evidência determinística
 
-### Rebaixados
+Workflow `Python migration tests`, run `34729628580`, head `b5f287b058031ae4b6ee7cb77e705a58a330dab4`:
 
-- `MIG-035` a `MIG-038`: de `APROVADO` para `BLOQUEADO`. O scheduler/algoritmo existe isoladamente, mas a aplicação real não instancia nem inicia `AutomationService`, e seus runners de negócio não existem.
+- Windows: `compileall` aprovado e suíte completa aprovada;
+- Ubuntu: `compileall` aprovado e suíte completa aprovada;
+- suíte completa: **141 testes**, sem falha exibida pelo pytest.
 
-### Pendências que passam a BLOQUEADO pela dependência estrutural comprovada
+Os testes de composição em `tests/integration/composition/` exercitam repository, matching, SQLite, automação e controller reais. Doubles são usados apenas na borda externa controlada quando necessário.
 
-- `MIG-014`, `MIG-016`, `MIG-022`, `MIG-023`, `MIG-026`, `MIG-033`.
+### Evidência live
 
-### Novos MIGs encontrados pela análise reversa
+Workflow `Passo 14 live smoke`, run `34729671873`, head `0c5a691c6cd1eb59bbabaa1dd4b57570cb9d735c`:
 
-- `MIG-112` — catálogo base completo `VideoSourceCatalog`: `BLOQUEADO`.
-- `MIG-113` — `NewsRepository` + `VideoRepository` + wiring real da aplicação: `BLOQUEADO`.
-- `MIG-114` — resolução de URL real do veículo para links Google News: `PENDENTE`.
+```text
+LIVE NEWS OK found=22 new=22 stored=22
+LIVE VIDEO COLLECTOR OK items=15
+```
 
-## Checklist oficial após Passo 13
+O smoke de notícias percorreu Google News real → `NewsRepository` → matching → `news.db`. O smoke de vídeo consultou o coletor real do canal g1.
+
+### Google News URL resolver
+
+O equivalente Python de `GoogleNewsUrlResolver.kt` existe. Entretanto, a revisão do `DashboardV5Main.kt` do baseline `df1701...` não comprovou uma chamada direta ao resolver nas ações visuais do dashboard. A UI Python atual abre/copia o link armazenado. Portanto, `MIG-114` **não é promovido por suposição** e permanece `PENDENTE` até existir evidência concreta do fluxo válido que deve consumi-lo.
+
+### Placeholders
+
+Os placeholders deliberados do editor de vídeo continuam deliberadamente não funcionais conforme `MIG-077`; não foram transformados em funcionalidades inventadas. O fallback de `MainUiController` sem automação permanece útil para testes/injeção, mas o caminho de produção usa `RuntimeUiController` montado pelo `AppContainer`.
+
+## Checklist oficial após Passo 14
 
 | MIG | Módulo | Funcionalidade | Status |
 |---|---|---|---|
@@ -60,31 +86,31 @@ A suíte verde dos passos anteriores não invalida essas conclusões: há testes
 | MIG-011 | Banco | Compatibilidade sem migration automática de videos | APROVADO |
 | MIG-012 | Banco | Remoção de listings genéricos | APROVADO |
 | MIG-013 | Banco | Reparo de matches armazenados | APROVADO |
-| MIG-014 | Notícias | Janela padrão de 24h | BLOQUEADO |
+| MIG-014 | Notícias | Janela padrão de 24h | APROVADO |
 | MIG-015 | Notícias | Google News RSS | APROVADO |
-| MIG-016 | Notícias | Planejamento de queries por termo/fonte | BLOQUEADO |
+| MIG-016 | Notícias | Planejamento de queries por termo/fonte | APROVADO |
 | MIG-017 | Notícias | Identidade storyKey | APROVADO |
 | MIG-018 | Notícias | Preservação da primeira captura/NOVO | APROVADO |
 | MIG-019 | Notícias | Matching subjectMatches | APROVADO |
 | MIG-020 | Notícias | Matching fonte/veículo | APROVADO |
 | MIG-021 | Notícias | Collector direto Últimas Notícias | APROVADO |
-| MIG-022 | Notícias | Busca individual de demanda | BLOQUEADO |
-| MIG-023 | Vídeos | Janela padrão de 24h | BLOQUEADO |
-| MIG-024 | Vídeos | VideoTermStore independente | BLOQUEADO |
+| MIG-022 | Notícias | Busca individual de demanda | EM TESTE |
+| MIG-023 | Vídeos | Janela padrão de 24h | APROVADO |
+| MIG-024 | Vídeos | VideoTermStore independente | APROVADO |
 | MIG-025 | Vídeos | VideoMatchPolicy | APROVADO |
-| MIG-026 | Vídeos | Planejamento source scan x term query | BLOQUEADO |
+| MIG-026 | Vídeos | Planejamento source scan x term query | APROVADO |
 | MIG-027 | Vídeos | Globoplay Edições | EM TESTE |
 | MIG-028 | Vídeos | Globoplay Trechos | EM TESTE |
 | MIG-029 | Vídeos | Globoplay Jarvis global | APROVADO |
 | MIG-030 | Vídeos | Coleta YouTube canal | APROVADO |
 | MIG-031 | Vídeos | Enriquecimento de página direta | APROVADO |
 | MIG-032 | Vídeos | Canonical URLs e merge | APROVADO |
-| MIG-033 | Vídeos | Classificação de fonte instável | BLOQUEADO |
+| MIG-033 | Vídeos | Classificação de fonte instável | EM TESTE |
 | MIG-034 | Vídeos | Fontes Desktop extras | APROVADO |
-| MIG-035 | Automação | Loop residente | BLOQUEADO |
-| MIG-036 | Automação | Intervalo automático notícias | BLOQUEADO |
-| MIG-037 | Automação | Intervalo automático demandas | BLOQUEADO |
-| MIG-038 | Automação | Horários automáticos vídeos | BLOQUEADO |
+| MIG-035 | Automação | Loop residente | APROVADO |
+| MIG-036 | Automação | Intervalo automático notícias | APROVADO |
+| MIG-037 | Automação | Intervalo automático demandas | APROVADO |
+| MIG-038 | Automação | Horários automáticos vídeos | APROVADO |
 | MIG-039 | Windows | Iniciar com Windows | EM TESTE |
 | MIG-040 | Windows | Proxy geral | EM TESTE |
 | MIG-041 | Windows | Migração proxy 7db→7dn | APROVADO |
@@ -142,11 +168,11 @@ A suíte verde dos passos anteriores não invalida essas conclusões: há testes
 | MIG-093 | Segurança | Senha proxy DPAPI | EM TESTE |
 | MIG-094 | UI | MainWindow/sidebar/stack/tray | EM TESTE |
 | MIG-095 | UI | Dashboard/Início | EM TESTE |
-| MIG-096 | UI | Notícias | BLOQUEADO |
-| MIG-097 | UI | Vídeos | BLOQUEADO |
-| MIG-098 | UI | Demandas | BLOQUEADO |
-| MIG-099 | UI | Termos | BLOQUEADO |
-| MIG-100 | UI | Fontes | BLOQUEADO |
+| MIG-096 | UI | Notícias | EM TESTE |
+| MIG-097 | UI | Vídeos | EM TESTE |
+| MIG-098 | UI | Demandas | EM TESTE |
+| MIG-099 | UI | Termos | EM TESTE |
+| MIG-100 | UI | Fontes | EM TESTE |
 | MIG-101 | UI | Histórico | APROVADO |
 | MIG-102 | UI | Configurações | EM TESTE |
 | MIG-103 | UI | Parar buscas/status | EM TESTE |
@@ -158,29 +184,27 @@ A suíte verde dos passos anteriores não invalida essas conclusões: há testes
 | MIG-109 | PDF/Testes | Equivalência e regressão automatizada Passo 11 | APROVADO |
 | MIG-110 | UI/Vídeo | Workspace real do Editor de Vídeo integrado | EM TESTE |
 | MIG-111 | Vídeo/Testes | Equivalência e regressão automatizada Passo 12 | APROVADO |
-| MIG-112 | Vídeos/Catálogo | Catálogo base completo VideoSourceCatalog | BLOQUEADO |
-| MIG-113 | Runtime/Repositories | NewsRepository + VideoRepository + wiring real da aplicação | BLOQUEADO |
+| MIG-112 | Vídeos/Catálogo | Catálogo base completo VideoSourceCatalog | APROVADO |
+| MIG-113 | Runtime/Repositories | NewsRepository + VideoRepository + wiring real da aplicação | APROVADO |
 | MIG-114 | Notícias/UI | Resolver URL real do veículo para links Google News | PENDENTE |
+| MIG-115 | Runtime/Composição | Composition root AppContainer e inicialização real do runtime | APROVADO |
 
-## Totais após auditoria
+## Totais após Passo 14
 
-- Total: **114 MIGs**.
-- `APROVADO`: **51**.
-- `EM TESTE`: **36**.
+- Total: **115 MIGs**.
+- `APROVADO`: **63**.
+- `EM TESTE`: **43**.
 - `PENDENTE`: **8**.
-- `BLOQUEADO`: **19**.
+- `BLOQUEADO`: **1**.
 
-## Bloqueadores de equivalência / portable
+## Pendências que permanecem fora da aprovação do Passo 14
 
-1. `MIG-113`: business repositories e wiring real da aplicação.
-2. `MIG-112`: catálogo completo de vídeo.
-3. `MIG-024`: termos de vídeo independentes.
-4. `MIG-014/016/022/023/026/033/035–038`: fluxos que dependem dos repositories/wiring.
-5. `MIG-096–100`: telas de negócio ainda bloqueadas em equivalência funcional.
-6. `MIG-050`: helper/login Globoplay.
-7. `MIG-079–083`: build/portable final ainda não executado.
-8. validações reais ainda `EM TESTE` em Windows/FFmpeg/FFprobe/preview/extrator/PDF conforme seus MIGs.
+1. `MIG-050`: helper/login interno Globoplay continua bloqueado.
+2. `MIG-114`: resolver Google News existe, mas seu consumo pelo fluxo válido da UI não foi comprovado no baseline; não inventar wiring.
+3. `MIG-079`–`MIG-083`: build/portable final ainda não foi executado.
+4. `MIG-096`–`MIG-100`: wiring real foi destravado, mas validação humana de tela permanece `EM TESTE`.
+5. Windows/DPAPI/processos, FFmpeg/FFprobe/preview, extrator, PDF e demais itens marcados `EM TESTE` continuam exigindo suas validações específicas.
 
 ## Regras permanentes
 
-Os IDs `MIG-001` a `MIG-114` são permanentes. Não renumerar, reutilizar ou substituir. `APROVADO` significa equivalência objetiva dentro do escopo explícito do MIG, não apenas existência de código ou teste verde.
+Os IDs `MIG-001` a `MIG-115` são permanentes. Não renumerar, reutilizar ou substituir. Novos achados recebem somente IDs posteriores. `APROVADO` vale apenas para o escopo objetivo do respectivo MIG.
