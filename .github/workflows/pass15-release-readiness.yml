@@ -61,3 +61,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python scripts/pass15_entrypoint_smoke.py
+      - name: Real FFmpeg and FFprobe media smoke
+        if: runner.os == 'Windows'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python scripts/pass15_media_smoke.py
