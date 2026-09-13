@@ -2,6 +2,11 @@ name: Passo 14 live smoke
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - migration/python-foundation
+    paths:
+      - '.github/workflows/pass14-live-smoke.yml'
 
 jobs:
   live-smoke:
