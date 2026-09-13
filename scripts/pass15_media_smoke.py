@@ -7,11 +7,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+from PySide6.QtCore import QUrl
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtWidgets import QApplication
 
 from monitor_noticias.video_editor.core import Clip, build_export_command, probe_video
 
@@ -21,6 +27,49 @@ def run(command: list[str]) -> subprocess.CompletedProcess[str]:
     if result.returncode != 0:
         raise RuntimeError(f"Comando falhou ({result.returncode}): {command}\n{result.stdout}\n{result.stderr}")
     return result
+
+
+def exercise_qt_player(source: Path) -> tuple[int, int]:
+    app = QApplication.instance() or QApplication([])
+    player = QMediaPlayer()
+    audio = QAudioOutput()
+    audio.setVolume(0.85)
+    video = QVideoWidget()
+    player.setAudioOutput(audio)
+    player.setVideoOutput(video)
+    errors: list[str] = []
+    player.errorOccurred.connect(lambda *_: errors.append(player.errorString()))
+    player.setSource(QUrl.fromLocalFile(str(source)))
+    player.play()
+
+    deadline = time.monotonic() + 8
+    max_position = 0
+    while time.monotonic() < deadline:
+        app.processEvents()
+        max_position = max(max_position, player.position())
+        if errors:
+            raise RuntimeError("QMediaPlayer: " + " | ".join(errors))
+        if max_position >= 300:
+            break
+        time.sleep(0.02)
+    assert max_position >= 300, f"QMediaPlayer não avançou: {max_position} ms"
+
+    player.pause()
+    app.processEvents()
+    assert player.playbackState() == QMediaPlayer.PlaybackState.PausedState
+    player.setPosition(1000)
+    seek_deadline = time.monotonic() + 3
+    while time.monotonic() < seek_deadline:
+        app.processEvents()
+        if abs(player.position() - 1000) <= 250:
+            break
+        time.sleep(0.02)
+    seek_position = player.position()
+    assert abs(seek_position - 1000) <= 250, f"Seek fora da tolerância: {seek_position} ms"
+    assert abs(audio.volume() - 0.85) < 0.01
+    player.stop()
+    video.close()
+    return max_position, seek_position
 
 
 def main() -> int:
@@ -51,6 +100,8 @@ def main() -> int:
         assert info.video_codec == "h264", info
         assert info.audio_codec == "aac", info
 
+        player_position, seek_position = exercise_qt_player(source)
+
         clip = Clip(path=source, info=info)
         command = build_export_command(Path(ffmpeg), clip, output)
         run(command)
@@ -74,6 +125,7 @@ def main() -> int:
 
         print(
             "MEDIA SMOKE OK "
+            f"player_position={player_position}ms seek={seek_position}ms "
             f"codec={video['codec_name']} duration={duration:.3f}s "
             f"resolution={video['width']}x{video['height']} fps={video.get('avg_frame_rate')} "
             f"audio={audio['codec_name']} sample_rate={audio.get('sample_rate')} channels={audio.get('channels')}"
