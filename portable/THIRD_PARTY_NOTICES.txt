@@ -1,0 +1,19 @@
+MONITOR DE NOTÍCIAS — THIRD-PARTY NOTICES
+
+Esta distribuição agrega componentes de terceiros. Este arquivo é um inventário técnico resumido; os termos completos aplicáveis permanecem os das respectivas distribuições incluídas.
+
+Python 3.12.x — Python Software Foundation License.
+PySide6 / Qt for Python 6.9.1 / Shiboken6 — licenciamento Qt for Python aplicável (LGPL/GPL/comercial conforme o componente e forma de distribuição).
+PyInstaller 6.15.0 — usado somente para construir a distribuição; observar os termos do projeto PyInstaller e de seu bootloader.
+requests — Apache License 2.0.
+beautifulsoup4 — MIT License.
+lxml — licença BSD-style do projeto lxml e avisos das bibliotecas nativas aplicáveis.
+pypdf 6.18.0 — BSD-3-Clause.
+pypdfium2 5.13.0 — wrapper sob BSD-3-Clause; PDFium e componentes de terceiros possuem seus próprios avisos/licenças e devem acompanhar a redistribuição conforme os arquivos fornecidos pelo pacote.
+Pillow 12.3.0 — licença do projeto Pillow.
+yt-dlp / yt-dlp nightly — licença publicada pelo projeto yt-dlp.
+Deno — MIT License.
+FFmpeg/FFprobe — a build usada é obtida de uma distribuição Windows GPL compatível com o fluxo original; redistribuição deve manter os avisos e termos correspondentes à build efetivamente incluída.
+certifi, urllib3, charset-normalizer, idna e demais dependências transitivas — licenças próprias publicadas pelos respectivos projetos.
+
+Nenhuma alteração de licença é feita por este projeto. Para distribuição pública, preserve também os arquivos de licença/notice eventualmente fornecidos dentro de _internal/ e pelas distribuições nativas incluídas.
