@@ -32,7 +32,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libpulse0
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -46,3 +46,4 @@ jobs:
 
 # Step 8: matrix Windows/Ubuntu valida regressão completa e integrações nativas com dados fictícios.
 # Step 9: a mesma matriz executa também os testes reais da UI PySide6 em modo offscreen.
+# Step 12: QtMultimedia exige libpulse0 no runner Linux para carregar QMediaPlayer/QAudioOutput.
