@@ -198,7 +198,7 @@ jobs:
               $full=Join-Path $root $dir
               if(Test-Path $full){
                 $first=Get-ChildItem $full -Recurse -Force -File -ErrorAction SilentlyContinue | Select-Object -First 1
-                if($first){throw "ZIP contém estado de usuário/teste em $dir: $($first.FullName)"}
+                if($first){throw "ZIP contém estado de usuário/teste em ${dir}: $($first.FullName)"}
               }
             }
             $bad=Get-ChildItem $root -Recurse -Force -File | Where-Object {
