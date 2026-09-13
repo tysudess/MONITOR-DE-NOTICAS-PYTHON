@@ -72,11 +72,20 @@ def exercise_qt_player(source: Path) -> tuple[int, int]:
     return max_position, seek_position
 
 
-def main() -> int:
+def resolve_media_tools() -> tuple[str, str]:
+    own_ffmpeg = ROOT / "bin" / "ffmpeg.exe"
+    own_ffprobe = ROOT / "bin" / "ffprobe.exe"
+    if own_ffmpeg.is_file() and own_ffprobe.is_file():
+        return str(own_ffmpeg), str(own_ffprobe)
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
-        raise RuntimeError("Runner não possui FFmpeg/FFprobe para smoke real.")
+        raise RuntimeError("Gate não possui FFmpeg/FFprobe da aplicação nem ferramentas no PATH.")
+    return ffmpeg, ffprobe
+
+
+def main() -> int:
+    ffmpeg, ffprobe = resolve_media_tools()
 
     with tempfile.TemporaryDirectory(prefix="pass15-media-") as temp_name:
         temp = Path(temp_name)
