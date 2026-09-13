@@ -6,6 +6,10 @@ on:
     branches:
       - migration/python-foundation
     paths:
+      - 'run.py'
+      - 'src/**'
+      - 'tests/**'
+      - 'requirements.txt'
       - 'MonitorDeNoticias.spec'
       - 'requirements-build.txt'
       - 'scripts/build_portable.ps1'
