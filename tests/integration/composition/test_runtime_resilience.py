@@ -14,8 +14,10 @@ from monitor_noticias.repositories import NewsRepository, VideoRepository, Video
 class PartialGoogle:
     def collect(self,query):
         if query=="FALHA": return None
-        now=int(time.time()*1000)
-        return [News(title="Marinha em operação",source="Fonte",date=now,link="https://example.test/ok",snippet="MARINHA",capturedAt=now)]
+        # O limite superior da busca é fixado antes das chamadas ao collector.
+        # A fixture de sucesso deve ficar inequivocamente dentro da janela testada.
+        published_at=int(time.time()*1000)-1000
+        return [News(title="Marinha em operação",source="Fonte",date=published_at,link="https://example.test/ok",snippet="MARINHA",capturedAt=published_at)]
 class BlockingGoogle:
     def __init__(self): self.started=threading.Event(); self.release=threading.Event()
     def collect(self,query):
