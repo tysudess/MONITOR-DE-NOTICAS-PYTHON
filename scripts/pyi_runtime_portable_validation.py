@@ -29,10 +29,13 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
     result_name = result_path.stem.lower()
     if result_name.endswith("-original"):
         portable_news_link = "https://example.test/portable-noticia-smoke-1"
+        portable_news_title = "Marinha realiza exercício naval smoke 1"
     elif result_name.endswith("-moved"):
         portable_news_link = "https://example.test/portable-noticia-smoke-2"
+        portable_news_title = "Marinha realiza exercício naval smoke 2"
     else:
         portable_news_link = "https://example.test/portable-noticia-local"
+        portable_news_title = "Marinha realiza exercício naval local"
     payload: dict[str, object] = {"ok": False, "root": str(root)}
 
     try:
@@ -384,7 +387,7 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
             def collect(self, query):
                 published_at = int(time.time() * 1000) - 1000
                 return [News(
-                    title="Marinha realiza exercício naval",
+                    title=portable_news_title,
                     source="Fonte Teste",
                     date=published_at,
                     link=portable_news_link,
@@ -684,6 +687,7 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
             "notification_event": bool(notification_events),
             "notification_wiring": True,
             "notification_fixture_link": portable_news_link,
+            "notification_fixture_title": portable_news_title,
             "manual_video_in_out_ui": "NAO_APLICAVEL_BASELINE",
             "video_delete_reorder_ui": "NAO_APLICAVEL_BASELINE",
         })

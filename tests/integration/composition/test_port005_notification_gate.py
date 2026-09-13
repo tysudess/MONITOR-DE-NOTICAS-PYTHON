@@ -13,14 +13,15 @@ from monitor_noticias.repositories import NewsRepository
 
 
 class MutableGoogle:
-    def __init__(self, link: str) -> None:
+    def __init__(self, link: str, title: str) -> None:
         self.link = link
+        self.title = title
 
     def collect(self, query):
         published_at = int(time.time() * 1000) - 1000
         return [
             News(
-                title="Marinha realiza exercício naval",
+                title=self.title,
                 source="Fonte Teste",
                 date=published_at,
                 link=self.link,
@@ -56,8 +57,10 @@ def test_port005_new_duplicate_and_next_new_notification_contract(tmp_path: Path
     news_db.addTerm("MARINHA")
 
     first_link = "https://example.test/portable-noticia-smoke-1"
+    first_title = "Marinha realiza exercício naval smoke 1"
     second_link = "https://example.test/portable-noticia-smoke-2"
-    google = MutableGoogle(first_link)
+    second_title = "Marinha realiza exercício naval smoke 2"
+    google = MutableGoogle(first_link, first_title)
     repository = NewsRepository(
         news_db,
         google=google,
@@ -84,6 +87,7 @@ def test_port005_new_duplicate_and_next_new_notification_contract(tmp_path: Path
         assert not automation.state.newNewsLinks
 
         google.link = second_link
+        google.title = second_title
         assert automation.search_news() is True
         wait_idle(automation)
         assert len(events) == 2
