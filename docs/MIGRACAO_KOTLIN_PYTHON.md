@@ -13,30 +13,33 @@ O comportamento comprovado é a fonte da verdade. Lacunas não são preenchidas 
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-## Estado após o Passo 11
+## Estado após o Passo 12
 
-Os Passos 1–10 permanecem preservados. O Passo 11 substitui o placeholder do Editor PDF pela implementação PySide6 real baseada exclusivamente no `PdfEditorScreenV2.kt` ativo da baseline, incluindo o resultado dos patches visuais executados pelo workflow da release.
+Os Passos 1–11 permanecem preservados. O Passo 12 remove o placeholder do Editor de Vídeo e integra o editor efetivamente distribuído pela release V8.
 
-O Editor PDF Kotlin ativo usa Apache PDFBox `3.0.3` + ImageIO/TwelveMonkeys. O Python usa `pypdf==6.18.0`, `pypdfium2==5.13.0` e `Pillow==12.3.0`, cada biblioteca limitada ao papel necessário para reproduzir o comportamento comprovado.
+A auditoria direta corrigiu uma premissa importante: o motor ativo da release não é `VideoEditorEngine.kt`. A cadeia efetiva é `DashboardV5Main` → `VideoEditorScreen.kt` → `PySideVideoEditorLauncher` → `video-editor/VideoEditorPySide/VideoEditorPySide.exe`, empacotado pelo workflow a partir de `video_editor_pyside/main.py`.
 
-Não foram adicionados split, extração de páginas para arquivos separados, impressão, OCR, compressão genérica, conversão genérica, múltiplos documentos/abas ou navegação de primeira/anterior/próxima/última página porque essas funções não aparecem como recursos ativos do V2 final.
+O editor ativo já é Python/PySide6 6.9.1 e usa QtMultimedia `QMediaPlayer` + `QVideoWidget` + `QAudioOutput`. Os arquivos Kotlin `VideoEditorEngine.kt`, `VideoEditorPreview.kt` e `VideoEditorProcess.kt` pertencem a uma implementação alternativa/legada mais rica e **não foram misturados** ao motor distribuído.
 
-Editor de Vídeo e portable final não foram iniciados.
+Por isso não foram inventados split, excluir/duplicar/reordenar clipe, drag-and-drop, thumbnails, zoom, IN/OUT manual, undo/redo, compactação, target-size, seleção de codec/resolução/FPS, concatenação, progresso ou cancelamento: o `main.py` ativo não implementa essas operações.
 
-## MIG trabalhados no Passo 11
+Portable final não foi iniciado.
 
-- `MIG-058` — importação PDF/imagens/file drop: `APROVADO`.
-- `MIG-059` — página em branco: `APROVADO`.
-- `MIG-060` — crop normalizado: `APROVADO`.
-- `MIG-061` — rotação/flip: `PENDENTE`; métodos internos existem, mas acionamento ativo na UI final não foi comprovado e não foi inventado.
-- `MIG-062` — reordenação drag-and-drop: `APROVADO`.
-- `MIG-063` — undo/redo com 30 snapshots: `APROVADO`.
-- `MIG-064` — capa padrão/custom: `APROVADO`; o asset `pdf-default-cover.b64` foi copiado literalmente da baseline.
-- `MIG-065` — qualidade de exportação: `APROVADO` para o comportamento ativo; enum 450/300/220 preservado e UI final permanece efetivamente em HIGH/450 dpi porque o selector não é exposto no layout final.
-- `MIG-066` — exportação vetorial: `APROVADO`.
-- `MIG-067` — exportação raster: `APROVADO`.
-- `MIG-108` — workspace PySide6 real do Editor PDF: `EM TESTE` até inspeção humana em desktop interativo.
-- `MIG-109` — equivalência/regressão automatizada do Passo 11: `APROVADO`.
+## MIG trabalhados no Passo 12
+
+- `MIG-068` — launcher/workspace PySide6: `EM TESTE`; integrado, mas a release original abre EXE separado e o portable final ainda não foi montado/testado.
+- `MIG-069` — importação múltipla: `EM TESTE`; formatos, ordem, validação e UI preservados, sem teste humano com mídia real.
+- `MIG-070` — probe FFprobe: `EM TESTE`; comando/parsing aprovados por teste determinístico, sem execução com o `ffprobe.exe` exato da release.
+- `MIG-071` — preview: `EM TESTE`; mesmo QMediaPlayer/QVideoWidget preservado, sem teste real de decode/play/seek em desktop.
+- `MIG-072` — áudio/mute: `EM TESTE`; mesmo QAudioOutput e volume 0,85, sem reprodução humana real.
+- `MIG-073` — timeline multiclip: `APROVADO`; matemática, desenho, seleção, régua e playhead foram comparados/testados.
+- `MIG-074` — seek global/local: `EM TESTE`; conversão matemática está aprovada, mas precisão efetiva do player ainda não foi medida com vídeo real.
+- `MIG-075` — play/pause/avanço: `EM TESTE`; callbacks e sequência preservados, sem reprodução humana real.
+- `MIG-076` — exportação de trecho: `EM TESTE`; comando FFmpeg literal está protegido, mas não houve exportação real + FFprobe final com o bundle aprovado.
+- `MIG-077` — placeholders sem inventar: `APROVADO`.
+- `MIG-078` — IN/OUT manual: `APROVADO` como ausência comprovada; `start_ms/end_ms` existem no modelo, mas a UI ativa não oferece edição manual e nada foi inventado.
+- `MIG-110` — workspace do Editor de Vídeo integrado à MainWindow: `EM TESTE` até validação interativa/processo separado no portable.
+- `MIG-111` — equivalência/regressão automatizada do Passo 12: `APROVADO`.
 
 ## Checklist oficial
 
@@ -109,17 +112,17 @@ Editor de Vídeo e portable final não foram iniciados.
 | MIG-065 | PDF | Qualidade exportação | APROVADO |
 | MIG-066 | PDF | Exportação vetorial | APROVADO |
 | MIG-067 | PDF | Exportação raster | APROVADO |
-| MIG-068 | Editor Vídeo | Launcher PySide6 | PENDENTE |
-| MIG-069 | Editor Vídeo | Importação múltipla | PENDENTE |
-| MIG-070 | Editor Vídeo | Probe FFprobe | PENDENTE |
-| MIG-071 | Editor Vídeo | Preview | PENDENTE |
-| MIG-072 | Editor Vídeo | Áudio/mute | PENDENTE |
-| MIG-073 | Editor Vídeo | Timeline multiclip | PENDENTE |
-| MIG-074 | Editor Vídeo | Seek global/local | PENDENTE |
-| MIG-075 | Editor Vídeo | Play/pause/avanço | PENDENTE |
-| MIG-076 | Editor Vídeo | Exportação trecho | PENDENTE |
-| MIG-077 | Editor Vídeo | Placeholders sem inventar | PENDENTE |
-| MIG-078 | Editor Vídeo | IN/OUT manual NÃO DETERMINADO | PENDENTE |
+| MIG-068 | Editor Vídeo | Launcher PySide6 | EM TESTE |
+| MIG-069 | Editor Vídeo | Importação múltipla | EM TESTE |
+| MIG-070 | Editor Vídeo | Probe FFprobe | EM TESTE |
+| MIG-071 | Editor Vídeo | Preview | EM TESTE |
+| MIG-072 | Editor Vídeo | Áudio/mute | EM TESTE |
+| MIG-073 | Editor Vídeo | Timeline multiclip | APROVADO |
+| MIG-074 | Editor Vídeo | Seek global/local | EM TESTE |
+| MIG-075 | Editor Vídeo | Play/pause/avanço | EM TESTE |
+| MIG-076 | Editor Vídeo | Exportação trecho | EM TESTE |
+| MIG-077 | Editor Vídeo | Placeholders sem inventar | APROVADO |
+| MIG-078 | Editor Vídeo | IN/OUT manual ausente no motor ativo | APROVADO |
 | MIG-079 | Build | Entrada Desktop original | PENDENTE |
 | MIG-080 | Build | Transformações workflow | PENDENTE |
 | MIG-081 | Build | PyInstaller editor | PENDENTE |
@@ -151,6 +154,8 @@ Editor de Vídeo e portable final não foram iniciados.
 | MIG-107 | Extrator/Testes | Equivalência e regressão automatizada Passo 10 | APROVADO |
 | MIG-108 | UI/PDF | Workspace PySide6 real do Editor PDF | EM TESTE |
 | MIG-109 | PDF/Testes | Equivalência e regressão automatizada Passo 11 | APROVADO |
+| MIG-110 | UI/Vídeo | Workspace real do Editor de Vídeo integrado | EM TESTE |
+| MIG-111 | Vídeo/Testes | Equivalência e regressão automatizada Passo 12 | APROVADO |
 
 ## Inventário funcional do Editor PDF ativo
 
@@ -185,34 +190,47 @@ Não foram encontradas como recursos ativos do V2 final: separar PDF, extrair p�
 
 Rotação/flip possuem métodos internos, mas nenhuma chamada ativa para `showTransformMenu()` foi encontrada; por isso `MIG-061` não foi promovido e a UI Python não expõe um botão novo.
 
-## Motor e exportação
+## Inventário funcional do Editor de Vídeo ativo
 
-PDFBox 3.0.3 é o motor original. O Python reproduz a divisão:
+### Ativo x legado
 
-- PDF sem crop/rotação/flip → caminho vetorial;
-- imagem, blank ou página transformada → caminho raster.
+- `video_editor_pyside/main.py`: **ATIVO** — é o source usado pelo PyInstaller e copiado ao portable.
+- `VideoEditorScreen.kt`: **ATIVO COMO LAUNCHER** — abre `VideoEditorPySide.exe`.
+- `VideoEditorEngine.kt`, `VideoEditorPreview.kt`, `VideoEditorProcess.kt`: **LEGADO/ALTERNATIVO** para esta release; não alimentam o executável aberto pelo launcher final.
 
-A página final usa largura fixa de `595.276 pt` e altura proporcional. No caminho vetorial, o conteúdo é escalado/centralizado. No caminho raster, a imagem ocupa a página inteira proporcional.
+### Motor de preview
 
-O documento fonte nunca é alterado. Metadata original e estruturas de documento não são automaticamente herdadas porque o original cria um novo `PDDocument`; testes protegem essa semântica, inclusive ausência de `/Annots` herdado no caminho vetorial.
+`PySide6==6.9.1` com `QMediaPlayer` + `QVideoWidget` + `QAudioOutput`, volume inicial 0,85. O Python mantém o mesmo motor. Backend interno de plataforma do QtMultimedia: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-## Capa e persistência
+### Funções ativas
 
-- `data/config.json`;
-- `data/capa_padrao_usuario.png`;
-- `data/capa_padrao.png` opcional;
-- `resources/pdf-default-cover.b64` copiado literalmente da baseline.
+| Função | Contrato | MIG |
+|---|---|---|
+| Abrir vídeos | múltiplos `.mp4/.mkv/.webm/.mov/.avi/.m4v` | MIG-069 |
+| Probe | FFprobe JSON, timeout 60 s | MIG-070 |
+| Preview | QMediaPlayer/QVideoWidget | MIG-071 |
+| Áudio/mute | QAudioOutput, volume 0,85 | MIG-072 |
+| Timeline | clipes sequenciais, seleção, régua, playhead | MIG-073 |
+| Seek | global ↔ clipe/local em ms | MIG-074 |
+| Reprodução | voltar 5 s, play/pause, avançar 5 s, sequência automática | MIG-075 |
+| Exportar trecho | clipe selecionado → H.264/AAC MP4 | MIG-076 |
+| Placeholders | funções inexistentes continuam declaradas como inexistentes | MIG-077 |
+| IN/OUT | campos internos existem, mas não há UI manual ativa | MIG-078 |
 
-## Testes do Passo 11
+Não existem no motor ativo thumbnails, zoom funcional, split, delete, duplicate, reorder, drag-and-drop, undo/redo, target-size, concat, progresso/cancelamento de exportação ou seleção de codec/resolução.
 
-Os testes usam somente PDFs/imagens artificiais. Cobrem importação, múltiplas páginas, imagem, blank, crop, reorder, delete, undo/redo, zoom, dimensões, caminho raster/vetorial, capa custom, PDF protegido, preservação do arquivo fonte, metadata/anotações e contrato da GUI.
+## Testes do Passo 12
 
-A workflow `Python migration tests`, run `34725866759`, concluiu `success` em Windows e Ubuntu no commit de código `cea24a89fd30699a1357e113c8256e544a21258c`. No job Windows, o pytest executou **116 testes** e todos passaram.
+A matriz `Python migration tests`, run `34726977912`, executou `compileall` e toda a regressão em Windows e Ubuntu no commit de código `d244779b1a0d582090b15d072437f6c2f0e51f78`; ambos os jobs concluíram `success`. No Windows, o pytest executou **132 testes** e todos passaram.
 
-## Validação manual
+A primeira tentativa revelou dependência nativa real do QtMultimedia no runner Ubuntu (`libpulse.so.0`). O CI foi corrigido adicionando `libpulse0`; o código do editor não foi alterado para esconder a dependência.
 
-Não houve sessão humana interativa com desktop gráfico neste passo. A GUI foi instanciada e testada com Qt `offscreen` nos dois sistemas. Portanto `MIG-108` permanece `EM TESTE` e não é apresentado como validação manual concluída.
+Os testes cobrem contratos determinísticos, Qt offscreen, formatos, FFprobe mockado, matemática da timeline, motor QtMultimedia, comando FFmpeg e proteção contra funções inventadas. Não houve sessão humana interativa nem execução do `ffmpeg.exe`/`ffprobe.exe` exatos do bundle da release.
+
+## Validação manual / integração real
+
+Preview/áudio/seek/reprodução sequencial/exportação permanecem `EM TESTE` porque não houve teste humano com vídeos reais e binários do portable aprovado. A precisão real de seek do backend QtMultimedia é **NÃO DETERMINADO PELO CÓDIGO ANALISADO** e deve ser medida no ambiente Windows final.
 
 ## Regras permanentes
 
-Os identificadores `MIG-001` a `MIG-109` são permanentes. Não renumerar, reutilizar ou substituir números. Um MIG só vira `APROVADO` após comparação objetiva e validação compatível com sua natureza.
+Os identificadores `MIG-001` a `MIG-111` são permanentes. Não renumerar, reutilizar ou substituir números. Um MIG só vira `APROVADO` após comparação objetiva e validação compatível com sua natureza.
