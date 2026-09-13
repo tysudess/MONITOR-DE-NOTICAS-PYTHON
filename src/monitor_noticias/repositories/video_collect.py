@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from monitor_noticias.collectors.video.catalog import CORE_NATIONAL_GLOBOPLAY_IDS, PORTAL_PROGRAM_SCAN_IDS
-from monitor_noticias.matching import canonical_key, is_globoplay_source
+from monitor_noticias.matching.video_rules import canonical_key, is_globoplay_source
 
 
 def is_source_scan_mode(source) -> bool:
