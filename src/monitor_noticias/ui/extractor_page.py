@@ -202,7 +202,8 @@ class ExtractorPage(QWidget):
             self._refresh_session()
 
     def _quality_changed(self, index: int) -> None:
-        if not self.cancel_button.isEnabled():
+        cancel_button = getattr(self, "cancel_button", None)
+        if cancel_button is None or not cancel_button.isEnabled():
             self.state_store.save_quality_index(index)
 
     def _quality_index(self) -> int:
