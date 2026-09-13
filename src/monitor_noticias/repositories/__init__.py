@@ -1,7 +1,10 @@
-"""Repositories de negócio ainda não foram migrados.
+from .news_repository import NewsRepository
+from .news_types import DemandSearchResult, DemandSweepResult, NewsSearchResult
+from .video_repository import VideoRepository
+from .video_term_store import VideoTermStore
+from .video_types import VideoSearchResult, VideoSourceIssue
 
-A persistência do Passo 4 está em ``monitor_noticias.database.NewsDb`` e
-``monitor_noticias.database.VideoDb``, equivalentes aos DAOs ativos do Desktop
-Kotlin. ``NewsRepository`` e ``VideoRepository`` dependem de coletores/rede e
-permanecem fora deste passo.
-"""
+__all__ = [
+    "NewsRepository", "NewsSearchResult", "DemandSearchResult", "DemandSweepResult",
+    "VideoRepository", "VideoTermStore", "VideoSearchResult", "VideoSourceIssue",
+]
