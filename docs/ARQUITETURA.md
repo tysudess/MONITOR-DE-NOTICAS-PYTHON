@@ -6,7 +6,7 @@ A migração usa `tysudess/noticias-monitor`, Build SHA `df1701ba5427a04954093e8
 
 A regra permanente é preservar o motor e o comportamento comprovados. Quando algo não é comprovado: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-## Arquitetura atual após o Passo 11
+## Arquitetura atual após o Passo 12
 
 ```text
 Application
@@ -14,28 +14,20 @@ Application
    ├─ páginas do Monitor migradas no Passo 9
    ├─ Editor de PDF [PdfEditorPage REAL]
    ├─ Extrator de Vídeos [ExtractorPage REAL]
-   └─ Editor de Vídeo [placeholder]
+   └─ Editor de Vídeo [VideoEditorPage REAL]
+      └─ VideoEditorWindow (janela Qt top-level)
+         ├─ QMediaPlayer
+         ├─ QVideoWidget
+         ├─ QAudioOutput
+         ├─ TimelineWidget
+         ├─ FFprobe → VideoInfo
+         └─ FFmpeg → exportação do clipe selecionado
 
-PdfEditorPage (PySide6)
-   ├─ importação PDF/imagens + file drop
-   ├─ preview PDF/imagem
-   ├─ miniaturas/lista
-   ├─ crop normalizado
-   ├─ página em branco
-   ├─ excluir/reordenar
-   ├─ undo/redo (30 snapshots)
-   ├─ zoom/Redimensionar visual
-   ├─ capa padrão/custom
-   └─ GERAR PDF → PdfEditorModel
-
-PdfEditorModel
-   ├─ pypdf: montagem/exportação vetorial
-   ├─ pypdfium2/PDFium: renderização de PDF
-   ├─ Pillow: imagens/crop/raster
-   ├─ data/config.json
-   ├─ data/capa_padrao_usuario.png
-   ├─ data/capa_padrao.png (opcional)
-   └─ resources/pdf-default-cover.b64 (asset original)
+PdfEditorPage
+└─ PdfEditorModel
+   ├─ pypdf
+   ├─ pypdfium2/PDFium
+   └─ Pillow
 
 ExtractorPage / ExtractorEngine
    ├─ yt-dlp nightly/stable
@@ -46,198 +38,260 @@ ExtractorPage / ExtractorEngine
    └─ fallback HTML
 ```
 
-## Editor PDF — fonte ativa
+## Editor PDF — arquitetura preservada do Passo 11
 
-A implementação efetivamente executada pelo Dashboard V5 é `PdfEditorScreenV2.kt`. `PdfEditorScreen.kt` é implementação anterior e não foi usada como fonte funcional do Passo 11.
+A implementação efetivamente executada pelo Dashboard V5 é `PdfEditorScreenV2.kt`. `PdfEditorScreen.kt` é implementação anterior. O workflow aplica `patch-pdf-editor-naval-layout.py` e `patch-pdf-editor-naval-layout-refine.py` sobre o V2.
 
-O workflow da release protege a lógica base do V2 e, depois da integração do Extrator, aplica:
+O motor original usa Apache PDFBox `3.0.3` (`Loader`, `PDFRenderer`, `PDDocument`, `PDPage`, `LayerUtility`, `PDPageContentStream`, `Matrix`, `LosslessFactory`) e ImageIO/TwelveMonkeys. O Python usa:
 
-- `tools/patch-pdf-editor-naval-layout.py`;
-- `tools/patch-pdf-editor-naval-layout-refine.py`.
+- `pypdf==6.18.0` para montagem/exportação vetorial;
+- `pypdfium2==5.13.0` para renderização de PDF;
+- `Pillow==12.3.0` para imagens/crop/raster;
+- `PySide6==6.9.1` para UI/workers.
 
-Esses patches alteram o layout/HUD e validam a permanência das funções do motor; não substituem o PDFBox nem introduzem um motor PDF diferente.
+O modelo preserva itens `PDF`, `IMAGE`, `BLANK`, caminho, página, rotação/flip internos, crop normalizado e uid. Importação aceita `.pdf`, `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, `.tiff`, `.tif`. Preview usa 120 dpi; miniaturas 58 dpi e máximo 56×84; zoom 50–300% em passos de 15%; Redimensionar é somente zoom visual 75/90/100/110/125%.
 
-## Motor PDF original
+Undo/redo usa snapshots de páginas+seleção, máximo 30. Atalhos ativos: Ctrl+Z, Ctrl+Y, Delete, Ctrl+S. Rotação/flip permanecem suporte interno sem botão ativo comprovado. A capa usa `data/capa_padrao_usuario.png`, `data/capa_padrao.png`, `resources/pdf-default-cover.b64` e fallback. Exportação cria novo documento, largura 595.276 pt, caminho vetorial para PDF sem transformação e raster para imagem/blank/página transformada.
 
-Biblioteca JVM principal:
+## Editor de Vídeo — fonte ativa
 
-- Apache PDFBox `3.0.3`, declarado em `desktop/build.gradle.kts`.
+A revisão do Passo 12 comprovou que o editor efetivamente distribuído pela release V8 **já é Python/PySide6**. A cadeia de execução final é:
 
-Classes/funções usadas no V2:
+```text
+DashboardV5Main
+  → VIDEO_EDITOR (inserido por integrate-video-editor-tab.py)
+  → VideoEditorScreen.kt
+  → PySideVideoEditorLauncher
+  → video-editor/VideoEditorPySide/VideoEditorPySide.exe
+  → source: video_editor_pyside/main.py
+```
 
-- `Loader.loadPDF` — abertura de PDFs;
-- `PDFRenderer` — preview/rasterização;
-- `PDDocument`, `PDPage`, `PDRectangle` — criação do documento final;
-- `LayerUtility.importPageAsForm` — incorporação vetorial de página PDF sem transformação;
-- `PDPageContentStream` + `Matrix` — escala/posicionamento;
-- `LosslessFactory.createFromImage` — páginas rasterizadas.
+O workflow executa:
 
-Imagens usam `ImageIO`, com TwelveMonkeys WebP/TIFF `3.12.0` no classpath.
+```text
+python -m PyInstaller --noconfirm --clean --windowed --onedir
+  --name VideoEditorPySide
+  --collect-all PySide6
+  video_editor_pyside/main.py
+```
 
-## Bibliotecas Python escolhidas
+e copia a pasta resultante para `video-editor/VideoEditorPySide` no portable.
 
-| Biblioteca | Versão | Papel no Passo 11 |
-|---|---:|---|
-| `pypdf` | 6.18.0 | montagem do PDF final e caminho vetorial |
-| `pypdfium2` | 5.13.0 | renderização PDF para preview/crop/raster |
-| `Pillow` | 12.3.0 | imagens, crop, flip/rotação interna e raster |
-| `PySide6` | 6.9.1 | interface e workers Qt |
+### Ativo x legado/alternativo
 
-A escolha foi feita depois do inventário funcional. Não há OCR nem conversor genérico. pypdf é BSD-3-Clause; Pillow é MIT-CMU; pypdfium2 é Apache-2.0/BSD-3-Clause e distribui PDFium sob licença BSD-style. O portable final deverá carregar os avisos/licenças exigidos pelo PDFium e dependências.
+| Componente | Classificação | Motivo |
+|---|---|---|
+| `video_editor_pyside/main.py` | ATIVO | source do EXE empacotado e aberto pelo launcher |
+| `VideoEditorScreen.kt` | ATIVO — LAUNCHER | cria workspace e abre o EXE PySide6 |
+| `VideoEditorEngine.kt` | LEGADO/ALTERNATIVO | motor Kotlin mais rico, não chamado pelo launcher final |
+| `VideoEditorPreview.kt` | LEGADO/ALTERNATIVO | preview por frames JPEG do motor Kotlin alternativo |
+| `VideoEditorProcess.kt` | LEGADO/ALTERNATIVO | helper do motor Kotlin alternativo |
 
-## Modelo de páginas
+Não é permitido combinar funcionalidades dos dois motores para “completar” o editor ativo.
 
-Cada item preserva:
+## Motor de preview do Editor de Vídeo
 
-- `kind`: `PDF`, `IMAGE` ou `BLANK`;
-- caminho de origem;
-- índice de página PDF quando aplicável;
-- rotação interna;
-- flip horizontal interno;
-- crop normalizado;
-- `uid` para identidade durante reorder/undo.
+Motor original e motor Python do Passo 12 são o mesmo:
 
-A seleção ativa é única. Não há multi-select, Ctrl-select ou Shift-range comprovados no V2 ativo.
+- PySide6 `6.9.1`;
+- `PySide6.QtMultimedia.QMediaPlayer`;
+- `QVideoWidget` como saída de vídeo;
+- `QAudioOutput` como saída de áudio;
+- volume inicial `0.85`;
+- source via `QUrl.fromLocalFile`;
+- seek via `QMediaPlayer.setPosition(ms)`;
+- posição via `positionChanged`;
+- fim de mídia via `mediaStatusChanged`;
+- erro via `errorOccurred`.
 
-## Importação
+Backend nativo interno escolhido pelo QtMultimedia no Windows: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-`Arquivos` aceita múltiplos arquivos:
+O FFmpeg **não é o player** do editor ativo. FFmpeg é usado somente na exportação; FFprobe analisa a mídia.
 
-- `.pdf`;
-- `.jpg` / `.jpeg`;
-- `.png`;
-- `.webp`;
-- `.bmp`;
-- `.tiff` / `.tif`.
+## Formatos e análise da mídia
 
-`PDF` aceita múltiplos PDFs. Cada página de cada PDF vira um item separado na sequência. Uma imagem vira um item. File drop usa os mesmos formatos.
+Formatos aceitos exatamente:
 
-PDF protegido por senha não possui prompt nem bypass no original; falha de abertura é exibida como erro. O Python mantém esse comportamento.
+- `.mp4`
+- `.mkv`
+- `.webm`
+- `.mov`
+- `.avi`
+- `.m4v`
 
-## Preview, miniaturas e zoom
+O probe usa:
 
-- PDF normal: render 120 dpi.
-- Miniatura: `renderFinalPage(..., 58)` e redução máxima para 56×84, sem ampliar.
-- Zoom: 50% a 300%, passos de 15%.
-- `Ajustar`: 100%.
-- `Redimensionar`: opções 75%, 90%, 100%, 110%, 125%; **altera somente a escala de visualização**, não as dimensões do PDF.
-- Modos visuais: `Miniatural` e `Lista`, conforme o patch final da release.
+```text
+ffprobe.exe -v error -print_format json -show_format -show_streams <arquivo>
+```
 
-Não existem controles ativos comprovados de primeira/anterior/próxima/última página, número de página, fit-width ou fit-page; não foram criados.
+Timeout: 60 s. O modelo `VideoInfo` recebe duração em ms, largura, altura, FPS, codec de vídeo e primeiro codec de áudio. FPS usa `avg_frame_rate`, fallback `r_frame_rate`. Bitrate e metadata geral não fazem parte do modelo ativo.
 
-## Crop
+## Modelo temporal
 
-O crop é armazenado normalizado (`x`, `y`, `w`, `h`) e aplicado após a transformação da imagem/página. A seleção gráfica exige área maior que 4 px. No render final, coordenadas são limitadas a 0..1; início usa `floor` e fim usa `ceil`, preservando ao menos 1 pixel.
+`Clip` contém somente:
 
-## Reordenação, exclusão e limpar
+- `path`;
+- `info`;
+- `start_ms`, default 0;
+- `end_ms`, default `info.duration_ms`;
+- propriedade `duration_ms = max(0, end_ms - start_ms)`.
 
-A coluna de páginas usa seleção única e drag-and-drop de inserção. O item movido permanece selecionado. Excluir remove somente a página selecionada, sem confirmação e inclusive permite remover a última. `Limpar` pede confirmação e remove todas.
+Unidade central: **milissegundos inteiros**.
 
-## Undo / redo
+Conversões:
 
-Snapshot integral de páginas + índice selecionado, limite de 30 estados. Entram no histórico: importação, criar blank, crop, funções internas de rotação/flip, excluir, reorder e limpar. Zoom e troca de capa não fazem parte do undo.
+```text
+início global do clipe i = soma(duration_ms dos clipes anteriores)
+posição global = início global + max(0, player.position - clip.start_ms)
+global → clip/local = percorre durações acumuladas
+```
 
-Atalhos ativos:
+A implementação ativa usa `global_ms <= next_cursor`; por isso o tempo exatamente no limite entre dois clipes ainda mapeia para o final do clipe anterior. Esse detalhe foi preservado e testado.
 
-- `Ctrl+Z` — undo;
-- `Ctrl+Y` — redo;
-- `Delete` — excluir selecionada;
-- `Ctrl+S` — exportar.
+## Timeline
 
-`Ctrl+O` não foi encontrado e não foi inventado.
+`TimelineWidget` possui:
 
-## Rotação e flip
+- uma track visual de vídeo;
+- uma track visual de áudio;
+- blocos proporcionais à duração dos clipes;
+- seleção de clipe por clique;
+- playhead global;
+- régua com 5 intervalos, ou 6 quando duração total > 60 s;
+- clique → tempo global proporcional → seek.
 
-`PdfEditorScreenV2.kt` contém `showTransformMenu`, `rotateSelected` e `flipSelected`, e o estado/exportador entende esses campos. Porém não foi encontrado caller ativo para `showTransformMenu` nem controle de transformação validado pelo workflow final. O Python mantém suporte interno de estado/exportação, mas **não expõe botão/menu novo**. `MIG-061` permanece pendente até surgir evidência do acionamento ativo na baseline.
+Não possui thumbnails. `pixels_per_second = 8.0` existe no source, mas o widget ativo não usa esse valor para zoom funcional. Não existe scroll/zoom operacional comprovado. O playhead não tem lógica própria de drag; mouse press faz seek pelo x.
 
-## Capa
+## Reprodução e áudio
 
-Ordem comprovada:
+Controles ativos:
 
-1. `data/capa_padrao_usuario.png`, quando configurada;
-2. `data/capa_padrao.png`, se existir;
-3. recurso original `resources/pdf-default-cover.b64`;
-4. fallback gerado, apenas se todos os anteriores falharem.
+- `◀ 5s`;
+- play/pause no mesmo botão;
+- `5s ▶`;
+- mute/unmute.
 
-O recurso `pdf-default-cover.b64` foi copiado literalmente do Build SHA de referência. Capa custom aceita os mesmos formatos de imagem da UI e é convertida para PNG. `data/config.json` guarda `custom_cover: data/capa_padrao_usuario.png`.
+Não existe botão Stop separado.
 
-## Exportação
+Ao atingir `clip.end_ms` durante reprodução, `play_next_clip()` carrega o próximo source com autoplay. `EndOfMedia` também chama o próximo clipe. Ao terminar o último, o player pausa e o playhead vai para a duração global total.
 
-O editor sempre monta um novo documento; arquivos de origem não são modificados.
+Não há transição, crossfade ou preload explícitos. Gap real durante `setSource()` depende do backend do QtMultimedia e é **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
 
-Nome padrão do Save As:
+Mídia sem áudio é aceita: `audio_codec=None`, timeline mostra `Sem áudio`; o player simplesmente não recebe stream de áudio.
 
-- com capa: `RADAR DE NOTICIAS - MIDIA IMPRESSA.pdf`;
-- sem capa: `documento.pdf`.
+## Recursos deliberadamente ausentes
 
-A extensão `.pdf` é acrescentada se ausente. Política custom de overwrite além do comportamento do diálogo nativo: **NÃO DETERMINADO PELO CÓDIGO ANALISADO**.
+O editor ativo não implementa:
 
-### Qualidade
+- thumbnails;
+- zoom funcional da timeline;
+- split/divisão;
+- exclusão de clipe;
+- duplicação;
+- reordenação;
+- drag-and-drop de clipes;
+- IN/OUT manual;
+- range slider;
+- ajuste fino temporal;
+- undo/redo;
+- arquivo de projeto;
+- reset/limpar timeline;
+- compactação;
+- tamanho-alvo;
+- estimativa de tamanho;
+- seleção de codec/resolução/FPS;
+- H.265;
+- concatenação;
+- progresso de exportação;
+- cancelamento de exportação;
+- temporários de exportação.
 
-O enum original possui:
+Há botões/abas visuais para `Salvar Projeto`, `Configurações`, `Extração`, `Compactação`, `Corte`, `Unir Vídeos`, `Converter`, mas o source responde explicitamente que essas funções não existem. Nos quick buttons, somente `Cortar Vídeo` chama a exportação real; os demais continuam placeholders.
 
-- Alta (recomendado): 450 dpi;
-- Média: 300 dpi;
-- Compacta: 220 dpi.
+## Exportação do Editor de Vídeo
 
-No layout final da release, o JComboBox de qualidade não é adicionado ao painel visível; por isso o valor efetivo fica no primeiro enum, HIGH/450 dpi. A UI Python também não inventa seletor e exporta no valor ativo HIGH.
+A exportação ativa opera somente sobre o clipe selecionado. Como a UI ativa não modifica `start_ms/end_ms`, um clipe recém-importado normalmente representa o arquivo inteiro.
 
-### Caminho vetorial
+Pasta: `VideoEditorExports/`.
 
-Condição exata: item PDF, `rotation == 0`, `flipX == false`, `crop == null`.
+Nome:
 
-O PDFBox original cria uma página nova de largura fixa `595.276 pt`, altura proporcional ao crop/media box, importa a página como Form XObject e a desenha escalada/centralizada. O Python usa pypdf para reproduzir a mesma geometria. Como `merge_transformed_page` copiava `/Annots`, o Python remove `/Annots` explicitamente para ficar alinhado ao `importPageAsForm` do PDFBox.
+```text
+<stem>_corte_<IN>_<OUT>.mp4
+```
 
-A criação de um documento novo significa que metadata do documento de origem, bookmarks/outlines e estruturas de formulário/anotações não são herdados automaticamente pelo fluxo original. O Python não tenta “preservar mais” que o original.
+com o tempo formatado e `:`/`.` substituídos por `-`.
 
-### Caminho raster
+Pipeline literal:
 
-Usado para imagens, BLANK e qualquer página transformada. A imagem final é embutida lossless em RGB; largura de página `595.276 pt`, altura proporcional aos pixels. Página PDF transformada é renderizada no DPI da qualidade ativa antes da incorporação.
+```text
+ffmpeg.exe -y -i <input>
+  -ss <start_seconds_3_decimals>
+  -t <duration_seconds_3_decimals>
+  -map 0:v:0
+  -map 0:a?
+  -vf scale=trunc(iw/2)*2:trunc(ih/2)*2
+  -c:v libx264
+  -preset veryfast
+  -crf 20
+  -pix_fmt yuv420p
+  -c:a aac
+  -b:a 160k
+  -movflags +faststart
+  <output.mp4>
+```
 
-Não existe compactação genérica separada, divisão de PDF, extração de páginas para arquivos separados, impressão, OCR, busca de texto ou conversão PDF→imagem como recurso ativo.
+`-ss` e `-t` ficam **depois de `-i`**. Timeout: 3600 s. A execução ativa é síncrona por `subprocess.run`; não usa `-progress`, worker ou cancelamento. Reescrever em background agora seria melhoria divergente, não migração fiel.
 
-## Threads
+Áudio é opcional por `-map 0:a?`. Não existe geração de silêncio. Vídeo sempre sai `libx264`, CRF 20, preset veryfast, `yuv420p`; áudio, quando presente, AAC 160k. Não há target bitrate, target size, H.265 ou seleção de resolução. O filtro apenas garante dimensões pares, preservando a resolução efetiva salvo arredondamento para múltiplos de 2.
 
-Operações pesadas não são feitas no thread GUI:
+## FFmpeg/FFprobe do portable
 
-- preview/crop: `QThread`;
-- exportação: `QThread`;
-- miniaturas independentes: `QThreadPool`.
+O workflow baixa FFmpeg/FFprobe no mesmo pacote de binários do Monitor. Tenta primeiro BtbN `ffmpeg-n9.0-latest-win64-gpl-9.0.zip` e depois Gyan `ffmpeg-release-essentials.zip`.
 
-Mutações do modelo e ordem das páginas continuam sequenciais. O ciclo de vida do worker de exportação encerra o `QThread` tanto em sucesso quanto em falha.
+Qual fonte venceu no artefato aprovado e qual versão/build string concreta está no ZIP: **NÃO DETERMINADO PELO CÓDIGO ANALISADO** sem inspeção do artefato/log correspondente.
 
-## Testes do Passo 11
+## Integração Python
 
-PDFs/imagens artificiais cobrem:
+O placeholder `Section.VIDEO_EDITOR` foi substituído por `VideoEditorPage`. Assim como o Kotlin `VideoEditorScreen`, ele funciona como workspace/launcher e abre uma janela nativa de editor.
 
-- importação múltipla e expansão de páginas;
-- formatos permitidos;
-- página em branco;
-- excluir/reorder;
-- undo/redo e limite 30;
-- zoom/Redimensionar;
-- crop normalizado;
-- suporte interno de rotação/flip sem botão inventado;
-- dimensões de saída de largura fixa;
-- ordem final;
-- rasterização de página transformada;
-- capa custom e persistência;
-- PDF protegido sem bypass;
-- metadata/annotation behavior;
-- original não sobrescrito;
-- ausência de split/extract/print/OCR/compress/convert inventados;
-- presença dos controles ativos na UI.
+Diferença arquitetural deliberada antes do portable final:
 
-A matriz `Python migration tests` executou `compileall` e toda a suíte em Windows e Ubuntu. O run `34725866759` passou nos dois ambientes, com 116 testes no Windows. Qt roda em `offscreen`; isso **não é** validação manual humana do layout.
+- release Kotlin: launcher cria **processo separado** `VideoEditorPySide.exe`;
+- Passo 12 Python: `VideoEditorPage` cria `VideoEditorWindow` como janela top-level **no mesmo processo**.
 
-## Estado após o Passo 11
+Isso permite usar exatamente o mesmo código PySide6 sem antecipar PyInstaller/portable. Essa diferença mantém `MIG-068`/`MIG-110` em `EM TESTE` até o passo de empacotamento e validação interativa. O motor de preview não foi trocado.
 
-O placeholder do Editor PDF foi removido da MainWindow e substituído por `PdfEditorPage`. Extrator permanece funcional conforme Passo 10. Editor de Vídeo continua placeholder. Portable final não foi iniciado.
+## Testes do Passo 12
 
-Pendências relevantes:
+Foram adicionados testes para:
 
-- inspeção manual humana do Editor PDF em desktop interativo (`MIG-108`);
-- `MIG-061` rotação/flip permanece pendente porque o acionamento ativo não foi comprovado;
-- portable final/licenças PDFium;
-- Editor de Vídeo completo;
-- pendências anteriores dos Passos 1–10 não relacionadas ao PDF.
+- formatos aceitos;
+- `VideoInfo`/`Clip`;
+- milissegundos, FPS e formatação de tempo;
+- duração total e global↔local, incluindo limite `<=`;
+- comando/parsing FFprobe por fixture controlada;
+- comando FFmpeg e nome de saída literais;
+- matemática pixel↔tempo da timeline;
+- existência real de `QMediaPlayer`, `QVideoWidget`, `QAudioOutput` e volume 0,85;
+- controles ativos e placeholders;
+- proibição automatizada de split/delete/duplicate/reorder/undo/zoom/target-size/thumbnails inventados.
+
+A matriz `Python migration tests` executou `compileall` e toda a regressão em Windows e Ubuntu no run `34726977912`; os dois jobs passaram. O Windows executou **132 testes**.
+
+O runner Ubuntu precisou de `libpulse0` para carregar QtMultimedia; essa dependência foi adicionada ao ambiente de CI, não contornada no código.
+
+## Estado após o Passo 12
+
+O Editor de Vídeo real está conectado à MainWindow e os contratos determinísticos foram protegidos. Permanecem em teste:
+
+- launcher como processo separado no portable final;
+- decode/play humano de formatos reais;
+- áudio/mute real;
+- precisão medida de seek;
+- transição entre sources sob reprodução real;
+- exportação com os binários exatos da release;
+- FFprobe do arquivo realmente exportado.
+
+Não houve sessão manual humana; Qt `offscreen` não é tratado como teste manual. Portable final não foi iniciado.
