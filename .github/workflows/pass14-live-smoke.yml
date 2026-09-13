@@ -22,3 +22,5 @@ jobs:
         env:
           PYTHONPATH: src
         run: python scripts/pass14_live_smoke.py
+
+# Passo 14: trigger controlado para validar o código de integração corrente.
