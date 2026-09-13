@@ -1,0 +1,161 @@
+name: Passo 23 - Publication Compliance Audit
+
+on:
+  push:
+    branches:
+      - migration/python-foundation
+    paths:
+      - '.github/workflows/pass23-publication-compliance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch every branch and tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*' --prune
+          echo "PASS23_HEAD=$(git rev-parse HEAD)"
+          echo "COMMITS_ALL=$(git rev-list --all --count)"
+          echo "REMOTE_BRANCHES=$(git for-each-ref --format='%(refname)' refs/remotes/origin | grep -v '/HEAD$' | wc -l)"
+          echo "TAGS=$(git tag --list | wc -l)"
+
+      - name: Install Gitleaks 8.30.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  /tmp/gitleaks.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan complete Git history with Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p pass23-reports
+          set +e
+          gitleaks git --redact --report-format json --report-path pass23-reports/history.json .
+          code=$?
+          set -e
+          echo "GITLEAKS_HISTORY_EXIT=$code"
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+          p=Path('pass23-reports/history.json')
+          data=json.loads(p.read_text('utf-8')) if p.exists() and p.stat().st_size else []
+          print(f'GITLEAKS_HISTORY_FINDINGS={len(data)}')
+          print('GITLEAKS_HISTORY_RULES='+json.dumps(Counter(x.get('RuleID','') for x in data), sort_keys=True))
+          print('GITLEAKS_HISTORY_PATHS='+json.dumps(Counter(x.get('File','') for x in data), sort_keys=True))
+          print('GITLEAKS_HISTORY_COMMITS='+str(len({x.get('Commit') for x in data if x.get('Commit')})))
+          PY
+
+      - name: Explicit private-key markers across history
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(git log -p --all --no-color | grep -E -c -- 'BEGIN (RSA |OPENSSH )?PRIVATE KEY|BEGIN EC PRIVATE KEY|BEGIN DSA PRIVATE KEY' || true)
+          echo "PRIVATE_KEY_MARKER_MATCHES=$count"
+
+      - name: Historical suspicious filenames and large blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-list --objects --all > /tmp/all_objects.txt
+          suspicious=$(grep -E -i '(^|/)(\.env($|\.)|credentials?\.|secrets?\.|.*\.db$|.*\.sqlite3?$|.*\.log$|.*\.zip$|.*\.pem$|.*\.key$|.*\.p12$|.*\.pfx$)' /tmp/all_objects.txt | wc -l || true)
+          echo "SUSPICIOUS_HISTORICAL_PATH_OBJECTS=$suspicious"
+          python - <<'PY'
+          import subprocess
+          rows=[]
+          objects=[]
+          for line in open('/tmp/all_objects.txt', encoding='utf-8', errors='replace'):
+              parts=line.rstrip('\n').split(' ',1)
+              if len(parts)==2:
+                  objects.append(parts)
+          if objects:
+              proc=subprocess.Popen(['git','cat-file','--batch-check=%(objectname) %(objecttype) %(objectsize)'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+              out,_=proc.communicate(''.join(sha+'\n' for sha,_ in objects))
+              size_map={l.split()[0]:int(l.split()[2]) for l in out.splitlines() if len(l.split())==3 and l.split()[1]=='blob'}
+              for sha,path in objects:
+                  size=size_map.get(sha)
+                  if size is not None and size>=5*1024*1024:
+                      rows.append((size,path))
+          rows.sort(reverse=True)
+          print('HISTORICAL_BLOBS_GE_5MB='+str(len(rows)))
+          for size,path in rows[:25]:
+              print(f'HISTORICAL_LARGE_BLOB size={size} path={path}')
+          PY
+
+      - name: Download exact validated portable artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
+          path: validated-artifact
+          github-token: ${{ github.token }}
+          repository: tysudess/MONITOR-DE-NOTICAS-PYTHON
+          run-id: 34776048157
+
+      - name: Verify and extract validated portable
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip=$(find validated-artifact -type f -name 'MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip' -print -quit)
+          test -n "$zip"
+          sha=$(sha256sum "$zip" | awk '{print $1}')
+          size=$(stat -c '%s' "$zip")
+          echo "VALIDATED_ZIP_SHA256=$sha"
+          echo "VALIDATED_ZIP_BYTES=$size"
+          test "$sha" = '259739899fe044157d350ab077d877ef8dd9e024cd33939266e026e8df3563f4'
+          test "$size" = '651329315'
+          mkdir -p validated-portable
+          unzip -q "$zip" -d validated-portable
+          find validated-portable -maxdepth 3 -type f \( -iname '*license*' -o -iname '*notice*' -o -iname '*copying*' \) -printf 'LICENSE_FILE %P\n' | sort | tee pass23-reports/portable-license-files.txt
+
+      - name: Scan validated portable with Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          gitleaks dir --redact --report-format json --report-path pass23-reports/portable.json --max-archive-depth 2 validated-portable
+          code=$?
+          set -e
+          echo "GITLEAKS_PORTABLE_EXIT=$code"
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+          p=Path('pass23-reports/portable.json')
+          data=json.loads(p.read_text('utf-8')) if p.exists() and p.stat().st_size else []
+          print(f'GITLEAKS_PORTABLE_FINDINGS={len(data)}')
+          print('GITLEAKS_PORTABLE_RULES='+json.dumps(Counter(x.get('RuleID','') for x in data), sort_keys=True))
+          print('GITLEAKS_PORTABLE_PATHS='+json.dumps(Counter(x.get('File','') for x in data), sort_keys=True))
+          PY
+
+      - name: Obvious personal-state files in portable
+        shell: bash
+        run: |
+          set -euo pipefail
+          find validated-portable -type f | sed 's#^validated-portable/##' > /tmp/portable-files.txt
+          personal=$(grep -E -i '(^|/)(news\.db|videos\.db|monitor_prefs\.properties|cookies?\.txt|\.env($|\.)|.*\.log$|credentials?\.|secrets?\.)' /tmp/portable-files.txt | wc -l || true)
+          echo "PORTABLE_PERSONAL_STATE_MATCHES=$personal"
+
+      - name: Upload sanitized audit reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: pass23-publication-compliance-audit
+          path: pass23-reports
+          if-no-files-found: error
+          retention-days: 14
