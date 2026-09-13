@@ -78,3 +78,13 @@ class VideoEditorPage(QWidget):
     def _discard_window(self, window: VideoEditorWindow) -> None:
         try: self._windows.remove(window)
         except ValueError: pass
+
+    def shutdown(self) -> bool:
+        """Fecha as janelas integradas e para o QMediaPlayer antes do Monitor sair."""
+        for window in list(self._windows):
+            try:
+                window.player.stop()
+                window.close()
+            except RuntimeError:
+                self._discard_window(window)
+        return all(not window.isVisible() for window in list(self._windows))
