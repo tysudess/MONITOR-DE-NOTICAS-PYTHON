@@ -17,6 +17,7 @@ from monitor_noticias.extractor import (
     EXTRACTOR_QUALITIES, ExtractorEngine, ExtractorPortableStateStore,
     GloboplaySessionStore, YtDlpUpdater,
 )
+from monitor_noticias.extractor.login_helper import resolve_bundled_helper
 
 
 class _DownloadWorker(QObject):
@@ -74,6 +75,10 @@ class ExtractorPage(QWidget):
         self._operation_token = 0
         self._download_thread: QThread | None = None
         self._update_thread: QThread | None = None
+        self._login_process: subprocess.Popen[object] | None = None
+        self._login_waiter: threading.Thread | None = None
+        self._login_output: Path | None = None
+        self._shutting_down = False
         self.login_result.connect(self._finish_login)
         self._build_ui()
         self._refresh_history()
@@ -319,11 +324,10 @@ class ExtractorPage(QWidget):
         )
 
     def open_globoplay_login(self) -> None:
-        helper = self.app_root / "data" / "extractor" / "runtime" / "GloboplayLoginHelper.exe"
-        if not helper.is_file() or helper.stat().st_size <= 20_000_000:
-            self.settings_status.setText(
-                "Navegador interno do Globoplay não encontrado no pacote. O helper pertence à montagem da release/portable e não é criado no Passo 10."
-            )
+        try:
+            helper = resolve_bundled_helper(self.app_root)
+        except Exception as exc:
+            self.settings_status.setText(f"Navegador interno do Globoplay não encontrado no pacote: {exc}")
             return
         data_dir = self.app_root / "data" / "extractor"
         profile = data_dir / "globoplay-web-profile"
@@ -343,32 +347,47 @@ class ExtractorPage(QWidget):
             output.unlink(missing_ok=True)
             self.settings_status.setText(f"Não foi possível abrir o navegador interno do Globoplay: {exc}")
             return
+        self._login_process = process
+        self._login_output = output
 
         def wait_login() -> None:
             try:
                 exit_code = process.wait()
                 if exit_code != 0:
-                    self.login_result.emit(False, "Login do Globoplay cancelado ou não concluído.")
+                    if not self._shutting_down:
+                        self.login_result.emit(False, "Login do Globoplay cancelado ou não concluído.")
                     return
                 if not output.is_file() or output.stat().st_size <= 0:
-                    self.login_result.emit(False, "O navegador interno não retornou cookies da sessão.")
+                    if not self._shutting_down:
+                        self.login_result.emit(False, "O navegador interno não retornou cookies da sessão.")
                     return
                 netscape = output.read_text(encoding="utf-8", errors="replace")
                 count = sum(1 for line in netscape.splitlines() if line.strip() and not line.startswith("#"))
                 if count <= 0:
-                    self.login_result.emit(False, "Nenhum cookie Globo/Globoplay foi capturado.")
+                    if not self._shutting_down:
+                        self.login_result.emit(False, "Nenhum cookie Globo/Globoplay foi capturado.")
                     return
                 self.session_store.save_netscape_cookies(netscape)
-                self.login_result.emit(True, f"Sessão Globoplay salva com segurança ({count} cookies).")
+                if not self._shutting_down:
+                    self.login_result.emit(True, f"Sessão Globoplay salva com segurança ({count} cookies).")
             except Exception as exc:
-                self.login_result.emit(self.session_store.has_saved_session(), f"Falha ao salvar sessão Globoplay: {exc}")
+                if not self._shutting_down:
+                    self.login_result.emit(self.session_store.has_saved_session(), f"Falha ao salvar sessão Globoplay: {exc}")
             finally:
+                if self._login_process is process:
+                    self._login_process = None
+                if self._login_output == output:
+                    self._login_output = None
                 output.unlink(missing_ok=True)
 
-        threading.Thread(target=wait_login, name="globoplay-login-waiter", daemon=True).start()
+        waiter = threading.Thread(target=wait_login, name="globoplay-login-waiter", daemon=True)
+        self._login_waiter = waiter
+        waiter.start()
 
     @Slot(bool, str)
     def _finish_login(self, _saved: bool, message: str) -> None:
+        if self._shutting_down:
+            return
         self._refresh_session()
         self.settings_status.setText(message)
 
@@ -392,14 +411,51 @@ class ExtractorPage(QWidget):
         thread.start()
 
     def _update_finished(self, _success: bool, message: str) -> None:
+        if self._shutting_down:
+            return
         self.settings_status.setText(message)
         self._refresh_binary_status()
 
     def _clear_update_thread(self, thread: QThread) -> None:
         if self._update_thread is thread:
             self._update_thread = None
+        if self._shutting_down:
+            return
         self.update_button.setText("ATUALIZAR YT-DLP")
         self.update_button.setEnabled(not self.cancel_button.isEnabled())
+
+    def shutdown(self, timeout_ms: int = 5000) -> bool:
+        """Cancela operações encerráveis e só autoriza saída sem workers vivos."""
+        self._shutting_down = True
+        self._operation_token += 1
+        self.engine.cancel()
+
+        process = self._login_process
+        if process is not None:
+            self.engine.runner.destroy_tree(process)
+
+        deadline = max(0, int(timeout_ms))
+        for thread in (self._download_thread, self._update_thread):
+            if thread is None or not thread.isRunning():
+                continue
+            thread.requestInterruption()
+            thread.quit()
+            if not thread.wait(deadline):
+                self._shutting_down = False
+                return False
+
+        waiter = self._login_waiter
+        if waiter is not None and waiter.is_alive():
+            waiter.join(timeout=max(0.0, deadline / 1000.0))
+            if waiter.is_alive():
+                self._shutting_down = False
+                return False
+
+        output = self._login_output
+        if output is not None:
+            output.unlink(missing_ok=True)
+            self._login_output = None
+        return True
 
     def _refresh_binary_status(self) -> None:
         self.binary_status.setText(
