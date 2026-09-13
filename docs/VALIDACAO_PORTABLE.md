@@ -1,223 +1,108 @@
-# VALIDAÇÃO PORTABLE — PASSO 20
+# VALIDAÇÃO PORTABLE — CICLO FINAL APROVADO
 
-## Resultado atual
+## Candidato congelado
 
-**PORTABLE NÃO VALIDADO — FALHA TÉCNICA**
-
-A falha técnica pertence ao **gate de validação externa**, não a uma falha comprovada do motor de notificações. O candidato avaliado permanece o commit de código/artefato:
-
-`186a28e4a5f53296178fd9d0ee74637a8a5149bf`
-
-Run GitHub Actions:
-
-`34768584764`
-
-Nenhuma correção de código foi feita no Passo 20. Nenhum novo candidato foi criado.
-
-## Run
-
-- workflow: `Passo 17 - Windows Portable`
+- repositório: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
 - branch: `migration/python-foundation`
-- head SHA: `186a28e4a5f53296178fd9d0ee74637a8a5149bf`
-- status: `completed`
-- conclusion: `failure`
-- run_started_at: `2026-09-13T16:26:33Z`
-- updated_at: `2026-09-13T16:31:53Z`
+- commit exato: `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`
+- workflow: `Passo 17 - Windows Portable`
+- run: `34776048157`
+- conclusão: `success`
+- build iniciada em: `2026-09-13T18:54:14Z`
+- build metadata UTC: `2026-09-13T18:57:50Z`
 
-O endpoint do run não forneceu um campo `completed_at` separado. O último job terminou em `2026-09-13T16:31:52Z`.
+Nenhum ZIP posterior substitui este candidato.
 
-## Jobs
+## Artefato validado
 
-| Job | Runner | Status | Conclusion | Início | Fim |
-|---|---|---|---|---|---|
-| `build-windows-x64` | `GitHub Actions 1000000689` / `windows-latest` | completed | success | 16:26:36Z | 16:30:34Z |
-| `validate-zip-without-repository` | `GitHub Actions 1000000690` / `windows-latest` | completed | failure | 16:30:37Z | 16:31:52Z |
+- nome: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
+- tamanho: `651329315` bytes
+- tamanho descompactado: `1262862742` bytes
+- SHA-256: `259739899fe044157d350ab077d877ef8dd9e024cd33939266e026e8df3563f4`
+- `BUILD-SHA.txt`: `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`
 
-A build e o segundo ambiente foram runners distintos.
+O contêiner de artifact do GitHub Actions possui hash/tamanho próprios e não deve ser confundido com o ZIP interno.
 
-## Build limpa
+## Suíte antes do empacotamento
 
-A etapa `Build clean portable` concluiu com sucesso.
+- TOTAL: 149
+- PASS: 149
+- FAIL: 0
+- ERROR: 0
+- SKIP: 0
+- XFAIL: 0
 
-Regressão antes do empacotamento:
+## Build
 
-- `148 passed`
-- `0 failed`
+A workflow fez checkout da branch real, comprovou worktree limpa e HEAD igual ao `github.sha`, instalou as dependências, executou a regressão, criou o helper Globoplay, gerou PyInstaller onedir, preparou recursos/binários, executou smoke local, limpou todo estado artificial e só então compactou.
 
-O smoke local da pasta recém-construída também concluiu com `LOCAL_PORTABLE_SMOKE_OK`.
+Resultado: **PASS**.
 
-## Artefato do candidato 186a28
+## Segundo runner independente
 
-Nome do ZIP interno:
+Job: `validate-zip-without-repository`.
 
-`MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
+Ambiente:
+- Microsoft Windows Server 2025
+- Microsoft Windows NT 10.0.26100.0
+- AMD64
+- imagem `windows-2025-vs2026`
+- sem checkout de desenvolvimento
+- FFmpeg/FFprobe globais ausentes
 
-- tamanho do ZIP interno: `651329759` bytes
-- tamanho da pasta portable antes da compactação: `1262864276` bytes
-- SHA-256 do ZIP interno: `5ebd57f312d3ce66b51b10b1abda8d92076a7971ad25aeb0bf0b23f78ee13cf2`
-- `BUILD-SHA.txt`: `186a28e4a5f53296178fd9d0ee74637a8a5149bf`
-
-O GitHub Actions encapsulou esse ZIP em seu próprio contêiner de artifact. O digest do contêiner do Actions (`adb365bc...`) NÃO é o hash do ZIP portable e não deve ser confundido com ele.
-
-## Segundo runner
-
-Ambiente externo:
-
-- runner: `GitHub Actions 1000000690`
-- Windows: Microsoft Windows Server 2025
-- versão NT: `10.0.26100`
-- arquitetura: AMD64
-- imagem: `windows-2025-vs2026`
-- development checkout: ausente
-- FFmpeg global no PATH: ausente
-- FFprobe global no PATH: ausente
-- somente o artefato portable foi transferido para o job
-
-O segundo runner recalculou:
-
-`SHA256_RUNNER=5ebd57f312d3ce66b51b10b1abda8d92076a7971ad25aeb0bf0b23f78ee13cf2`
+O segundo runner recebeu somente o artifact, recalculou o SHA-256 do ZIP interno e obteve exatamente `259739899fe044157d350ab077d877ef8dd9e024cd33939266e026e8df3563f4`.
 
 Resultado: **HASHES IDÊNTICOS**.
 
-## Reextração e primeira execução
+## Reextração, abertura e movimentação
 
-O ZIP foi extraído do zero para diretório novo contendo espaços e acentos:
+O ZIP foi extraído do zero para diretório com espaços e acentos. O EXE iniciou com CWD externo. Depois do primeiro smoke, a aplicação reabriu e a pasta inteira foi movida para outro caminho com espaços e acentos. A abertura após a movimentação também passou.
 
-`Edição Portable Monitor de Notícias\MonitorDeNoticias`
+- REEXTRAÇÃO = PASS
+- REABERTURA = PASS
+- MOVIMENTAÇÃO = PASS
+- PATH COM ESPAÇOS = PASS
+- PATH COM ACENTOS = PASS
+- CWD DIFERENTE = PASS
 
-A estrutura obrigatória foi localizada. O EXE iniciou com CWD externo. Bancos e log foram criados na raiz portable. Não houve falha de `qwindows.dll`, plugin Qt, DLL estrutural ou traceback na primeira inicialização.
+## Primeiro e segundo smoke
 
-## Primeiro smoke externo
+Primeiro smoke:
+`PORTABLE_RUNTIME_SMOKE_OK label=original player=325 codec=h264 audio=aac resolution=320x240 fps=25 duration=1.28 sample_rate=44100 channels=1`
 
-Resultado: **PASSOU**.
+Segundo smoke, depois da movimentação:
+`PORTABLE_RUNTIME_SMOKE_OK label=moved player=348 codec=h264 audio=aac resolution=320x240 fps=25 duration=1.28 sample_rate=44100 channels=1`
 
-Confirmado pelo payload e pelo gate:
+Os dois percorreram o runtime congelado e validaram, conforme o harness existente: páginas do Monitor, persistência controlada, pipelines controlados de notícias/vídeos, automação, Extrator, Editor PDF, Editor de Vídeo, preview, play/pause, seek, FFmpeg, FFprobe, exportação, DPAPI, proxy, startup e wiring/evento de notificação.
 
-- navegação por todas as páginas: PASS
-- banco/persistência: PASS
-- notícias: PASS
-- vídeos: PASS
-- automação: PASS
-- Extrator: PASS
-- PDF: PASS
-- Editor de Vídeo: PASS
-- preview QMediaPlayer: PASS (`325 ms`)
-- pause: PASS
-- seek: PASS (`500`, `1000`, `1500` ms)
-- FFmpeg empacotado: PASS
-- FFprobe empacotado: PASS
-- exportação: PASS
-- codec vídeo: H.264
-- codec áudio: AAC
-- resolução: 320x240
-- fps: 25
-- duração exportada: 1.28 s
-- sample rate: 44100 Hz
-- canais: 1
-- Extrator controlado: PASS
-- DPAPI/proxy/startup: PASS
-- evento e wiring de notificação no primeiro smoke: PASS
+## PORT-005
 
-## Reabertura e movimentação
+Causa do candidato anterior: o segundo smoke persistia o mesmo `news.db` e reapresentava uma notícia com a mesma identidade lógica. A deduplicação correta não produzia `newCount`, mas o gate exigia nova notificação.
 
-Após o primeiro smoke, o Monitor abriu novamente com sucesso.
+A primeira tentativa de correção variou somente a URL e falhou no teste de regressão porque `storyKey` é `source normalizada | título normalizado`.
 
-A pasta portable foi então movida para:
+Correção final: o harness varia deterministicamente **URL e título artificiais** por execução (`local`, `original`, `moved`), preservando `MARINHA` para matching. Nenhum código em `src/`, repository, deduplicação ou `AutomationService` foi alterado.
 
-`Movido Portable Monitor\Monitor de Notícias Validado`
+Teste de regressão: nova história notifica; a mesma história repetida não notifica; uma história logicamente distinta notifica. O run final passou integralmente.
 
-A abertura normal após a movimentação também passou.
+Status: **PORT-005 RESOLVIDO**.
 
-Assim, antes da falha posterior, já estavam objetivamente comprovados:
+## Shutdown / órfãos / temporários
 
-- path com espaços: PASS
-- path com acentos: PASS
-- CWD diferente: PASS
-- relocação da pasta portable: PASS
-- reabertura: PASS
+O segundo smoke chegou ao teardown final:
+- shutdown = PASS
+- processos órfãos = `0`
+- temporários finais = PASS
+- estado artificial removido = PASS
 
-## Segundo smoke depois da movimentação
+## Segurança do artefato
 
-O segundo smoke avançou com sucesso por:
+Gate final:
+- `SEGREDOS_REAIS_ENCONTRADOS=0`
+- `DADOS_PESSOAIS_NO_ZIP=0`
 
-- PDF
-- Editor de Vídeo
-- preview
-- play/pause
-- seeks
-- FFmpeg
-- FFprobe
-- exportação
-- Extrator
-
-O `PORT-004` **não reapareceu**. A limpeza se limitou a arquivos `*extractor_fixture*` em `Videos/`, não apagou resultados arbitrários e não alterou `ExtractorEngine`.
-
-A falha ocorreu depois, no pipeline controlado de notícias:
-
-`Evento de notícia nova não acionou callback de notificação.`
-
-## PORT-005 — falha do gate
-
-Status: **ABERTO / NÃO CORRIGIDO NO PASSO 20**.
-
-Classificação: **FALHA DO GATE**.
-
-Causa comprovada:
-
-1. o smoke usa `root/temp/pipeline-smoke/news.db`;
-2. o primeiro smoke persiste a notícia artificial de link fixo `https://example.test/portable-noticia`;
-3. a pasta inteira, inclusive esse banco, é movida para o segundo caminho;
-4. o segundo smoke reutiliza o mesmo banco e o mesmo link artificial;
-5. `AutomationService` só chama `notify()` quando `newCount + newDemandCount > 0`;
-6. no segundo smoke a notícia já existe, logo não é nova e o comportamento correto é não gerar nova notificação;
-7. o gate recria `notification_events=[]` e exige que a lista fique não vazia, tornando a asserção não idempotente.
-
-Portanto não há evidência de defeito no motor de notificação. Há evidência de defeito na preparação/asserção do segundo smoke.
-
-Nenhuma correção foi aplicada, pois o Passo 20 determina parar diante de falha técnica real e deixar qualquer correção para um novo candidato em passo posterior.
-
-## PORT-001 a PORT-004
-
-| ID | Resultado no candidato 186a28 |
-|---|---|
-| PORT-001 | CORRIGIDO; Extrator assíncrono concluiu no runtime congelado |
-| PORT-002 | CORRIGIDO; workflow foi disparado e refez o portable para alterações relevantes |
-| PORT-003 | CORRIGIDO; PowerShell do segundo runner executou normalmente |
-| PORT-004 | CORRIGIDO; segundo smoke ultrapassou o Extrator sem reutilização da fixture |
-| PORT-005 | ABERTO; gate de notificação do segundo smoke não é idempotente |
-
-## Logs
-
-As mensagens DXVA2 observadas são warnings de aceleração de hardware no runner sem sessão gráfica adequada. Elas não foram tratadas como falha porque o QMediaPlayer comprovadamente reproduziu, avançou posição e realizou seeks.
-
-Erro funcional determinante do run:
-
-`Smoke interno falhou: Evento de notícia nova não acionou callback de notificação.`
-
-Não foi observado traceback estrutural anterior a esse gate.
-
-## Shutdown e órfãos
-
-O segundo smoke abortou no gate de notícias antes de chegar ao teardown final. Portanto:
-
-- shutdown final após o segundo smoke: **NÃO EXECUTADO APÓS A FALHA**
-- verificação final de processos órfãos: **NÃO EXECUTADA APÓS A FALHA**
-
-Não é legítimo promover esses itens como PASS com base apenas no primeiro smoke ou na limpeza automática do runner.
-
-## Segredos / estado pessoal
-
-Antes da execução no segundo runner, o ZIP passou pela verificação de ausência de estado inicial/sensível e foi produzido depois da limpeza do estado artificial de build.
-
-O marcador final pós-segundo-smoke `SEGREDOS_REAIS_ENCONTRADOS=0` não foi alcançado porque o gate abortou antes do fim. Portanto o registro conservador é:
-
-- segredos/credenciais pessoais encontrados na inspeção inicial do ZIP: 0
-- marcador final pós-smoke: NÃO EXECUTADO
-
-## MIGs portable/distribuição
-
-`MIG-079`–`MIG-083` não são promovidos por associação. Há evidência objetiva de build, ZIP, binários, `BUILD-SHA` e hash, mas o ciclo externo obrigatório não terminou. Permanecem no estado documental anterior até nova validação integral.
+O ZIP também foi validado sem `.git`, `src`, `tests`, `.venv`/`venv` e sem banco/prefs/cookies/sessão pessoal inicial nos diretórios graváveis.
 
 ## Conclusão
 
-**PORTABLE NÃO VALIDADO — FALHA TÉCNICA**
+**PORTABLE VALIDADO**

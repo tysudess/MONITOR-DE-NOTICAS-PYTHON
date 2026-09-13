@@ -1,93 +1,79 @@
-# RELEASE READINESS — ESTADO ATUAL APÓS PASSO 20
+# RELEASE READINESS — PASSO 22
 
-## Decisão atual
+## Estado oficial
 
-**PORTABLE NÃO VALIDADO — FALHA TÉCNICA**
+**PORTABLE WINDOWS: VALIDADO**
 
-O source havia sido declarado `APTO PARA PORTABLE` no Passo 16, mas isso significava apenas aptidão para iniciar a etapa de empacotamento. O candidato portable de código `186a28e4a5f53296178fd9d0ee74637a8a5149bf` NÃO concluiu o gate externo obrigatório do Passo 20 e, portanto, não está liberado para release.
-
-Não houve merge, GitHub Release, publicação do ZIP ou instalador.
-
-## Candidato avaliado
+O candidato técnico aprovado é exatamente o artefato produzido a partir de `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d` no run `34776048157`. Nenhum commit mais recente deve ser apresentado como origem desse ZIP.
 
 - repositório: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
-- branch: `migration/python-foundation`
-- commit do artefato: `186a28e4a5f53296178fd9d0ee74637a8a5149bf`
-- run: `34768584764`
-- conclusão do run: `failure`
-
-Build `build-windows-x64`: PASS.
-
-Validação externa `validate-zip-without-repository`: FAIL.
-
-## Evidência do artefato
-
+- branch do artefato: `migration/python-foundation`
+- workflow: `Passo 17 - Windows Portable`
+- commit do artefato: `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`
 - ZIP: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
-- tamanho: `651329759` bytes
-- pasta portable: `1262864276` bytes
-- SHA-256 build: `5ebd57f312d3ce66b51b10b1abda8d92076a7971ad25aeb0bf0b23f78ee13cf2`
-- SHA-256 segundo runner: `5ebd57f312d3ce66b51b10b1abda8d92076a7971ad25aeb0bf0b23f78ee13cf2`
-- hashes idênticos: SIM
+- tamanho ZIP: `651329315` bytes
+- tamanho descompactado: `1262862742` bytes
+- SHA-256: `259739899fe044157d350ab077d877ef8dd9e024cd33939266e026e8df3563f4`
+- plataforma validada: Microsoft Windows Server 2025 / NT 10.0.26100 / AMD64
+- arquitetura do pacote: Windows x64
 
-## Gates que passaram
+## Gate técnico final
 
-Antes do bloqueio final, o segundo runner independente comprovou reextração, inicialização, primeiro smoke integral, reabertura, movimentação para path com espaço/acento e nova inicialização. O segundo smoke voltou a comprovar PDF, Editor de Vídeo, preview, seeks, FFmpeg, FFprobe, exportação e Extrator antes de falhar no gate de notícias.
+- BUILD = PASS
+- ZIP = PASS
+- HASH = PASS
+- SEGUNDO RUNNER = PASS
+- REEXTRAÇÃO = PASS
+- PRIMEIRO SMOKE = PASS
+- REABERTURA = PASS
+- MOVIMENTAÇÃO = PASS
+- PATH COM ESPAÇOS = PASS
+- PATH COM ACENTOS = PASS
+- SEGUNDO SMOKE = PASS
+- SHUTDOWN = PASS
+- PROCESSOS ÓRFÃOS = PASS (`0`)
+- TEMPORÁRIOS = PASS
+- LOGS = PASS
+- SEGREDOS NO ARTEFATO = PASS (`SEGREDOS_REAIS_ENCONTRADOS=0`)
+- DADOS PESSOAIS NO ZIP = PASS (`DADOS_PESSOAIS_NO_ZIP=0`)
 
-O `PORT-004` não reapareceu.
+A suíte que acompanhou o candidato aprovado terminou em `149 passed`, sem falhas.
 
-## Bloqueador atual
+## PORT-001 a PORT-005
 
-`PORT-005 — FALHA DO GATE`.
+Todos os bloqueadores PORT conhecidos foram resolvidos e preservados historicamente em `docs/MIGRACAO_PASSO_21.md`.
 
-O segundo smoke reutiliza `temp/pipeline-smoke/news.db` do primeiro smoke e o mesmo link artificial. Como a notícia já existe, o resultado corretamente possui zero notícias novas e `AutomationService` corretamente não chama o callback de notificação. O gate exige mesmo assim um novo callback e reprova.
+## MIGs de portable
 
-Isso não é evidência de falha do motor de notificações. É uma asserção não idempotente do harness externo.
+O ciclo externo completo fornece evidência objetiva para promover:
+- `MIG-002` — raiz portable/frozen;
+- `MIG-079` — entrada Desktop original;
+- `MIG-080` — transformações/workflow de build;
+- `MIG-081` — empacotamento PyInstaller do editor/aplicação final;
+- `MIG-082` — cinco binários portáteis;
+- `MIG-083` — `BUILD-SHA` e hash do ZIP.
 
-O Passo 20 não corrigiu esse gate, pois qualquer correção requer novo commit → nova build → novo ZIP → novo hash → nova validação em passo posterior.
+Estado consolidado: 116 MIGs; 77 APROVADOS; 37 EM TESTE; 2 PENDENTES (`MIG-061`, `MIG-114`); 0 BLOQUEADOS.
 
-## Shutdown / processos finais
+## Separação entre artefato e documentação
 
-O segundo smoke encerrou no PORT-005 antes do teardown. Assim, shutdown final e verificação final de órfãos do segundo smoke não podem ser marcados como aprovados neste candidato.
+`docs/**` não entra no ZIP e também não está nos paths que disparam a workflow portable. Portanto mudanças documentais posteriores devem permanecer em commit separado e NÃO alteram o candidato `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`.
 
-## Segurança
+## Bloqueadores para publicação pública
 
-O ZIP passou pela limpeza de estado artificial antes da compactação e pela inspeção inicial no segundo runner. Não foi encontrado estado pessoal/sensível nessa inspeção. O marcador final pós-segundo-smoke não foi alcançado devido ao bloqueio.
+O portable está tecnicamente validado, porém este Passo 22 não prova dois requisitos de governança para uma publicação pública:
 
-## MIGs portable
+1. **Licenças de terceiros:** `portable/THIRD_PARTY_NOTICES.txt` inventaria as dependências, mas o build copia esse resumo junto aos binários e não há evidência suficiente, neste passo, de que todos os textos/avisos/código-fonte ou ofertas de código-fonte exigidos pelas licenças aplicáveis de componentes nativos/copyleft estejam completos. Conformidade jurídica integral: **NÃO DETERMINADO PELO CÓDIGO ANALISADO.**
+2. **Histórico Git completo:** a árvore atual e o artefato não exibem segredos ou estado pessoal, mas não foi executado um scanner dedicado sobre todos os blobs históricos já removidos. A afirmação “nenhum commit histórico jamais conteve segredo” é **NÃO DETERMINADO PELO CÓDIGO ANALISADO.**
 
-`MIG-079`–`MIG-083` permanecem no estado documental anterior. A existência da build/ZIP/hash não substitui a validação externa completa e nenhum MIG é promovido por associação.
+Esses pontos não invalidam o ZIP técnico aprovado e não autorizam rebuild silencioso. Devem ser resolvidos antes de publicação pública.
 
-## Fonte Kotlin
+## Fonte histórica Kotlin
 
-A fonte funcional continua sendo o baseline comprovado `df1701ba5427a04954093e8ebed63f26abb2b2b7` + transformações aprovadas do workflow V8.
-
-A branch original observada `work/v8-extrator-v301-tab` permanece em `e7b5d8eaac68bce6a9785e4da5b8ca5f83c34d2e` e não foi alterada neste passo.
-
-## Histórico preservado
-
-### Passo 16
-
-O Passo 16 eliminou os bloqueadores altos de source e concluiu `APTO PARA PORTABLE`. Esse status histórico autorizava somente iniciar a futura build/validação; não significava que um ZIP já estava validado.
-
-Evidência histórica do Passo 16:
-
-- Windows: 147/147 testes
-- Ubuntu: 144 pass + 3 skips exclusivamente Windows
-- MIG-050 aprovado
-- MIG-070/071/072/074/075/076 aprovados
-- MIG-116 aprovado
-- media smoke H.264/AAC/320x240/25 fps/44.1 kHz aprovado
-
-### Passos 18–19
-
-As tentativas de portable revelaram e trataram PORT-001 a PORT-004. O Passo 19 terminou com o candidato `186a28...` aguardando conclusão do run externo.
-
-### Passo 20
-
-O run concluiu e revelou PORT-005. O portable permanece não validado.
+Fonte funcional de referência: `df1701ba5427a04954093e8ebed63f26abb2b2b7` + transformações comprovadas do workflow V8. A branch observada do repositório original continua em `e7b5d8eaac68bce6a9785e4da5b8ca5f83c34d2e` e não foi alterada pelo Passo 22.
 
 ## Decisão
 
-**NÃO LIBERADO PARA RELEASE.**
+**PORTABLE WINDOWS: VALIDADO**
 
-**PORTABLE NÃO VALIDADO — FALHA TÉCNICA**
+**PUBLICAÇÃO PÚBLICA: BLOQUEADA ATÉ FECHAR LICENÇAS E AUDITORIA HISTÓRICA DE SEGREDOS.**

@@ -13,108 +13,66 @@ O comportamento comprovado é a fonte da verdade. Lacunas não são preenchidas 
 
 `PENDENTE`, `EM MIGRAÇÃO`, `EM TESTE`, `APROVADO`, `BLOQUEADO`.
 
-`APROVADO` significa equivalência objetiva dentro do escopo explícito do MIG. Existência de código, aparência semelhante ou teste verde isolado não bastam.
+`APROVADO` significa equivalência objetiva dentro do escopo explícito do MIG.
 
 ## Histórico de gates
 
-- Passo 13: auditoria estrutural, Python congelado em `6419ee336f3015bd466afa8c2ac4e961ca7c6ff3`.
-- Passo 14: composition root/runtime real conectados; suíte de 141 testes e smokes live de notícias/vídeos.
-- Passo 15: gate final encontrou bloqueadores altos `MIG-050`, `MIG-116` e validação real de mídia `MIG-070/071/072/074/075/076`; decisão `NÃO APTO PARA PORTABLE`.
-- Passo 16: eliminou exclusivamente esses bloqueadores; gate de código `c8a53b600faa49105937b194dc74455c0eb13d3a` com Windows 147/147 e media smoke real; decisão `APTO PARA PORTABLE`.
-- Passos 18–19: build/validação portable revelou e tratou `PORT-001` a `PORT-004`; candidato resultante `186a28e4a5f53296178fd9d0ee74637a8a5149bf`.
-- Passo 20: run `34768584764` concluiu com build limpa aprovada e falha no segundo smoke externo por `PORT-005`, classificado como **FALHA DO GATE**; decisão `PORTABLE NÃO VALIDADO — FALHA TÉCNICA`.
+- Passo 13: auditoria estrutural e reabertura de lacunas de wiring/runtime.
+- Passo 14: composition root/runtime real e smokes controlados/live.
+- Passo 15: gate encontrou bloqueadores altos de helper/lifecycle/mídia.
+- Passo 16: eliminou esses bloqueadores; decisão `APTO PARA PORTABLE`.
+- Passos 18–19: build/validação revelou e tratou `PORT-001` a `PORT-004`.
+- Passo 20: candidato `186a28e4...` falhou no segundo smoke por `PORT-005`, classificado como falha do gate.
+- Passo 21: corrigiu somente o gate, preservou deduplicação/AutomationService e concluiu o ciclo externo integralmente no commit `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`, run `34776048157`.
 
-## Runtime real
+## Portable validado
 
-```text
-run.py
-  → Application
-  → AppContainer
-     → AppPaths / SharedPreferences
-     → NewsDb / VideoDb
-     → ProxySettings / HTTP
-     → collectors existentes
-     → NewsRepository / VideoRepository
-     → RuntimeNewsRunner / RuntimeVideoRunner
-     → AutomationService
-     → RuntimeUiController
-  → MainWindow
-     → páginas do Monitor
-     → Extrator / PDF / Editor de Vídeo
-```
+- ZIP: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
+- tamanho: `651329315` bytes
+- descompactado: `1262862742` bytes
+- SHA-256: `259739899fe044157d350ab077d877ef8dd9e024cd33939266e026e8df3563f4`
+- plataforma: Windows Server 2025 / NT 10.0.26100 / AMD64
+- suíte: 149/149
+- dois smokes congelados: PASS
+- movimentação/path espaço/acento: PASS
+- shutdown/órfãos/temp: PASS
+- segredos/dados pessoais no artefato: 0
 
-O `AppContainer` apenas monta dependências; não contém scraping, matching ou SQL de negócio.
+## Promoções objetivas do Passo 22
 
-## Estado preservado após Passo 16
+| MIG | Funcionalidade | Status antes | Evidência final | Status depois |
+|---|---|---|---|---|
+| MIG-002 | Resolução de raiz portable | PENDENTE | `sys.frozen` real, CWD externo, reextração e movimentação com espaços/acentos | APROVADO |
+| MIG-079 | Entrada Desktop original | PENDENTE | EXE real inicia e percorre a aplicação no pacote final | APROVADO |
+| MIG-080 | Transformações workflow | PENDENTE | workflow/build final produziu o candidato e passou segundo runner | APROVADO |
+| MIG-081 | PyInstaller editor/aplicação | PENDENTE | Editor integrado abre e executa preview/seek/export no runtime congelado | APROVADO |
+| MIG-082 | Cinco binários portáteis | PENDENTE | yt-dlp nightly/stable, Deno, FFmpeg e FFprobe presentes; FFmpeg/FFprobe executados sem globais | APROVADO |
+| MIG-083 | BUILD-SHA/hash ZIP | PENDENTE | BUILD-SHA aponta para `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d` e hash foi recalculado idêntico no segundo runner | APROVADO |
 
-O Passo 16 aprovou especificamente:
+Nenhum MIG é promovido apenas por associação.
 
-- `MIG-050` — helper/login interno Globoplay por escopo comprovado;
-- `MIG-070` — FFprobe;
-- `MIG-071` — preview;
-- `MIG-072` — áudio/mute;
-- `MIG-074` — seek;
-- `MIG-075` — play/pause/avanço;
-- `MIG-076` — exportação;
-- `MIG-116` — lifecycle/shutdown das ferramentas integradas.
+## Contagem consolidada
 
-Nenhum desses estados é rebaixado pelo PORT-005, pois o bloqueador atual está no harness de repetição da validação portable, não nesses motores.
+- Total: **116 MIGs**
+- `APROVADO`: **77**
+- `EM TESTE`: **37**
+- `PENDENTE`: **2** (`MIG-061`, `MIG-114`)
+- `BLOQUEADO`: **0**
 
-### Totais preservados do Passo 16
+### MIGs ainda EM TESTE
 
-- Total: **116 MIGs**.
-- `APROVADO`: **71**.
-- `EM TESTE`: **37**.
-- `PENDENTE`: **8**.
-- `BLOQUEADO`: **0**.
+`MIG-003`, `MIG-004`, `MIG-022`, `MIG-027`, `MIG-028`, `MIG-033`, `MIG-039`, `MIG-040`, `MIG-042`, `MIG-044`, `MIG-047`, `MIG-048`, `MIG-049`, `MIG-051`, `MIG-052`, `MIG-053`, `MIG-054`, `MIG-055`, `MIG-057`, `MIG-068`, `MIG-069`, `MIG-090`, `MIG-091`, `MIG-092`, `MIG-093`, `MIG-094`, `MIG-095`, `MIG-096`, `MIG-097`, `MIG-098`, `MIG-099`, `MIG-100`, `MIG-102`, `MIG-103`, `MIG-106`, `MIG-108`, `MIG-110`.
 
-## MIGs portable/distribuição
+Esses estados não são promovidos em massa pelo sucesso do portable; seus critérios mais amplos continuam conservadoramente separados.
 
-`MIG-079`–`MIG-083` tratam entry/build/workflow/binários/BUILD-SHA/hash no conjunto histórico.
+## PORT-001 a PORT-005
 
-O Passo 20 trouxe evidência positiva de:
-
-- build PyInstaller onedir;
-- binários próprios no bundle;
-- `BUILD-SHA.txt` apontando para `186a28e4...`;
-- ZIP criado;
-- SHA-256 recalculado em segundo runner e idêntico;
-- reextração e primeira execução externas;
-- paths com espaços/acentos;
-- movimentação do portable.
-
-Entretanto o segundo smoke obrigatório não concluiu. Assim **nenhum MIG-079–MIG-083 é promovido por associação** neste passo. Eles permanecem no estado documental anterior até uma validação externa integralmente concluída.
-
-## PORT-005
-
-O primeiro smoke persiste a notícia artificial de link fixo em `temp/pipeline-smoke/news.db`. O segundo smoke reutiliza a mesma base e o mesmo link. Como a notícia já existe, o repository não a contabiliza como nova e `AutomationService` corretamente não chama notificação para `newCount=0`.
-
-O gate recria `notification_events=[]` e exige evento não vazio, portanto a falha é do harness não idempotente.
-
-Status: **ABERTO / NÃO CORRIGIDO NO PASSO 20**.
-
-Não foi alterado o `AutomationService`, o repository de notícias nem qualquer regra de negócio.
-
-## Editor de vídeo — motor preservado
-
-O motor continua PySide6 `QMediaPlayer` + `QVideoWidget` + `QAudioOutput`. O comando de exportação preserva o contrato previamente aprovado com H.264/AAC, CRF 20, preset veryfast, `yuv420p`, áudio 160k e `+faststart`.
-
-No segundo runner do Passo 20, preview avançou para 325 ms e seeks 500/1000/1500 ms passaram. A exportação foi validada pelo FFprobe do próprio portable.
-
-## Regra permanente
-
-Os IDs `MIG-001` a `MIG-116` são permanentes. Não renumerar, reutilizar ou substituir.
-
-IDs `PORT-XXX` documentam bloqueadores da validação/empacotamento e não substituem MIGs funcionais.
+Todos estão **RESOLVIDOS**. Histórico detalhado em `docs/MIGRACAO_PASSO_21.md`.
 
 ## Repositório Kotlin
 
-A branch original observada `work/v8-extrator-v301-tab` permanece em `e7b5d8eaac68bce6a9785e4da5b8ca5f83c34d2e`.
+A branch original observada permanece em `e7b5d8eaac68bce6a9785e4da5b8ca5f83c34d2e`. A fonte funcional continua `df1701ba5427a04954093e8ebed63f26abb2b2b7` + workflow V8. O repositório original não foi alterado pelo Passo 22.
 
-O repositório Kotlin não foi alterado no Passo 20.
+## Decisão técnica atual
 
-## Decisão atual
-
-O source continua com as equivalências já aprovadas, mas o candidato portable atual não completou o gate externo.
-
-**PORTABLE NÃO VALIDADO — FALHA TÉCNICA**
+**PORTABLE VALIDADO**
