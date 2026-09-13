@@ -79,4 +79,10 @@ class MainWindow(QMainWindow):
         if self._allow_close:event.accept(); return
         event.ignore(); self.hide()
     def exit_application(self)->None:
+        extractor=self.pages.get(Section.EXTRACTOR)
+        if isinstance(extractor,ExtractorPage) and not extractor.shutdown():
+            self.footer_right.setText("Aguardando o Extrator encerrar a operação ativa antes de sair."); self._restore(); return
+        video_editor=self.pages.get(Section.VIDEO_EDITOR)
+        if isinstance(video_editor,VideoEditorPage) and not video_editor.shutdown():
+            self.footer_right.setText("Não foi possível fechar todas as janelas do Editor de Vídeo."); self._restore(); return
         self._allow_close=True; self._timer.stop(); self.controller.close(); self.tray.hide(); self.close()
