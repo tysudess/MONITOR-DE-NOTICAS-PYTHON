@@ -16,8 +16,11 @@ from monitor_noticias.ui.runtime_controller import RuntimeUiController
 class FakeGoogle:
     def __init__(self): self.calls=[]
     def collect(self, query):
-        self.calls.append(query); now=int(time.time()*1000)
-        return [News(title="Marinha realiza exercício naval",source="Fonte Teste",date=now,link="https://example.test/noticia",snippet="Operação da Marinha",capturedAt=now)]
+        self.calls.append(query)
+        # O repository congela o limite superior da janela antes de chamar o collector.
+        # Mantém a fixture inequivocamente dentro dessa janela em runners mais lentos.
+        published_at=int(time.time()*1000)-1000
+        return [News(title="Marinha realiza exercício naval",source="Fonte Teste",date=published_at,link="https://example.test/noticia",snippet="Operação da Marinha",capturedAt=published_at)]
 class FakeLatest: pass
 class NoopVideoRunner:
     def search_videos(self,**kwargs): raise AssertionError("vídeo não deve executar neste teste")
