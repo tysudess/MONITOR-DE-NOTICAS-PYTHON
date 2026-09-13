@@ -19,16 +19,21 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
     payload: dict[str, object] = {"ok": False, "root": str(root)}
 
     try:
+        import winreg
         from PySide6.QtCore import QUrl
         from PySide6.QtMultimedia import QMediaPlayer
         from PySide6.QtWidgets import QApplication
         from pypdf import PdfReader
 
         from monitor_noticias.app.paths import AppPaths
+        from monitor_noticias.app.preferences import SharedPreferences
+        from monitor_noticias.networking.proxy import ProxySettings
         from monitor_noticias.pdf_editor.core import PdfEditorModel
         from monitor_noticias.ui.main_window import MainWindow
         from monitor_noticias.ui.sections import SECTION_ORDER, Section
         from monitor_noticias.video_editor.core import Clip, build_export_command, probe_video
+        from monitor_noticias.windows.dpapi import DpapiTextStore
+        from monitor_noticias.windows.startup import RUN_KEY, VALUE_NAME, StartupManager, startup_command
 
         app = QApplication.instance() or QApplication([])
         paths = AppPaths(root)
@@ -148,6 +153,66 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
         if not helper_resource.is_file() or helper_resource.stat().st_size <= 20_000_000:
             raise RuntimeError("Helper Globoplay empacotado ausente/incompleto.")
 
+        # DPAPI CurrentUser real dentro do runtime congelado, somente dado fictício.
+        fake_secret = "SEGREDO-FICTICIO-PASSO17"
+        dpapi_file = root / "temp" / "portable-dpapi-test.txt"
+        dpapi = DpapiTextStore(dpapi_file)
+        dpapi.save(fake_secret)
+        if dpapi.load() != fake_secret:
+            raise RuntimeError("DPAPI CurrentUser empacotada não recuperou o texto fictício.")
+        if fake_secret in dpapi_file.read_text(encoding="utf-8"):
+            raise RuntimeError("DPAPI empacotada deixou segredo fictício em texto puro.")
+        dpapi.delete()
+
+        # Proxy: preferências + senha DPAPI reais do portable; não faz chamada externa.
+        proxy_root = root / "temp" / "proxy-smoke"
+        proxy_prefs_file = proxy_root / "prefs" / "monitor_prefs.properties"
+        proxy_prefs = SharedPreferences(proxy_prefs_file)
+        proxy = ProxySettings(proxy_prefs, data_dir=proxy_root)
+        proxy_cfg = proxy.save(enabled=True, host="proxy.test.local", port=6060, username="usuario-teste", password=fake_secret)
+        loaded_proxy = proxy.load()
+        if not proxy_cfg.ready or loaded_proxy.password != fake_secret or loaded_proxy.host != "proxy.test.local":
+            raise RuntimeError("Configuração/proteção do proxy empacotado divergiu.")
+        if proxy_prefs_file.exists() and fake_secret in proxy_prefs_file.read_text(encoding="utf-8"):
+            raise RuntimeError("Senha fictícia do proxy apareceu em SharedPreferences plaintext.")
+        proxy.secret_store.delete()
+
+        # Startup: usa o EXE portable real; restaura qualquer valor anterior do runner.
+        previous_exists = False
+        previous_value = None
+        previous_type = None
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_QUERY_VALUE) as key:
+                previous_value, previous_type = winreg.QueryValueEx(key, VALUE_NAME)
+                previous_exists = True
+        except FileNotFoundError:
+            pass
+        startup = StartupManager.default()
+        try:
+            if not startup.configure(True, executable=Path(sys.executable)):
+                raise RuntimeError("StartupManager empacotado recusou ativação.")
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_QUERY_VALUE) as key:
+                current_value, current_type = winreg.QueryValueEx(key, VALUE_NAME)
+            if current_type != winreg.REG_SZ or current_value != startup_command(Path(sys.executable)):
+                raise RuntimeError(f"Startup empacotado gravou valor inesperado: {current_value!r}")
+            if not startup.configure(False):
+                raise RuntimeError("StartupManager empacotado recusou remoção.")
+        finally:
+            if previous_exists:
+                with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.SetValueEx(key, VALUE_NAME, 0, previous_type, previous_value)
+            else:
+                try:
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
+                        winreg.DeleteValue(key, VALUE_NAME)
+                except FileNotFoundError:
+                    pass
+
+        # Notificação: valida wiring no runtime portable. Ambiente CI não permite
+        # comprovar visualmente o toast/tray; isso permanece registrado como tal.
+        main.notifier("Portable smoke", "Notificação fictícia do Passo 17")
+        app.processEvents()
+
         # Teardown real das ferramentas integradas, inclusive liberação do handle.
         if not video_page.shutdown():
             raise RuntimeError("Shutdown do Editor de Vídeo empacotado falhou.")
@@ -178,6 +243,10 @@ if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1":
             "resolution": f"{exported_info.width}x{exported_info.height}",
             "fps": exported_info.fps,
             "binaries": binaries,
+            "dpapi": True,
+            "proxy_dpapi": True,
+            "startup_registry": True,
+            "notification_wiring": True,
         })
         result_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         os._exit(0)
