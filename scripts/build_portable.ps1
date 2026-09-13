@@ -1,0 +1,162 @@
+param(
+    [string]$OutputDir = "portable-out"
+)
+
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+Set-Location $Root
+
+if (-not $IsWindows) { throw "A build portable deve ser executada no Windows." }
+if ($env:PROCESSOR_ARCHITECTURE -notmatch "AMD64") { throw "A build deste passo é Windows x64." }
+
+$pythonVersion = (& python --version 2>&1 | Out-String).Trim()
+if ($pythonVersion -notmatch "Python 3\.12\.") { throw "Python 3.12.x é obrigatório para a build. Detectado: $pythonVersion" }
+
+Write-Host "== Limpeza de build anterior =="
+foreach ($path in @("build", "dist", ".globoplay-helper-build", ".portable-tools", $OutputDir)) {
+    if (Test-Path $path) { Remove-Item $path -Recurse -Force }
+}
+New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+
+Write-Host "== Dependências de build =="
+python -m pip install --disable-pip-version-check -r requirements.txt -r requirements-build.txt
+if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar dependências." }
+
+Write-Host "== Helper interno Globoplay =="
+python tools/build-globoplay-login-helper.py
+if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar GloboplayLoginHelper.exe." }
+$helper = Join-Path $Root "resources/globoplay-login-helper/GloboplayLoginHelper.exe"
+if (-not (Test-Path $helper) -or (Get-Item $helper).Length -lt 20000000) { throw "Helper Globoplay ausente ou incompleto." }
+
+Write-Host "== PyInstaller onedir =="
+python -m PyInstaller --noconfirm --clean MonitorDeNoticias.spec
+if ($LASTEXITCODE -ne 0) { throw "Falha no PyInstaller." }
+$PortableRoot = Join-Path $Root "dist/MonitorDeNoticias"
+$Exe = Join-Path $PortableRoot "MonitorDeNoticias.exe"
+if (-not (Test-Path $Exe)) { throw "MonitorDeNoticias.exe não foi gerado." }
+
+Write-Host "== Estrutura externa gravável/resources =="
+foreach ($dir in @("resources", "bin", "data", "logs", "temp", "Videos", "VideoEditorExports")) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $PortableRoot $dir) | Out-Null
+}
+Copy-Item (Join-Path $Root "resources/*") (Join-Path $PortableRoot "resources") -Recurse -Force
+Copy-Item (Join-Path $Root "portable/README_PORTABLE.txt") (Join-Path $PortableRoot "README_PORTABLE.txt") -Force
+Copy-Item (Join-Path $Root "portable/THIRD_PARTY_NOTICES.txt") (Join-Path $PortableRoot "THIRD_PARTY_NOTICES.txt") -Force
+
+Write-Host "== Binários do Extrator/Editor =="
+$ToolsRoot = Join-Path $Root ".portable-tools"
+$BinStage = Join-Path $ToolsRoot "bin"
+New-Item -ItemType Directory -Force -Path $BinStage | Out-Null
+
+Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe" -OutFile (Join-Path $BinStage "yt-dlp.exe") -TimeoutSec 180
+Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile (Join-Path $BinStage "yt-dlp-stable.exe") -TimeoutSec 180
+Invoke-WebRequest -Uri "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip" -OutFile (Join-Path $ToolsRoot "deno.zip") -TimeoutSec 180
+Expand-Archive (Join-Path $ToolsRoot "deno.zip") (Join-Path $ToolsRoot "deno") -Force
+Copy-Item (Join-Path $ToolsRoot "deno/deno.exe") (Join-Path $BinStage "deno.exe") -Force
+
+$ffSources = @(
+    "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n9.0-latest-win64-gpl-9.0.zip",
+    "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+)
+$ffOk = $false
+foreach ($source in $ffSources) {
+    try {
+        Invoke-WebRequest -Uri $source -OutFile (Join-Path $ToolsRoot "ffmpeg.zip") -TimeoutSec 240
+        if ((Get-Item (Join-Path $ToolsRoot "ffmpeg.zip")).Length -gt 1000000) { $ffOk = $true; break }
+    } catch { Write-Warning $_.Exception.Message }
+}
+if (-not $ffOk) { throw "Não foi possível baixar FFmpeg." }
+Expand-Archive (Join-Path $ToolsRoot "ffmpeg.zip") (Join-Path $ToolsRoot "ffmpeg") -Force
+$ffmpeg = Get-ChildItem (Join-Path $ToolsRoot "ffmpeg") -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+$ffprobe = Get-ChildItem (Join-Path $ToolsRoot "ffmpeg") -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
+if (-not $ffmpeg -or -not $ffprobe) { throw "ffmpeg.exe/ffprobe.exe ausentes." }
+Copy-Item $ffmpeg.FullName (Join-Path $BinStage "ffmpeg.exe") -Force
+Copy-Item $ffprobe.FullName (Join-Path $BinStage "ffprobe.exe") -Force
+
+foreach ($name in @("yt-dlp.exe", "yt-dlp-stable.exe", "deno.exe", "ffmpeg.exe", "ffprobe.exe")) {
+    $source = Join-Path $BinStage $name
+    if (-not (Test-Path $source) -or (Get-Item $source).Length -lt 100000) { throw "Binário inválido: $name" }
+    Copy-Item $source (Join-Path $PortableRoot "bin/$name") -Force
+}
+
+$ytNightly = (& (Join-Path $PortableRoot "bin/yt-dlp.exe") --version 2>&1 | Select-Object -First 1)
+$ytStable = (& (Join-Path $PortableRoot "bin/yt-dlp-stable.exe") --version 2>&1 | Select-Object -First 1)
+$denoVersion = (& (Join-Path $PortableRoot "bin/deno.exe") --version 2>&1 | Select-Object -First 1)
+$ffmpegVersion = (& (Join-Path $PortableRoot "bin/ffmpeg.exe") -version 2>&1 | Select-Object -First 1)
+$ffprobeVersion = (& (Join-Path $PortableRoot "bin/ffprobe.exe") -version 2>&1 | Select-Object -First 1)
+
+Write-Host "== Metadata da build =="
+$commit = (& git rev-parse HEAD).Trim()
+$buildDate = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+$pyside = (& python -c "import PySide6; print(PySide6.__version__)" 2>&1 | Out-String).Trim()
+$qt = (& python -c "from PySide6.QtCore import qVersion; print(qVersion())" 2>&1 | Out-String).Trim()
+$pyinstaller = (& python -m PyInstaller --version 2>&1 | Out-String).Trim()
+$info = [ordered]@{
+    APP_VERSION = "technical-step17-portable"
+    BUILD_COMMIT = $commit
+    BUILD_DATE = $buildDate
+    PYTHON = $pythonVersion
+    PYSIDE6 = $pyside
+    QT = $qt
+    PYINSTALLER = $pyinstaller
+    ARCHITECTURE = "windows-x64"
+    BUILD_TYPE = "onedir"
+    YT_DLP_NIGHTLY = "$ytNightly"
+    YT_DLP_STABLE = "$ytStable"
+    DENO = "$denoVersion"
+    FFMPEG = "$ffmpegVersion"
+    FFPROBE = "$ffprobeVersion"
+}
+$info | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $PortableRoot "BUILD-INFO.json") -Encoding utf8
+$commit | Set-Content (Join-Path $PortableRoot "BUILD-SHA.txt") -Encoding ascii
+
+Write-Host "== Validações estruturais =="
+$required = @(
+    "MonitorDeNoticias.exe",
+    "_internal",
+    "resources/monitor-icon.svg",
+    "resources/pdf-default-cover.b64",
+    "resources/globoplay-login-helper/GloboplayLoginHelper.exe",
+    "bin/yt-dlp.exe",
+    "bin/yt-dlp-stable.exe",
+    "bin/deno.exe",
+    "bin/ffmpeg.exe",
+    "bin/ffprobe.exe",
+    "data",
+    "logs",
+    "temp",
+    "Videos",
+    "VideoEditorExports",
+    "README_PORTABLE.txt",
+    "THIRD_PARTY_NOTICES.txt",
+    "BUILD-INFO.json",
+    "BUILD-SHA.txt"
+)
+foreach ($rel in $required) {
+    if (-not (Test-Path (Join-Path $PortableRoot $rel))) { throw "Item obrigatório ausente: $rel" }
+}
+$qwindows = Get-ChildItem (Join-Path $PortableRoot "_internal") -Recurse -Filter "qwindows.dll" | Select-Object -First 1
+if (-not $qwindows) { throw "Plugin Qt platforms/qwindows.dll ausente." }
+$multimediaDlls = Get-ChildItem (Join-Path $PortableRoot "_internal") -Recurse -Filter "*.dll" | Where-Object { $_.FullName -match "multimedia" }
+if (-not $multimediaDlls) { throw "Plugins/DLLs QtMultimedia não encontrados." }
+if (Test-Path (Join-Path $PortableRoot "src")) { throw "src/ não pode entrar no portable." }
+if (Test-Path (Join-Path $PortableRoot "tests")) { throw "tests/ não pode entrar no portable." }
+if (Test-Path (Join-Path $PortableRoot ".git")) { throw ".git não pode entrar no portable." }
+
+Write-Host "== ZIP final =="
+$ZipName = "MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip"
+$ZipPath = Join-Path (Resolve-Path $OutputDir).Path $ZipName
+Compress-Archive -Path $PortableRoot -DestinationPath $ZipPath -CompressionLevel Optimal
+$hash = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+"$hash  $ZipName" | Set-Content "$ZipPath.sha256" -Encoding ascii
+
+$folderBytes = (Get-ChildItem $PortableRoot -Recurse -File | Measure-Object Length -Sum).Sum
+$zipBytes = (Get-Item $ZipPath).Length
+Write-Host "PORTABLE_ROOT=$PortableRoot"
+Write-Host "PORTABLE_ZIP=$ZipPath"
+Write-Host "PORTABLE_SHA256=$hash"
+Write-Host "PORTABLE_FOLDER_BYTES=$folderBytes"
+Write-Host "PORTABLE_ZIP_BYTES=$zipBytes"
+Write-Host "FFMPEG_VERSION=$ffmpegVersion"
+Write-Host "FFPROBE_VERSION=$ffprobeVersion"
