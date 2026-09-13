@@ -16,10 +16,11 @@ CancelCheck = Callable[[], None]
 
 class NewsRepository:
     """Orquestração equivalente ao NewsRepository Kotlin ativo."""
-    def __init__(self, db: NewsDb, *, google: GoogleNewsCollector | None = None, latest: NewsLatestCollector | None = None) -> None:
+    def __init__(self, db: NewsDb, *, google: GoogleNewsCollector | None = None, latest: NewsLatestCollector | None = None, national_sources: Iterable[MediaSource] = ()) -> None:
         self.db = db
         self.google = google or GoogleNewsCollector()
         self.latest = latest or NewsLatestCollector()
+        self.national_sources = tuple(national_sources)
         self.defaultTerms = list(DEFAULT_MONITOR_TERMS)
 
     @staticmethod
