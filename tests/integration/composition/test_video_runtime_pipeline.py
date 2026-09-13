@@ -39,7 +39,7 @@ def wait_idle(automation,timeout=5):
 def test_ui_to_video_collect_matching_sqlite_and_ui_refresh(tmp_path: Path):
     paths=AppPaths(tmp_path); paths.ensure_runtime_dirs(); prefs=SharedPreferences(paths.data/"prefs"/"monitor_prefs.properties")
     news_db=NewsDb(paths.news_db); video_db=VideoDb(paths.videos_db); terms=VideoTermStore(prefs); terms.save(["MARINHA"])
-    prefs.update(desktop_video_source_ids={"video-cnn-brasil"})
+    prefs.update(desktop_video_source_ids={"video-cnn-brasil"},desktop_video_sources_v6_migrated=True)
     repository=VideoRepository(news_db,video_db,terms,youtube=NeverUsed(),website=FakeWebsite(),direct=FakeDirect(),editions=NeverUsed(),trechos=NeverUsed(),jarvis=NeverUsed())
     video_runner=RuntimeVideoRunner(repository,prefs)
     automation=AutomationService(AutomationSettings(prefs),NoopNewsRunner(),video_runner)
