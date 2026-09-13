@@ -13,6 +13,10 @@ ENV/
 htmlcov/
 build/
 dist/
+portable-out/
+.portable-tools/
+.globoplay-helper-build/
+resources/globoplay-login-helper/*.exe
 *.egg-info/
 logs/*.log
 temp/*
