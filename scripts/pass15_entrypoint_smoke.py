@@ -15,6 +15,11 @@ def _read(path: Path) -> str:
         return ""
 
 
+def _console_safe(text: str) -> str:
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    return text.encode(encoding, errors="backslashreplace").decode(encoding, errors="replace")
+
+
 def main() -> int:
     workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
     runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve()
@@ -75,9 +80,13 @@ def main() -> int:
                 process.kill()
                 process.wait(timeout=5)
 
-    print(f"ENTRYPOINT OK root={root} cwd={foreign_cwd}")
-    print(_read(stdout_path))
-    print(_read(stderr_path))
+    print(_console_safe(f"ENTRYPOINT OK root={root} cwd={foreign_cwd}"))
+    stdout_text = _read(stdout_path)
+    stderr_text = _read(stderr_path)
+    if stdout_text:
+        print(_console_safe(stdout_text))
+    if stderr_text:
+        print(_console_safe(stderr_text))
     return 0
 
 
