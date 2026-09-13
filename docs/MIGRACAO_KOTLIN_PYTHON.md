@@ -21,14 +21,8 @@ O comportamento comprovado é a fonte da verdade. Lacunas não são preenchidas 
 - Passo 14: composition root/runtime real conectados; suíte de 141 testes e smokes live de notícias/vídeos.
 - Passo 15: gate final encontrou bloqueadores altos `MIG-050`, `MIG-116` e validação real de mídia `MIG-070/071/072/074/075/076`; decisão `NÃO APTO PARA PORTABLE`.
 - Passo 16: eliminou exclusivamente esses bloqueadores; gate de código `c8a53b600faa49105937b194dc74455c0eb13d3a` com Windows 147/147 e media smoke real; decisão `APTO PARA PORTABLE`.
-
-Os documentos detalhados permanecem em:
-
-- `docs/RELATORIO_PASSO_14.md`
-- `docs/MIGRACAO_PASSO_15.md`
-- `docs/RELATORIO_PASSO_15.md`
-- `docs/MIGRACAO_PASSO_16.md`
-- `docs/RELEASE_READINESS.md`
+- Passos 18–19: build/validação portable revelou e tratou `PORT-001` a `PORT-004`; candidato resultante `186a28e4a5f53296178fd9d0ee74637a8a5149bf`.
+- Passo 20: run `34768584764` concluiu com build limpa aprovada e falha no segundo smoke externo por `PORT-005`, classificado como **FALHA DO GATE**; decisão `PORTABLE NÃO VALIDADO — FALHA TÉCNICA`.
 
 ## Runtime real
 
@@ -51,42 +45,22 @@ run.py
 
 O `AppContainer` apenas monta dependências; não contém scraping, matching ou SQL de negócio.
 
-## Evidência central preservada
+## Estado preservado após Passo 16
 
-Passo 14 live smoke:
+O Passo 16 aprovou especificamente:
 
-```text
-LIVE NEWS OK found=22 new=22 stored=22
-LIVE VIDEO COLLECTOR OK items=15
-```
+- `MIG-050` — helper/login interno Globoplay por escopo comprovado;
+- `MIG-070` — FFprobe;
+- `MIG-071` — preview;
+- `MIG-072` — áudio/mute;
+- `MIG-074` — seek;
+- `MIG-075` — play/pause/avanço;
+- `MIG-076` — exportação;
+- `MIG-116` — lifecycle/shutdown das ferramentas integradas.
 
-Passo 16 media smoke Windows:
+Nenhum desses estados é rebaixado pelo PORT-005, pois o bloqueador atual está no harness de repetição da validação portable, não nesses motores.
 
-```text
-MEDIA SMOKE OK player_position=301ms seek=1000ms codec=h264 duration=2.000s resolution=320x240 fps=25/1 audio=aac sample_rate=44100 channels=1
-```
-
-Suíte alvo final do Passo 16:
-
-- Windows: `147 passed`, `0 failed`, `0 error`, `0 skip`, `0 xfail`.
-- Ubuntu: `144 passed`, `3 skipped` exclusivamente Windows; os três executam e passam no Windows.
-
-## Checklist oficial — estado após Passo 16
-
-A tabela completa dos `MIG-001`–`MIG-115` do Passo 14 permanece historicamente registrada nos commits/documentos anteriores. O Passo 15 acrescentou `MIG-116`. O estado atual é definido pelo checklist anterior **mais as alterações objetivamente aprovadas abaixo**; nenhum outro MIG foi promovido por associação.
-
-| MIG | Módulo | Funcionalidade | Estado anterior | Estado após Passo 16 | Evidência |
-|---|---|---|---|---|---|
-| MIG-050 | Extrator | Login interno Globoplay | BLOQUEADO | APROVADO | helper source idêntico ao Kotlin (`de8839c...`), resource→runtime e integração processo/cookies testados |
-| MIG-070 | Editor Vídeo | Probe FFprobe | EM TESTE | APROVADO | FFprobe real em MP4 controlado + probe do arquivo exportado |
-| MIG-071 | Editor Vídeo | Preview | EM TESTE | APROVADO | QMediaPlayer real avançou posição em arquivo H.264 |
-| MIG-072 | Editor Vídeo | Áudio/mute | EM TESTE | APROVADO | QAudioOutput real conectado, volume 0.85; AAC presente no probe |
-| MIG-074 | Editor Vídeo | Seek global/local | EM TESTE | APROVADO | seek real para 1000 ms dentro da tolerância |
-| MIG-075 | Editor Vídeo | Play/pause/avanço | EM TESTE | APROVADO | play avançou; pause confirmado pelo playback state |
-| MIG-076 | Editor Vídeo | Exportação trecho | EM TESTE | APROVADO | comando FFmpeg de produção executado; H.264/AAC/320x240/25 fps/44.1 kHz confirmados |
-| MIG-116 | Runtime/UI | Lifecycle/Shutdown das ferramentas integradas | BLOQUEADO | APROVADO | MainWindow coordena shutdown; processo auxiliar real terminado; player libera source/temporário |
-
-### Totais atuais
+### Totais preservados do Passo 16
 
 - Total: **116 MIGs**.
 - `APROVADO`: **71**.
@@ -94,61 +68,53 @@ A tabela completa dos `MIG-001`–`MIG-115` do Passo 14 permanece historicamente
 - `PENDENTE`: **8**.
 - `BLOQUEADO`: **0**.
 
-## MIG que permanecem deliberadamente sem promoção
+## MIGs portable/distribuição
 
-- `MIG-002`: resolução de raiz portable — `PENDENTE`; o build portable ainda não ocorreu.
-- `MIG-003`, `MIG-004` e demais itens anteriormente `EM TESTE` não são promovidos sem evidência específica.
-- `MIG-061`: rotação/flip PDF — `PENDENTE`.
-- `MIG-079`–`MIG-083`: build/portable/hash — `PENDENTE`; executar somente em passo futuro explicitamente autorizado.
-- `MIG-114`: consumo do resolver Google News pela UI — `PENDENTE`; o baseline ativo não comprovou wiring, portanto não inventar.
-- itens de UI/Windows/coletores ainda `EM TESTE` permanecem assim mesmo com o gate de bloqueadores liberado.
+`MIG-079`–`MIG-083` tratam entry/build/workflow/binários/BUILD-SHA/hash no conjunto histórico.
 
-Essas pendências não eram bloqueadores CRÍTICOS/ALTOS registrados na matriz do Passo 15 e não foram usadas para falsificar a conclusão do Passo 16.
+O Passo 20 trouxe evidência positiva de:
 
-## MIG-050 — contrato final
+- build PyInstaller onedir;
+- binários próprios no bundle;
+- `BUILD-SHA.txt` apontando para `186a28e4...`;
+- ZIP criado;
+- SHA-256 recalculado em segundo runner e idêntico;
+- reextração e primeira execução externas;
+- paths com espaços/acentos;
+- movimentação do portable.
 
-O Kotlin `GloboplayLoginWindow` materializa `/globoplay-login-helper/GloboplayLoginHelper.exe` em `data/extractor/runtime/GloboplayLoginHelper.exe`, executa o helper com `--output` e `--profile-dir`, recebe cookies Netscape e os entrega ao store protegido.
+Entretanto o segundo smoke obrigatório não concluiu. Assim **nenhum MIG-079–MIG-083 é promovido por associação** neste passo. Eles permanecem no estado documental anterior até uma validação externa integralmente concluída.
 
-O Python agora reproduz esse fluxo. `tools/globoplay-login-helper.py` no destino tem o mesmo blob Git `de8839c232e1857bb7b04cd079a5e7eafb755453` da fonte Kotlin. Não existe fallback para helper externo da máquina.
+## PORT-005
 
-A geração física do `.exe` pertence à etapa futura de build. A autenticação humana contra o serviço externo não é simulada como sucesso.
+O primeiro smoke persiste a notícia artificial de link fixo em `temp/pipeline-smoke/news.db`. O segundo smoke reutiliza a mesma base e o mesmo link. Como a notícia já existe, o repository não a contabiliza como nova e `AutomationService` corretamente não chama notificação para `newCount=0`.
 
-## MIG-116 — contrato final
+O gate recria `notification_events=[]` e exige evento não vazio, portanto a falha é do harness não idempotente.
 
-Ao escolher `Sair`:
+Status: **ABERTO / NÃO CORRIGIDO NO PASSO 20**.
 
-1. `ExtractorPage.shutdown()` invalida callbacks, cancela o motor/process tree, encerra helper rastreado e espera QThreads; não usa `QThread.terminate()`.
-2. se worker conhecido não encerrar com segurança, o Monitor recusa a saída.
-3. `VideoEditorPage.shutdown()` para o player, limpa `QMediaPlayer.setSource(QUrl())`, fecha/delete a janela top-level.
-4. somente depois `MainWindow` fecha controller/tray e aceita o encerramento.
-
-Um teste com processo filho real comprova que o auxiliar rastreado termina. O media smoke final prova que o handle do arquivo é liberado e o diretório temporário pode ser removido.
+Não foi alterado o `AutomationService`, o repository de notícias nem qualquer regra de negócio.
 
 ## Editor de vídeo — motor preservado
 
-Não houve troca de player nem reescrita do motor. O comando FFmpeg permanece equivalente ao `video_editor_pyside/main.py` do baseline:
+O motor continua PySide6 `QMediaPlayer` + `QVideoWidget` + `QAudioOutput`. O comando de exportação preserva o contrato previamente aprovado com H.264/AAC, CRF 20, preset veryfast, `yuv420p`, áudio 160k e `+faststart`.
 
-```text
--y -i input -ss start -t duration -map 0:v:0 -map 0:a? -vf scale=trunc(iw/2)*2:trunc(ih/2)*2 -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart output
-```
-
-Os controles Extração/Compactação/Corte/Unir/Converter que não possuem motor no baseline ativo permanecem deliberadamente não funcionais conforme `MIG-077`. `MIG-078` continua preservando que IN/OUT manual é **NÃO DETERMINADO PELO CÓDIGO ANALISADO.**
-
-## Gate de bloqueadores após Passo 16
-
-- BLOQUEADORES CRÍTICOS: **0**
-- BLOQUEADORES ALTOS: **0**
-- BLOQUEADORES MÉDIOS: **0**
-- BLOQUEADORES BAIXOS: **0**
-
-A ausência de bloqueadores nessa matriz não transforma automaticamente todos os MIG pendentes/em teste em aprovados.
+No segundo runner do Passo 20, preview avançou para 325 ms e seeks 500/1000/1500 ms passaram. A exportação foi validada pelo FFprobe do próprio portable.
 
 ## Regra permanente
 
-Os IDs `MIG-001` a `MIG-116` são permanentes. Não renumerar, reutilizar ou substituir. Novos achados recebem apenas IDs posteriores.
+Os IDs `MIG-001` a `MIG-116` são permanentes. Não renumerar, reutilizar ou substituir.
 
-## Decisão do Passo 16
+IDs `PORT-XXX` documentam bloqueadores da validação/empacotamento e não substituem MIGs funcionais.
 
-**APTO PARA PORTABLE**
+## Repositório Kotlin
 
-A decisão significa pronto para iniciar uma futura etapa de build/validação portable quando houver instrução explícita. Não foi criado portable, instalador, release ou merge no Passo 16.
+A branch original observada `work/v8-extrator-v301-tab` permanece em `e7b5d8eaac68bce6a9785e4da5b8ca5f83c34d2e`.
+
+O repositório Kotlin não foi alterado no Passo 20.
+
+## Decisão atual
+
+O source continua com as equivalências já aprovadas, mas o candidato portable atual não completou o gate externo.
+
+**PORTABLE NÃO VALIDADO — FALHA TÉCNICA**

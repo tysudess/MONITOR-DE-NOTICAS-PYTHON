@@ -8,37 +8,22 @@
 - Python: 3.12.x.
 - PySide6: 6.9.1.
 - PyInstaller: 6.15.0.
-- Entry point: `run.py`, o mesmo fluxo usado em desenvolvimento.
+- Entry point: `run.py`.
 - Executável: `MonitorDeNoticias.exe`.
 
 O empacotamento não altera regras de negócio, repositories, collectors, matching, AutomationService, motores PDF, Extrator ou Editor de Vídeo.
 
-## Por que PyInstaller onedir
-
-A release V8 aprovada já utiliza PyInstaller 6.15.0 para o editor PySide6. O formato `onedir` reduz risco para Qt/PySide6, plugins dinâmicos, QtMultimedia, PDFium e diretórios graváveis. O runtime congelado fica em `_internal/`, enquanto recursos e dados graváveis permanecem ao lado do executável.
-
 ## Build reprodutível
 
-No Windows x64, com Python 3.12 disponível apenas para **construir** o pacote:
+No Windows x64:
 
 ```powershell
 ./scripts/build_portable.ps1
 ```
 
-O script:
+O script limpa artefatos antigos, instala dependências declaradas, gera o helper Globoplay, executa PyInstaller onedir, prepara resources/diretórios graváveis, obtém os binários externos previstos, grava `BUILD-INFO.json`/`BUILD-SHA.txt`, executa smoke local, remove estado artificial e cria o ZIP final.
 
-1. remove `build/`, `dist/`, cache do helper e staging antigo;
-2. instala as dependências declaradas em `requirements.txt` e `requirements-build.txt`;
-3. gera `GloboplayLoginHelper.exe` a partir do helper aprovado com PyInstaller onefile/windowed;
-4. gera `MonitorDeNoticias.exe` usando `MonitorDeNoticias.spec` em modo onedir/windowed;
-5. copia somente os resources aprovados para `resources/` externo;
-6. cria `data/`, `logs/`, `temp/`, `Videos/` e `VideoEditorExports/` como diretórios graváveis;
-7. baixa os cinco binários conforme a estratégia da release Kotlin: yt-dlp nightly, yt-dlp stable, Deno x64, FFmpeg e FFprobe;
-8. valida a execução dos binários;
-9. grava `BUILD-INFO.json` e `BUILD-SHA.txt`;
-10. gera `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip` e seu SHA-256.
-
-## Estrutura esperada
+## Estrutura distribuída
 
 ```text
 MonitorDeNoticias/
@@ -65,66 +50,95 @@ MonitorDeNoticias/
 └── THIRD_PARTY_NOTICES.txt
 ```
 
-`AppPaths` resolve a raiz frozen por `sys.executable`, portanto o aplicativo não depende do current working directory.
+`docs/` não é copiado para o portable. Atualizações documentais posteriores não alteram o ZIP já produzido e não exigem rebuild apenas por documentação.
 
 ## Qt / PySide6
 
-O spec coleta PySide6 porque o aplicativo usa módulos Qt carregados dinamicamente, incluindo QtMultimedia e plugins de plataforma. A validação exige:
+O spec coleta PySide6/PDFium e valida a presença dos plugins/DLLs necessários, incluindo `qwindows.dll`, QtCore, QtGui, QtWidgets e QtMultimedia.
 
-- `qwindows.dll`;
-- `Qt6Core.dll`;
-- `Qt6Gui.dll`;
-- `Qt6Widgets.dll`;
-- `Qt6Multimedia.dll`;
-- `Qt6MultimediaWidgets.dll`;
-- ao menos um plugin em `plugins/multimedia`.
-
-O motor do preview continua sendo `QMediaPlayer + QVideoWidget + QAudioOutput`; FFmpeg permanece exclusivamente no processamento/exportação.
+O motor do preview permanece `QMediaPlayer + QVideoWidget + QAudioOutput`; FFmpeg é usado em processamento/exportação.
 
 ## Binários externos
 
-A build não usa FFmpeg/FFprobe do PATH. Os executáveis são esperados em `bin/`. As fontes de download reproduzem as da release V8:
+A build usa binários em `bin/` do próprio portable:
 
-- yt-dlp nightly: release nightly oficial;
-- yt-dlp stable: release oficial;
-- Deno: `deno-x86_64-pc-windows-msvc.zip` oficial;
-- FFmpeg/FFprobe: BtbN n9.0 GPL com fallback para Gyan Essentials.
+- yt-dlp nightly oficial
+- yt-dlp stable oficial
+- Deno x64 oficial
+- FFmpeg/FFprobe BtbN n9.0 com fallback Gyan Essentials
 
-As versões efetivamente incluídas ficam registradas em `BUILD-INFO.json`.
+Não existe fallback para FFmpeg/FFprobe do PATH na validação do pacote.
 
 ## Helper Globoplay
 
-`tools/build-globoplay-login-helper.py` reproduz a geração original do helper: PySide6 6.9.1 + PyInstaller 6.15.0, `--onefile --windowed`. O executável resultante é colocado em `resources/globoplay-login-helper/GloboplayLoginHelper.exe`; em runtime o Extrator o materializa em `data/extractor/runtime/` como no Kotlin.
+`tools/build-globoplay-login-helper.py` gera `resources/globoplay-login-helper/GloboplayLoginHelper.exe` com PySide6/PyInstaller. Em runtime o Extrator materializa o helper em seu diretório de dados conforme o contrato migrado.
 
-## Validação limpa
+## Workflow de validação
 
-A workflow `Passo 17 - Windows Portable` possui dois jobs:
+`.github/workflows/pass17-build-portable.yml` possui dois ambientes:
 
-1. `build-windows-x64`: checkout, suíte normal, build limpa e geração do artefato;
-2. `validate-zip-without-repository`: baixa **somente** o artefato, sem checkout e sem setup-python, reextrai o ZIP em caminho com espaço/acento e executa `scripts/validate_portable.ps1`.
+1. `build-windows-x64`: checkout, regressão, build limpa, smoke local, ZIP e upload;
+2. `validate-zip-without-repository`: recebe somente o artifact, sem checkout do source, recalcula hash, reextrai e executa o gate externo.
 
-O validador:
+O segundo ambiente lança o EXE com CWD externo e PATH reduzido, testa os binários do bundle e move fisicamente a pasta antes de repetir o smoke.
 
-- compara SHA-256;
-- confirma ausência de `src/`, `tests/`, `.git` e venv na pasta final;
-- verifica DLLs/plugins Qt;
-- executa FFmpeg/FFprobe próprios;
-- inicia apenas `MonitorDeNoticias.exe` com CWD externo e PATH reduzido, sem Python/FFmpeg de desenvolvimento;
-- verifica criação de bancos/logs na raiz portable;
-- navega pelas páginas principais via Windows UI Automation;
-- abre o Editor de Vídeo a partir do Monitor, carrega mídia artificial, executa play/pause/seek e exportação;
-- valida a exportação com o `ffprobe.exe` do próprio portable;
-- confirma que o handle de mídia é liberado e que não ficaram processos FFmpeg/FFprobe do portable.
+## Resultado objetivo do candidato 186a28
 
-## Troubleshooting
+Run: `34768584764`.
 
-- `qwindows.dll ausente`: revisar coleta de plugins PySide6 no spec.
-- QtMultimedia ausente: revisar DLLs/plugins em `_internal/PySide6/Qt`.
-- `ffmpeg.exe`/`ffprobe.exe` ausentes: corrigir staging/cópia em `scripts/build_portable.ps1`; não usar PATH como fallback.
-- helper Globoplay ausente/incompleto: corrigir a etapa `tools/build-globoplay-login-helper.py`; não apontar para executável externo.
-- resources não encontrados: verificar que `resources/` está ao lado do EXE; não alterar `AppPaths` para depender de CWD.
-- banco/log em local inesperado: bloquear a build e revisar somente paths/empacotamento.
+Commit do artefato:
 
-## Resultado da validação
+`186a28e4a5f53296178fd9d0ee74637a8a5149bf`
 
-Esta seção é atualizada depois da execução final da workflow do Passo 17. Não considerar a build validada antes de o job de ambiente limpo e o ZIP reextraído concluírem com sucesso.
+### Build job
+
+**SUCCESS**.
+
+- `148 passed`
+- clean build: PASS
+- local runtime smoke: PASS
+- ZIP gerado: SIM
+- `BUILD-SHA.txt`: correto
+
+### ZIP
+
+- nome: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
+- tamanho: `651329759` bytes
+- tamanho descompactado: `1262864276` bytes
+- SHA-256: `5ebd57f312d3ce66b51b10b1abda8d92076a7971ad25aeb0bf0b23f78ee13cf2`
+
+O digest `adb365bc66b1aa21284494e9d40e3be6d030d242ad1afff450f0cde17f61a600` pertence ao contêiner de artifact criado pelo GitHub Actions para transportar o ZIP e NÃO substitui o SHA-256 interno acima.
+
+### Segundo runner
+
+**FAIL** no gate externo.
+
+O segundo runner recalculou exatamente o mesmo SHA-256 interno, reextraiu do zero e passou pelo primeiro smoke integral, reabertura, movimentação e nova inicialização.
+
+O segundo smoke também passou pelo Extrator, comprovando que `PORT-004` não reapareceu.
+
+A falha posterior foi:
+
+```text
+Evento de notícia nova não acionou callback de notificação.
+```
+
+## Diagnóstico PORT-005
+
+O gate de notícias usa um banco persistente sob `temp/pipeline-smoke` e uma notícia artificial de link fixo. No segundo smoke, a mesma notícia já está gravada. O `AutomationService` notifica apenas resultados novos; logo, não notificar novamente é comportamento esperado.
+
+A asserção externa recria a lista de eventos e exige uma nova notificação, tornando o segundo smoke não idempotente.
+
+Classificação: **FALHA DO GATE**.
+
+Nenhuma correção foi aplicada no Passo 20.
+
+## Warnings de mídia
+
+Warnings DXVA2 no runner não são falha funcional enquanto o QMediaPlayer provar reprodução. No candidato 186a28 o player avançou (`325 ms`) e os seeks 500/1000/1500 ms passaram, portanto esses warnings foram corretamente separados do erro real.
+
+## Estado final desta build
+
+A build em si foi produzida e transportada corretamente, mas o candidato não cumpriu o ciclo integral de validação externa porque o segundo smoke foi interrompido pelo PORT-005 antes do teardown final.
+
+**PORTABLE NÃO VALIDADO — FALHA TÉCNICA**
