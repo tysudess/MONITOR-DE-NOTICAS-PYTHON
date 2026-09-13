@@ -93,7 +93,7 @@ $pyside = (& python -c "import PySide6; print(PySide6.__version__)" 2>&1 | Out-S
 $qt = (& python -c "from PySide6.QtCore import qVersion; print(qVersion())" 2>&1 | Out-String).Trim()
 $pyinstaller = (& python -m PyInstaller --version 2>&1 | Out-String).Trim()
 $info = [ordered]@{
-    APP_VERSION = "technical-step17-portable"
+    APP_VERSION = "technical-step18-portable"
     BUILD_COMMIT = $commit
     BUILD_DATE = $buildDate
     PYTHON = $pythonVersion
@@ -143,6 +143,54 @@ if (-not $multimediaDlls) { throw "Plugins/DLLs QtMultimedia não encontrados." 
 if (Test-Path (Join-Path $PortableRoot "src")) { throw "src/ não pode entrar no portable." }
 if (Test-Path (Join-Path $PortableRoot "tests")) { throw "tests/ não pode entrar no portable." }
 if (Test-Path (Join-Path $PortableRoot ".git")) { throw ".git não pode entrar no portable." }
+
+Write-Host "== Smoke local da pasta recém-construída =="
+$LocalSmokeResult = Join-Path $env:RUNNER_TEMP "passo18-local-portable-smoke.json"
+if (Test-Path $LocalSmokeResult) { Remove-Item $LocalSmokeResult -Force }
+$psi = [System.Diagnostics.ProcessStartInfo]::new()
+$psi.FileName = $Exe
+$psi.WorkingDirectory = $env:WINDIR
+$psi.UseShellExecute = $false
+$psi.Environment["PATH"] = "$env:WINDIR\System32;$env:WINDIR"
+$psi.Environment["MONITOR_PORTABLE_SMOKE"] = "1"
+$psi.Environment["MONITOR_PORTABLE_SMOKE_RESULT"] = $LocalSmokeResult
+$localSmoke = [System.Diagnostics.Process]::Start($psi)
+if (-not $localSmoke) { throw "Não foi possível iniciar smoke local da pasta construída." }
+if (-not $localSmoke.WaitForExit(240000)) {
+    $localSmoke.Kill($true)
+    throw "Smoke local excedeu 240 segundos."
+}
+if (-not (Test-Path $LocalSmokeResult)) { throw "Smoke local não produziu resultado." }
+$localPayload = Get-Content $LocalSmokeResult -Raw | ConvertFrom-Json
+if ($localSmoke.ExitCode -ne 0 -or -not $localPayload.ok) {
+    Get-Content $LocalSmokeResult
+    throw "Smoke local falhou (exit=$($localSmoke.ExitCode)): $($localPayload.error)"
+}
+Write-Host "LOCAL_PORTABLE_SMOKE_OK"
+Get-Content $LocalSmokeResult
+Remove-Item $LocalSmokeResult -Force
+
+Write-Host "== Limpeza de estado artificial antes do ZIP =="
+foreach ($dir in @("data", "logs", "temp", "Videos", "VideoEditorExports")) {
+    $full = Join-Path $PortableRoot $dir
+    if (Test-Path $full) {
+        Get-ChildItem $full -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+    }
+}
+foreach ($dir in @("data", "logs", "temp", "Videos", "VideoEditorExports")) {
+    $full = Join-Path $PortableRoot $dir
+    if (Get-ChildItem $full -Force -ErrorAction SilentlyContinue | Select-Object -First 1) {
+        throw "Diretório gravável contém estado de teste antes do ZIP: $dir"
+    }
+}
+$sensitiveNames = Get-ChildItem $PortableRoot -Recurse -File | Where-Object {
+    $_.Name -match "(?i)(monitor_prefs\.properties|news\.db|videos\.db|\.dpapi$|cookies?|session\.txt$)" -and
+    $_.FullName -notmatch "resources\\globoplay-login-helper"
+}
+if ($sensitiveNames) {
+    $names = ($sensitiveNames | Select-Object -ExpandProperty FullName) -join "; "
+    throw "Estado sensível/pessoal inesperado antes do ZIP: $names"
+}
 
 Write-Host "== ZIP final =="
 $ZipName = "MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip"

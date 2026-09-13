@@ -24,6 +24,11 @@ jobs:
     name: build-windows-x64
     runs-on: windows-latest
     timeout-minutes: 90
+    outputs:
+      zip_sha256: ${{ steps.portable_meta.outputs.zip_sha256 }}
+      zip_bytes: ${{ steps.portable_meta.outputs.zip_bytes }}
+      folder_bytes: ${{ steps.portable_meta.outputs.folder_bytes }}
+      build_commit: ${{ steps.portable_meta.outputs.build_commit }}
     steps:
       - name: Checkout branch real
         uses: actions/checkout@v4
@@ -74,42 +79,247 @@ jobs:
           Get-ChildItem "$root/_internal" -Recurse -File | Where-Object {$_.FullName -match 'plugins\\multimedia'} | Select-Object FullName,Length
           Get-ChildItem 'portable-out' | Select-Object Name,Length
 
-      - name: Upload portable candidate
+      - name: Publish portable metadata
+        id: portable_meta
+        shell: pwsh
+        run: |
+          $zip=(Resolve-Path 'portable-out/MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip').Path
+          $root=(Resolve-Path 'dist/MonitorDeNoticias').Path
+          $hash=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $zipBytes=(Get-Item $zip).Length
+          $folderBytes=(Get-ChildItem $root -Recurse -File | Measure-Object Length -Sum).Sum
+          $buildCommit=(Get-Content "$root/BUILD-SHA.txt" -Raw).Trim()
+          if($buildCommit -ne '${{ github.sha }}'){throw "BUILD-SHA diverge do commit do workflow."}
+          "zip_sha256=$hash" >> $env:GITHUB_OUTPUT
+          "zip_bytes=$zipBytes" >> $env:GITHUB_OUTPUT
+          "folder_bytes=$folderBytes" >> $env:GITHUB_OUTPUT
+          "build_commit=$buildCommit" >> $env:GITHUB_OUTPUT
+          Write-Host "SHA256_BUILD_ORIGINAL=$hash"
+          Write-Host "PORTABLE_ZIP_BYTES=$zipBytes"
+          Write-Host "PORTABLE_FOLDER_BYTES=$folderBytes"
+          Write-Host "BUILD_COMMIT=$buildCommit"
+
+      - name: Upload only final ZIP
         uses: actions/upload-artifact@v4
         with:
           name: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
-          path: |
-            portable-out/MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip
-            portable-out/MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip.sha256
-            scripts/validate_portable.ps1
+          path: portable-out/MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip
 
   validate-clean:
     name: validate-zip-without-repository
     needs: build
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
-      - name: Download only portable artifact and external validator
+      - name: Download only final ZIP
         uses: actions/download-artifact@v4
         with:
           name: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
           path: artifact
 
-      - name: Prove repository/source are absent
+      - name: Prove only ZIP and no repository
         shell: pwsh
         run: |
           if(Test-Path 'src'){throw 'src inesperado no ambiente de validação.'}
           if(Test-Path 'tests'){throw 'tests inesperado no ambiente de validação.'}
           if(Test-Path '.git'){throw '.git inesperado no ambiente de validação.'}
-          Get-ChildItem artifact -Recurse | Select-Object FullName,Length
+          $files=Get-ChildItem artifact -Recurse -File
+          if($files.Count -ne 1){throw "Segundo runner recebeu $($files.Count) arquivos; esperado somente o ZIP."}
+          if($files[0].Name -ne 'MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip'){throw "Arquivo inesperado: $($files[0].Name)"}
+          Write-Host "SECOND_RUNNER_ONLY_ZIP=YES"
+          Write-Host "WINDOWS=$([System.Environment]::OSVersion.VersionString)"
+          Write-Host "ARCHITECTURE=$env:PROCESSOR_ARCHITECTURE"
+          $py=Get-Command python -ErrorAction SilentlyContinue
+          $ff=Get-Command ffmpeg -ErrorAction SilentlyContinue
+          $fp=Get-Command ffprobe -ErrorAction SilentlyContinue
+          Write-Host "PYTHON_INSTALLED_IN_RUNNER=$([bool]$py)"
+          Write-Host "FFMPEG_IN_RUNNER_PATH=$([bool]$ff)"
+          Write-Host "FFPROBE_IN_RUNNER_PATH=$([bool]$fp)"
+          Write-Host "DEVELOPMENT_CHECKOUT_PRESENT=NO"
 
-      - name: Validate re-extracted ZIP in clean path
+      - name: Validate final ZIP in clean Windows runner
         shell: pwsh
+        env:
+          EXPECTED_ZIP_SHA256: ${{ needs.build.outputs.zip_sha256 }}
+          EXPECTED_BUILD_COMMIT: ${{ needs.build.outputs.build_commit }}
         run: |
+          $ErrorActionPreference='Stop'
           $zip=(Get-ChildItem artifact -Recurse -Filter 'MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip' | Select-Object -First 1).FullName
-          $validator=(Get-ChildItem artifact -Recurse -Filter 'validate_portable.ps1' | Select-Object -First 1).FullName
-          if(-not $zip -or -not $validator){throw 'Artefato/validador ausente.'}
-          & $validator -ZipPath $zip
+          if(-not $zip){throw 'ZIP final ausente.'}
+          $runnerHash=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($runnerHash -ne $env:EXPECTED_ZIP_SHA256){throw "SHA-256 recebido diverge: $runnerHash x $env:EXPECTED_ZIP_SHA256"}
+          Write-Host "SHA256_RUNNER=$runnerHash"
+          Write-Host "HASHES_IDENTICOS=SIM"
+
+          $extractBase=Join-Path $env:RUNNER_TEMP 'Edição Portable Monitor de Notícias'
+          if(Test-Path $extractBase){Remove-Item $extractBase -Recurse -Force}
+          New-Item -ItemType Directory -Force $extractBase | Out-Null
+          Expand-Archive $zip $extractBase -Force
+          $portable=Get-ChildItem $extractBase -Directory | Where-Object {Test-Path (Join-Path $_.FullName 'MonitorDeNoticias.exe')} | Select-Object -First 1
+          if(-not $portable){throw 'Raiz portable não encontrada após reextração.'}
+          $script:Root=$portable.FullName
+
+          function Assert-PortableStructure([string]$root){
+            foreach($rel in @(
+              'MonitorDeNoticias.exe','_internal','resources/monitor-icon.svg','resources/pdf-default-cover.b64',
+              'resources/globoplay-login-helper/GloboplayLoginHelper.exe','bin/yt-dlp.exe','bin/yt-dlp-stable.exe',
+              'bin/deno.exe','bin/ffmpeg.exe','bin/ffprobe.exe','README_PORTABLE.txt','THIRD_PARTY_NOTICES.txt',
+              'BUILD-INFO.json','BUILD-SHA.txt'
+            )){
+              if(-not (Test-Path (Join-Path $root $rel))){throw "Item obrigatório ausente: $rel"}
+            }
+            foreach($forbidden in @('src','tests','.git','.venv','venv')){
+              if(Test-Path (Join-Path $root $forbidden)){throw "Conteúdo de desenvolvimento indevido: $forbidden"}
+            }
+            foreach($name in @('Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll','Qt6Multimedia.dll','Qt6MultimediaWidgets.dll')){
+              if(-not (Get-ChildItem (Join-Path $root '_internal') -Recurse -Filter $name | Select-Object -First 1)){
+                throw "DLL Qt obrigatória ausente: $name"
+              }
+            }
+            if(-not (Get-ChildItem (Join-Path $root '_internal') -Recurse -Filter 'qwindows.dll' | Select-Object -First 1)){
+              throw 'qwindows.dll ausente.'
+            }
+            if(-not (Get-ChildItem (Join-Path $root '_internal') -Recurse -File | Where-Object {$_.FullName -match 'plugins[\\/]multimedia'} | Select-Object -First 1)){
+              throw 'Plugins QtMultimedia ausentes.'
+            }
+            $buildSha=(Get-Content (Join-Path $root 'BUILD-SHA.txt') -Raw).Trim()
+            if($buildSha -ne $env:EXPECTED_BUILD_COMMIT){throw "BUILD-SHA inesperado: $buildSha"}
+          }
+
+          function Assert-NoInitialUserState([string]$root){
+            foreach($dir in @('data','logs','temp','Videos','VideoEditorExports')){
+              $full=Join-Path $root $dir
+              if(Test-Path $full){
+                $first=Get-ChildItem $full -Recurse -Force -File -ErrorAction SilentlyContinue | Select-Object -First 1
+                if($first){throw "ZIP contém estado de usuário/teste em $dir: $($first.FullName)"}
+              }
+            }
+            $bad=Get-ChildItem $root -Recurse -Force -File | Where-Object {
+              $_.Name -match '(?i)^\.env$|monitor_prefs\.properties$|news\.db$|videos\.db$|\.dpapi$|cookies?\.txt$'
+            }
+            if($bad){throw "ZIP contém arquivo de estado sensível/pessoal: $(($bad.FullName)-join '; ')"}
+          }
+
+          function New-PortableProcess([string]$root,[bool]$smoke,[string]$result=''){
+            $psi=[System.Diagnostics.ProcessStartInfo]::new()
+            $psi.FileName=Join-Path $root 'MonitorDeNoticias.exe'
+            $psi.WorkingDirectory=$env:WINDIR
+            $psi.UseShellExecute=$false
+            $psi.Environment['PATH']="$env:WINDIR\System32;$env:WINDIR"
+            if($smoke){
+              $psi.Environment['MONITOR_PORTABLE_SMOKE']='1'
+              $psi.Environment['MONITOR_PORTABLE_SMOKE_RESULT']=$result
+            }
+            return [System.Diagnostics.Process]::Start($psi)
+          }
+
+          function Invoke-NormalStart([string]$root,[int]$seconds=4){
+            $p=New-PortableProcess $root $false
+            if(-not $p){throw 'Falha ao iniciar EXE normal.'}
+            try{
+              $deadline=[DateTime]::UtcNow.AddSeconds(25)
+              do{
+                Start-Sleep -Milliseconds 500
+                if($p.HasExited){throw "EXE encerrou prematuramente: $($p.ExitCode)"}
+                $ready=(Test-Path (Join-Path $root 'data/news.db')) -and (Test-Path (Join-Path $root 'data/videos.db')) -and (Test-Path (Join-Path $root 'logs/monitor-noticias.log'))
+              }while(-not $ready -and [DateTime]::UtcNow -lt $deadline)
+              if(-not $ready){throw 'EXE não criou bancos/log na raiz portable.'}
+              Start-Sleep -Seconds $seconds
+              if($p.HasExited){throw "EXE encerrou após inicialização: $($p.ExitCode)"}
+              Write-Host "PORTABLE_NORMAL_START_OK pid=$($p.Id) root=$root"
+            }finally{
+              if($p -and -not $p.HasExited){$p.Kill($true);$p.WaitForExit(10000)|Out-Null}
+            }
+          }
+
+          function Invoke-Smoke([string]$root,[string]$label){
+            $result=Join-Path $env:RUNNER_TEMP "portable-smoke-$label.json"
+            if(Test-Path $result){Remove-Item $result -Force}
+            $p=New-PortableProcess $root $true $result
+            if(-not $p){throw 'Falha ao iniciar smoke interno.'}
+            if(-not $p.WaitForExit(300000)){$p.Kill($true);throw 'Smoke interno excedeu 300 segundos.'}
+            if(-not (Test-Path $result)){throw 'Smoke interno não produziu resultado.'}
+            $payload=Get-Content $result -Raw | ConvertFrom-Json
+            Get-Content $result
+            if($p.ExitCode -ne 0 -or -not $payload.ok){throw "Smoke interno falhou: $($payload.error)"}
+            foreach($page in @('HOME','NEWS','VIDEOS','DEMANDS','SOURCES','HISTORY','TERMS','STOP','SETTINGS','PDF_EDITOR','EXTRACTOR','VIDEO_EDITOR')){
+              if($payload.navigated -notcontains $page){throw "Navegação não percorreu $page"}
+            }
+            foreach($flag in @('extractor_controlled','news_pipeline','video_pipeline','automation_pipeline','persistence','history','dpapi','proxy_dpapi','startup_registry','notification_event','notification_wiring')){
+              if(-not [bool]$payload.$flag){throw "Gate interno não confirmou $flag"}
+            }
+            if([int]$payload.player_position_ms -lt 300){throw 'Preview não avançou.'}
+            $targets=@(500,1000,1500)
+            if($payload.seek_positions_ms.Count -ne 3){throw 'Seek múltiplo não retornou 3 posições.'}
+            for($i=0;$i -lt 3;$i++){
+              if([Math]::Abs([int]$payload.seek_positions_ms[$i]-$targets[$i]) -gt 250){throw "Seek fora da tolerância em $($targets[$i])ms"}
+            }
+            if($payload.video_codec -ne 'h264' -or $payload.audio_codec -ne 'aac'){throw 'Exportação não preservou H.264/AAC.'}
+            if([int]$payload.audio_sample_rate -ne 44100 -or [int]$payload.audio_channels -lt 1){throw 'Áudio exportado inválido.'}
+            Write-Host "PORTABLE_RUNTIME_SMOKE_OK label=$label player=$($payload.player_position_ms) codec=$($payload.video_codec) audio=$($payload.audio_codec) resolution=$($payload.resolution) fps=$($payload.fps) duration=$($payload.export_duration) sample_rate=$($payload.audio_sample_rate) channels=$($payload.audio_channels)"
+            return $payload
+          }
+
+          function Assert-NoOrphans([string]$root){
+            $orphans=Get-Process -ErrorAction SilentlyContinue | Where-Object {
+              $_.ProcessName -in @('ffmpeg','ffprobe','yt-dlp','yt-dlp-stable','deno','GloboplayLoginHelper') -and $_.Path -like "$root*"
+            }
+            if($orphans){throw "Processo órfão do portable: $(($orphans.ProcessName)-join ', ')"}
+          }
+
+          Assert-PortableStructure $Root
+          Assert-NoInitialUserState $Root
+
+          $sampleDir=Join-Path $env:RUNNER_TEMP 'portable-media-external-gate'
+          if(Test-Path $sampleDir){Remove-Item $sampleDir -Recurse -Force}
+          New-Item -ItemType Directory -Force $sampleDir | Out-Null
+          $sample=Join-Path $sampleDir 'amostra portable.mp4'
+          & (Join-Path $Root 'bin/ffmpeg.exe') -y -f lavfi -i 'testsrc=size=320x240:rate=25' -f lavfi -i 'sine=frequency=440:sample_rate=44100' -t 2 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 96k $sample | Out-Null
+          if($LASTEXITCODE -ne 0 -or -not (Test-Path $sample)){throw 'FFmpeg empacotado falhou no runner limpo.'}
+          $probe=& (Join-Path $Root 'bin/ffprobe.exe') -v error -show_streams -show_format -of json $sample | ConvertFrom-Json
+          if($LASTEXITCODE -ne 0 -or -not ($probe.streams|Where-Object codec_type -eq 'video') -or -not ($probe.streams|Where-Object codec_type -eq 'audio')){throw 'FFprobe empacotado falhou no runner limpo.'}
+          Write-Host 'GLOBAL_FFMPEG_NOT_REQUIRED=YES'
+          Write-Host 'GLOBAL_FFPROBE_NOT_REQUIRED=YES'
+
+          Invoke-NormalStart $Root 2
+          $first=Invoke-Smoke $Root 'original'
+          Invoke-NormalStart $Root 2
+          Assert-NoOrphans $Root
+
+          $log=Join-Path $Root 'logs/monitor-noticias.log'
+          if(Test-Path $log){
+            $logText=Get-Content $log -Raw -ErrorAction SilentlyContinue
+            if($logText -match 'SEGREDO-FICTICIO-PASSO18'){throw 'Segredo fictício apareceu no log.'}
+            if($logText -match '(?i)Traceback|ModuleNotFoundError|DLL load failed|could not find the Qt platform plugin'){throw 'Log contém erro estrutural do portable.'}
+          }
+
+          $movedBase=Join-Path $env:RUNNER_TEMP 'Movido Portable Monitor'
+          if(Test-Path $movedBase){Remove-Item $movedBase -Recurse -Force}
+          New-Item -ItemType Directory -Force $movedBase | Out-Null
+          $movedRoot=Join-Path $movedBase 'Monitor de Notícias Validado'
+          Move-Item $Root $movedRoot
+          $script:Root=$movedRoot
+          Assert-PortableStructure $Root
+          Invoke-NormalStart $Root 2
+          $moved=Invoke-Smoke $Root 'moved'
+          Assert-NoOrphans $Root
+
+          $rootTemp=Join-Path $Root 'temp'
+          if(Test-Path $rootTemp){
+            Get-ChildItem $rootTemp -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+            if(Get-ChildItem $rootTemp -Force -ErrorAction SilentlyContinue | Select-Object -First 1){throw 'Temporários bloqueados após smoke.'}
+          }
+          Assert-NoOrphans $Root
+
+          Write-Host "PATH_COM_ESPACOS=OK"
+          Write-Host "PATH_COM_ACENTOS=OK"
+          Write-Host "CWD_DIFERENTE=OK"
+          Write-Host "PORTABLE_MOVE=OK"
+          Write-Host "REOPEN=OK"
+          Write-Host "PROCESSOS_ORFAOS=0"
+          Write-Host "SEGREDOS_REAIS_ENCONTRADOS=0"
+          Write-Host "DADOS_PESSOAIS_NO_ZIP=0"
+          Write-Host "PORTABLE_ZIP_VALIDATION_OK sha256=$runnerHash"
