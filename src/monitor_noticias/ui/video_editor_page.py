@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import QTimer, QUrl, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from monitor_noticias.video_editor.window import VideoEditorWindow
@@ -68,6 +68,10 @@ class VideoEditorPage(QWidget):
     def open_editor(self) -> None:
         try:
             window = VideoEditorWindow(self.app_root)
+            # No baseline o editor vivia em processo separado; fechar a janela
+            # encerrava esse processo e seus handles. No editor integrado, apagar
+            # a top-level window reproduz esse teardown sem trocar o player.
+            window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
             window.destroyed.connect(lambda _=None, w=window: self._discard_window(w))
             self._windows.append(window)
             window.show(); window.raise_(); window.activateWindow()
@@ -80,10 +84,11 @@ class VideoEditorPage(QWidget):
         except ValueError: pass
 
     def shutdown(self) -> bool:
-        """Fecha as janelas integradas e para o QMediaPlayer antes do Monitor sair."""
+        """Reproduz o teardown do processo separado antes do Monitor sair."""
         for window in list(self._windows):
             try:
                 window.player.stop()
+                window.player.setSource(QUrl())
                 window.close()
             except RuntimeError:
                 self._discard_window(window)
