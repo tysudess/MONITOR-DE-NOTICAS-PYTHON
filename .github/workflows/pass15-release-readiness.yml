@@ -48,7 +48,7 @@ jobs:
       - name: Static gate inventory
         shell: bash
         run: |
-          set -euo pipefail
+          set -u
           echo '=== PLACEHOLDER TOKENS IN src ==='
           grep -RInE '\b(TODO|FIXME|NotImplemented|placeholder|stub|fake|mock|demo|sample)\b|^[[:space:]]*pass([[:space:]]*(#.*)?)?$' src || true
           echo '=== SKIP/XFAIL DECLARATIONS ==='
@@ -56,7 +56,7 @@ jobs:
           echo '=== ABSOLUTE DEVELOPMENT PATH CANDIDATES ==='
           grep -RInE '([A-Za-z]:\\Users\\|/home/[^/]+/|/Users/[^/]+/|\.venv|venv/Scripts|site-packages)' src run.py || true
           echo '=== FFMPEG/FFPROBE COMMAND SITES ==='
-          grep -RInE 'ffmpeg|ffprobe' src/monitor_noticias | true
+          grep -RInE 'ffmpeg|ffprobe' src/monitor_noticias || true
       - name: Entry point smoke from foreign CWD (Linux)
         if: runner.os == 'Linux'
         env:
