@@ -242,6 +242,13 @@ jobs:
           function Invoke-Smoke([string]$root,[string]$label){
             $result=Join-Path $env:RUNNER_TEMP "portable-smoke-$label.json"
             if(Test-Path $result){Remove-Item $result -Force}
+            # O smoke do Extrator usa uma fixture artificial determinística. Ao repetir
+            # o mesmo smoke após mover a pasta, remova somente o download artificial
+            # anterior para exigir uma nova operação real sem alterar dados do aplicativo.
+            $fixtureVideos=Join-Path $root 'Videos'
+            if(Test-Path $fixtureVideos){
+              Get-ChildItem $fixtureVideos -File -Filter '*extractor_fixture*' -ErrorAction SilentlyContinue | Remove-Item -Force
+            }
             $p=New-PortableProcess $root $true $result
             if(-not $p){throw 'Falha ao iniciar smoke interno.'}
             if(-not $p.WaitForExit(300000)){$p.Kill($true);throw 'Smoke interno excedeu 300 segundos.'}
