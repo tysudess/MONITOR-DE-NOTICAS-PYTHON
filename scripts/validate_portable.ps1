@@ -66,15 +66,24 @@ $probe = Get-Content $ExportProbe -Raw | ConvertFrom-Json
 if (-not ($probe.streams | Where-Object codec_type -eq "video")) { throw "FFprobe não encontrou vídeo." }
 if (-not ($probe.streams | Where-Object codec_type -eq "audio")) { throw "FFprobe não encontrou áudio." }
 
-# Lança somente o EXE, com CWD externo e PATH sem Python/FFmpeg externos.
-$psi = [System.Diagnostics.ProcessStartInfo]::new()
-$psi.FileName = Join-Path $Root "MonitorDeNoticias.exe"
-$psi.WorkingDirectory = $env:WINDIR
-$psi.UseShellExecute = $false
-$psi.Environment["PATH"] = "$env:WINDIR\System32;$env:WINDIR"
-$process = [System.Diagnostics.Process]::Start($psi)
-if (-not $process) { throw "Não foi possível iniciar MonitorDeNoticias.exe." }
+function New-PortableProcess([bool]$Smoke, [string]$SmokeResult = "") {
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = Join-Path $Root "MonitorDeNoticias.exe"
+    $psi.WorkingDirectory = $env:WINDIR
+    $psi.UseShellExecute = $false
+    # Remove Python/FFmpeg/etc. externos: somente APIs do Windows ficam no PATH.
+    $psi.Environment["PATH"] = "$env:WINDIR\System32;$env:WINDIR"
+    if ($Smoke) {
+        $psi.Environment["MONITOR_PORTABLE_SMOKE"] = "1"
+        $psi.Environment["MONITOR_PORTABLE_SMOKE_RESULT"] = $SmokeResult
+    }
+    return [System.Diagnostics.Process]::Start($psi)
+}
 
+# Primeira abertura NORMAL do EXE, não do hook: prova startup frozen, AppContainer,
+# paths e criação de dados sem Python instalado/configurado no ambiente do processo.
+$process = New-PortableProcess $false
+if (-not $process) { throw "Não foi possível iniciar MonitorDeNoticias.exe." }
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(25)
     do {
@@ -83,94 +92,9 @@ try {
         $ready = (Test-Path (Join-Path $Root "data/news.db")) -and (Test-Path (Join-Path $Root "data/videos.db")) -and (Test-Path (Join-Path $Root "logs/monitor-noticias.log"))
     } while (-not $ready -and [DateTime]::UtcNow -lt $deadline)
     if (-not $ready) { throw "Primeira execução não criou bancos/log dentro da raiz portable." }
-
-    Add-Type -AssemblyName UIAutomationClient
-    Add-Type -AssemblyName UIAutomationTypes
-    $desktop = [System.Windows.Automation.AutomationElement]::RootElement
-    $pidCond = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
-    $main = $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $pidCond)
-    if (-not $main) { throw "Janela principal não encontrada por UI Automation." }
-
-    function Invoke-ButtonContains($root, [string]$text) {
-        $buttons = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))
-        foreach ($b in $buttons) {
-            if (($b.Current.Name -as [string]) -like "*$text*") {
-                $p = $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-                $p.Invoke(); return $true
-            }
-        }
-        return $false
-    }
-
-    # Navegação pelas páginas essenciais e ferramentas internas.
-    foreach ($page in @("Notícias", "Vídeos", "Demandas", "Fontes", "Histórico", "Termos", "Configurações", "Extrator de Vídeos", "Editor de PDF", "Editor de Vídeo")) {
-        if (-not (Invoke-ButtonContains $main $page)) { throw "Botão de navegação não encontrado: $page" }
-        Start-Sleep -Milliseconds 250
-        if ($process.HasExited) { throw "Aplicação encerrou durante navegação: $page" }
-    }
-
-    # O workspace do Editor de Vídeo abre automaticamente sua janela top-level.
     Start-Sleep -Seconds 2
-    $windows = $desktop.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCond)
-    $editor = $null
-    foreach ($w in $windows) { if (($w.Current.Name -as [string]) -like "*VideoMaster PRO*") { $editor = $w; break } }
-    if (-not $editor) { throw "Janela real do Editor de Vídeo não abriu a partir do Monitor." }
-
-    # Abrir mídia real usando o diálogo nativo.
-    if (-not (Invoke-ButtonContains $editor "Abrir Vídeo")) { throw "Botão Abrir Vídeo não encontrado." }
-    Start-Sleep -Seconds 1
-    $dialogs = $desktop.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCond)
-    $dialog = $null
-    foreach ($w in $dialogs) { if (($w.Current.Name -as [string]) -like "*Abrir vídeos*") { $dialog = $w; break } }
-    if (-not $dialog) { throw "Diálogo Abrir vídeos não encontrado." }
-    $edits = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit))
-    if ($edits.Count -lt 1) { throw "Campo de arquivo do diálogo não encontrado." }
-    $valuePattern = $edits.Item($edits.Count - 1).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
-    $valuePattern.SetValue($Sample)
-    if (-not (Invoke-ButtonContains $dialog "Abrir")) { throw "Botão Abrir do diálogo não encontrado." }
-    Start-Sleep -Seconds 3
-
-    # Play/pause real e seek por slider quando exposto pelo backend de acessibilidade.
-    if (-not (Invoke-ButtonContains $editor "▶")) { throw "Botão Play não encontrado." }
-    Start-Sleep -Seconds 1
-    Invoke-ButtonContains $editor "⏸" | Out-Null
-    $sliders = $editor.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Slider))
-    if ($sliders.Count -gt 0) {
-        try {
-            $range = $sliders.Item(0).GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern)
-            $target = [Math]::Min(1000.0, $range.Current.Maximum)
-            $range.SetValue($target)
-        } catch { Write-Warning "Slider não expôs RangeValuePattern: $($_.Exception.Message)" }
-    }
-
-    # Exporta usando o FFmpeg que está dentro da pasta portable.
-    if (-not (Invoke-ButtonContains $editor "Exportar trecho")) { throw "Exportar trecho não encontrado." }
-    $exportDeadline = [DateTime]::UtcNow.AddSeconds(60)
-    do {
-        Start-Sleep -Milliseconds 500
-        $exports = Get-ChildItem (Join-Path $Root "VideoEditorExports") -Filter "*.mp4" -ErrorAction SilentlyContinue
-    } while (-not $exports -and [DateTime]::UtcNow -lt $exportDeadline)
-    if (-not $exports) { throw "Editor de Vídeo não gerou exportação no portable." }
-    $exported = $exports | Select-Object -First 1
-    $exportJson = & (Join-Path $Root "bin/ffprobe.exe") -v error -show_streams -show_format -of json $exported.FullName | ConvertFrom-Json
-    if (-not ($exportJson.streams | Where-Object codec_type -eq "video")) { throw "Exportação não contém vídeo." }
-
-    # Fecha a janela do editor para validar liberação do handle de mídia.
-    try {
-        $wp = $editor.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
-        $wp.Close()
-    } catch { Write-Warning "Não foi possível fechar editor via UIA: $($_.Exception.Message)" }
-    Start-Sleep -Seconds 2
-    Remove-Item $Sample -Force
-    if (Test-Path $Sample) { throw "Player manteve handle do arquivo de origem após fechar editor." }
-
-    # Não existe API externa segura para acionar o menu de tray em runner headless.
-    # O shutdown coordenado é coberto pela suíte Windows; aqui validamos que não ficaram ffmpeg/ffprobe do portable.
-    $orphans = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -in @("ffmpeg", "ffprobe") -and $_.Path -like "$Root*" }
-    if ($orphans) { throw "Processo FFmpeg/FFprobe órfão após a operação portable." }
-
-    Write-Host "PORTABLE_RUNTIME_OK root=$Root"
-    Write-Host "PORTABLE_MEDIA_OK export=$($exported.Name)"
+    if ($process.HasExited) { throw "Monitor encerrou após primeira inicialização." }
+    Write-Host "PORTABLE_NORMAL_START_OK pid=$($process.Id) root=$Root"
 }
 finally {
     if ($process -and -not $process.HasExited) {
@@ -179,4 +103,56 @@ finally {
     }
 }
 
+# O runner de Actions não fornece desktop interativo confiável para UI Automation.
+# O mesmo EXE congelado é relançado com um runtime hook INERTE no uso normal.
+# Esse hook instancia as classes reais empacotadas, navega o MainWindow, testa PDF,
+# Extrator, QMediaPlayer, seek, FFmpeg/FFprobe, exportação e shutdown.
+$SmokeResult = Join-Path $env:RUNNER_TEMP "portable-smoke-result.json"
+if (Test-Path $SmokeResult) { Remove-Item $SmokeResult -Force }
+$smoke = New-PortableProcess $true $SmokeResult
+if (-not $smoke) { throw "Não foi possível iniciar o mesmo EXE em modo de validação interna." }
+if (-not $smoke.WaitForExit(180000)) {
+    $smoke.Kill($true)
+    throw "Smoke interno do portable excedeu 180 segundos."
+}
+if (-not (Test-Path $SmokeResult)) { throw "Smoke interno não produziu resultado." }
+$smokePayload = Get-Content $SmokeResult -Raw | ConvertFrom-Json
+Get-Content $SmokeResult
+if ($smoke.ExitCode -ne 0 -or -not $smokePayload.ok) {
+    throw "Smoke interno do próprio EXE falhou (exit=$($smoke.ExitCode)): $($smokePayload.error)"
+}
+
+$expectedPages = @("HOME","NEWS","VIDEOS","DEMANDS","SOURCES","HISTORY","TERMS","STOP","SETTINGS","PDF_EDITOR","EXTRACTOR","VIDEO_EDITOR")
+foreach ($page in $expectedPages) {
+    if ($smokePayload.navigated -notcontains $page) { throw "Navegação empacotada não percorreu $page." }
+}
+if ($smokePayload.video_codec -ne "h264" -or $smokePayload.audio_codec -ne "aac") { throw "Exportação empacotada não preservou H.264/AAC." }
+if ([int]$smokePayload.player_position_ms -lt 300) { throw "Preview empacotado não avançou." }
+if ([Math]::Abs([int]$smokePayload.seek_position_ms - 1000) -gt 250) { throw "Seek empacotado fora da tolerância." }
+
+# O hook testa shutdown coordenado e libera handles. A pasta temporária precisa ser removível.
+$RootTemp = Join-Path $Root "temp"
+if (Test-Path $RootTemp) {
+    Get-ChildItem $RootTemp -Force | Remove-Item -Recurse -Force
+    if (Get-ChildItem $RootTemp -Force | Select-Object -First 1) { throw "Temporários residuais bloqueados após smoke." }
+}
+$orphans = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -in @("ffmpeg", "ffprobe") -and $_.Path -like "$Root*" }
+if ($orphans) { throw "Processo FFmpeg/FFprobe órfão após a operação portable." }
+
+# Reabertura normal usando os bancos/configurações já criados.
+$reopen = New-PortableProcess $false
+if (-not $reopen) { throw "Não foi possível reabrir o portable." }
+try {
+    Start-Sleep -Seconds 5
+    if ($reopen.HasExited) { throw "Portable falhou na reabertura (exit=$($reopen.ExitCode))." }
+    Write-Host "PORTABLE_REOPEN_OK pid=$($reopen.Id)"
+}
+finally {
+    if ($reopen -and -not $reopen.HasExited) {
+        $reopen.Kill($true)
+        $reopen.WaitForExit(10000) | Out-Null
+    }
+}
+
+Write-Host "PORTABLE_RUNTIME_SMOKE_OK player=$($smokePayload.player_position_ms)ms seek=$($smokePayload.seek_position_ms)ms codec=$($smokePayload.video_codec) audio=$($smokePayload.audio_codec) resolution=$($smokePayload.resolution)"
 Write-Host "PORTABLE_ZIP_VALIDATION_OK sha256=$actual"
