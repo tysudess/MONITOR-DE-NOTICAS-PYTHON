@@ -1,0 +1,97 @@
+name: Passo 15 release readiness
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - migration/python-foundation
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/pass15_**'
+      - 'run.py'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/pass15-release-readiness.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Qt runtime libraries on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libpulse0
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Compile all Python
+        run: python -m compileall -q src tests scripts run.py
+      - name: Complete suite with reasons
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -ra --durations=20
+      - name: Static gate inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== PLACEHOLDER TOKENS IN src ==='
+          grep -RInE '\b(TODO|FIXME|NotImplemented|placeholder|stub|fake|mock|demo|sample)\b|^[[:space:]]*pass([[:space:]]*(#.*)?)?$' src || true
+          echo '=== SKIP/XFAIL DECLARATIONS ==='
+          grep -RInE 'pytest\.mark\.(skip|skipif|xfail)|pytest\.(skip|xfail)|@unittest\.skip|expectedFailure' tests || true
+          echo '=== ABSOLUTE DEVELOPMENT PATH CANDIDATES ==='
+          grep -RInE '([A-Za-z]:\\Users\\|/home/[^/]+/|/Users/[^/]+/|\.venv|venv/Scripts|site-packages)' src run.py || true
+          echo '=== FFMPEG/FFPROBE COMMAND SITES ==='
+          grep -RInE 'ffmpeg|ffprobe' src/monitor_noticias | true
+      - name: Entry point smoke from foreign CWD (Linux)
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          timeout 8s python "$GITHUB_WORKSPACE/run.py" > "$RUNNER_TEMP/entrypoint.log" 2>&1 || code=$?
+          code=${code:-0}
+          cat "$RUNNER_TEMP/entrypoint.log"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+          test -f "$GITHUB_WORKSPACE/logs/monitor.log"
+      - name: Entry point smoke from spaced/accented path and foreign CWD (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $ErrorActionPreference='Stop'
+          $copy=Join-Path $env:RUNNER_TEMP 'Teste Edição Monitor'
+          if(Test-Path $copy){Remove-Item $copy -Recurse -Force}
+          New-Item -ItemType Directory -Force $copy | Out-Null
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE '*') $copy -Recurse -Force
+          $foreign=Join-Path $env:RUNNER_TEMP 'cwd-fora'
+          New-Item -ItemType Directory -Force $foreign | Out-Null
+          $p=Start-Process python -ArgumentList @((Join-Path $copy 'run.py')) -WorkingDirectory $foreign -PassThru -RedirectStandardOutput (Join-Path $env:RUNNER_TEMP 'entrypoint-out.log') -RedirectStandardError (Join-Path $env:RUNNER_TEMP 'entrypoint-err.log') -Environment @{QT_QPA_PLATFORM='offscreen'}
+          Start-Sleep -Seconds 8
+          if($p.HasExited -and $p.ExitCode -ne 0){
+            Get-Content (Join-Path $env:RUNNER_TEMP 'entrypoint-out.log') -ErrorAction SilentlyContinue
+            Get-Content (Join-Path $env:RUNNER_TEMP 'entrypoint-err.log') -ErrorAction SilentlyContinue
+            throw "run.py encerrou com $($p.ExitCode)"
+          }
+          if(-not $p.HasExited){Stop-Process -Id $p.Id -Force}
+          if(-not (Test-Path (Join-Path $copy 'logs/monitor.log'))){throw 'Log não foi criado na raiz copiada.'}
+          if(-not (Test-Path (Join-Path $copy 'data/news.db'))){throw 'news.db não foi criado na raiz copiada.'}
+          if(-not (Test-Path (Join-Path $copy 'data/videos.db'))){throw 'videos.db não foi criado na raiz copiada.'}
+          Write-Host 'ENTRYPOINT WINDOWS PATH/CWD OK'
