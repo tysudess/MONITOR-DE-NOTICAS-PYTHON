@@ -30,6 +30,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Confirm clean worktree and frozen commit
+        shell: pwsh
+        run: |
+          $status = git status --porcelain
+          if ($status) { throw "Worktree não está limpa antes da build: $status" }
+          $sha = (git rev-parse HEAD).Trim()
+          if ($sha -ne '${{ github.sha }}') { throw "HEAD $sha difere do github.sha ${{ github.sha }}" }
+          Write-Host "WORKTREE_CLEAN=YES"
+          Write-Host "FROZEN_COMMIT=$sha"
+
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
