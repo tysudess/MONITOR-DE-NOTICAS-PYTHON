@@ -10,6 +10,7 @@ on:
       - 'requirements-build.txt'
       - 'scripts/build_portable.ps1'
       - 'scripts/validate_portable.ps1'
+      - 'scripts/pyi_runtime_portable_validation.py'
       - 'tools/build-globoplay-login-helper.py'
       - 'tools/globoplay-login-helper.py'
       - 'portable/**'
