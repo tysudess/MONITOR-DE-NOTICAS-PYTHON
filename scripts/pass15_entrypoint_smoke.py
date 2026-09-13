@@ -55,7 +55,7 @@ def main() -> int:
             )
 
         expected = [
-            root / "logs" / "monitor.log",
+            root / "logs" / "monitor-noticias.log",
             root / "data" / "news.db",
             root / "data" / "videos.db",
             root / "resources" / "monitor-icon.svg",
