@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from monitor_noticias.automation.models import LiveSearchProgress
 from monitor_noticias.collectors.video.catalog import CORE_NATIONAL_GLOBOPLAY_IDS, GLOBOPLAY_REGIONAL_SWEEP_IDS, PORTAL_PROGRAM_SCAN_IDS
-from monitor_noticias.matching import canonical_key, canonicalize_url, in_period, is_globoplay_source, is_specific_video_url, is_youtube_url, is_youtube_video_url, merge_video, phrase_matches, prioritize_globoplay_candidates, source_matches_demand, useful_title
+from monitor_noticias.matching.video_rules import canonical_key, canonicalize_url, in_period, is_globoplay_source, is_specific_video_url, is_youtube_url, is_youtube_video_url, merge_video, phrase_matches, prioritize_globoplay_candidates, source_matches_demand, useful_title
 from .video_collect import collect_for_query, collect_recent_by_source, is_source_scan_mode
 from .video_types import VideoSearchResult, VideoSourceIssue
 
