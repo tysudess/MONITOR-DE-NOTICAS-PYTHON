@@ -22,16 +22,23 @@ from monitor_noticias.ui.controller import MainUiController, UiState
 
 HOME_STYLESHEET = """
 QWidget#homeDashboard {
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #031b30, stop:0.58 #032743, stop:1 #02172a);
+    background: #031b30;
     color: #f4f7fb;
     font-family: 'Segoe UI';
 }
-QScrollArea#homeScroll, QScrollArea#homeScroll > QWidget > QWidget {
-    background: transparent;
+QWidget#homeBody {
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #031b30, stop:0.55 #032743, stop:1 #02172a);
+}
+QScrollArea#homeScroll {
+    background: #031b30;
+    border: none;
+}
+QScrollArea#homeScroll QWidget#qt_scrollarea_viewport {
+    background: #031b30;
     border: none;
 }
 QLabel { color: #f4f7fb; background: transparent; }
-QLabel#homeWelcome { font-size: 30px; font-weight: 800; }
+QLabel#homeWelcome { color:#ffffff; font-size: 31px; font-weight: 800; }
 QLabel#homeSubtitle { color: #c5d7e8; font-size: 13px; }
 QLabel#homeSlogan { color: #6ec8ff; font-size: 10px; font-weight: 800; letter-spacing: 1.5px; }
 QLabel#homeDate { color: #9ab6d0; font-size: 9px; }
@@ -39,7 +46,7 @@ QLabel#homeClock { color: #f4f7fb; font-size: 17px; font-weight: 800; }
 QLabel#homeWeatherCity { color: #c7d9ea; font-size: 10px; }
 QLabel#homeWeatherTemp { color: #f4f7fb; font-size: 16px; font-weight: 800; }
 QLineEdit#homeSearch {
-    background: rgba(2,24,43,220);
+    background: rgba(2,24,43,225);
     color: #eef8ff;
     border: 1px solid #0e8fcb;
     border-radius: 11px;
@@ -49,18 +56,18 @@ QLineEdit#homeSearch {
 }
 QLineEdit#homeSearch:focus { border: 1px solid #00b7ff; }
 QFrame#metricCard, QFrame#dashboardCard, QFrame#miniCard {
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #06355a, stop:0.52 #063250, stop:1 #03223d);
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #06375c, stop:0.50 #05304e, stop:1 #031f39);
     border: 1px solid #087eae;
     border-radius: 12px;
 }
 QFrame#metricCard:hover, QFrame#dashboardCard:hover { border-color: #00a9e8; }
 QFrame#metricIcon { border-radius: 11px; }
 QLabel#metricTitle { color: #d6e4f1; font-size: 11px; font-weight: 500; }
-QLabel#metricValue { color: #ffffff; font-size: 27px; font-weight: 800; }
+QLabel#metricValue { color: #ffffff; font-size: 28px; font-weight: 800; }
 QLabel#cardTitle { color: #ffffff; font-size: 15px; font-weight: 800; }
 QLabel#cardSubtitle { color: #b9cde0; font-size: 10px; }
 QLabel#kicker { color: #7bd3ff; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
-QLabel#heroTitle { color: #ffffff; font-size: 30px; font-weight: 800; }
+QLabel#heroTitle { color: #ffffff; font-size: 31px; font-weight: 800; }
 QLabel#heroBody { color: #c0d2e3; font-size: 11px; }
 QLabel#heroRail { color: #2cc5ff; font-size: 11px; font-weight: 800; letter-spacing: 1.4px; }
 QFrame#statusPanel { background: #052d42; border: 1px solid #0cb87b; border-radius: 9px; }
@@ -112,6 +119,52 @@ QLabel#footerStatus { color: #b8cadb; font-size: 9px; }
 """
 
 
+REFINED_SIDEBAR_STYLESHEET = """
+QFrame#sidebar {
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #052e50, stop:0.58 #042642, stop:1 #031a30);
+    border: 1px solid #087eae;
+    border-radius: 14px;
+}
+QLabel#brandTitle { color:#ffffff; font-size:17px; font-weight:800; }
+QLabel#brandSub { color:#a8c3db; font-size:10px; }
+QLabel#anchorMark { color:#f5aa00; font-family:'Segoe UI Symbol'; font-size:46px; font-weight:700; }
+QPushButton#navButton {
+    color:#eef6ff;
+    background:transparent;
+    border:0;
+    border-radius:9px;
+    padding:9px 12px;
+    text-align:left;
+    font-size:13px;
+    font-weight:500;
+}
+QPushButton#navButton:hover { background:#083657; }
+QPushButton#navButton:checked {
+    background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0a659d,stop:1 #06375d);
+    border:1px solid #00a9e8;
+    color:#ffffff;
+    font-weight:800;
+}
+QLabel#newsBadge {
+    color:#062440;
+    background:#ffc21a;
+    border-radius:10px;
+    padding:2px 7px;
+    font-size:9px;
+    font-weight:800;
+}
+QFrame#sideStatusCard {
+    background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #052b48,stop:1 #03233c);
+    border:1px solid #0a638d;
+    border-radius:10px;
+}
+QLabel#sideStatusTitle { color:#ffffff; font-size:10px; font-weight:800; }
+QLabel#sideStatusText { color:#a9c6df; font-size:9px; }
+QLabel#sideStatusGood { color:#a9c6df; font-size:9px; }
+QLabel#sideMotto { color:#54bff2; font-size:8px; font-weight:700; letter-spacing:1px; }
+"""
+
+
 def _frame(name: str, margins=(14, 12, 14, 12), spacing: int = 8) -> tuple[QFrame, QVBoxLayout]:
     frame = QFrame()
     frame.setObjectName(name)
@@ -129,23 +182,32 @@ def _label(text: str = "", object_name: str = "") -> QLabel:
 
 
 class DashboardHeader(QWidget):
-    """Paints the subtle radar/technical background visible behind the header."""
+    """Paints the radar/technical background visible behind the header."""
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        center = QPointF(self.width() * 0.38, self.height() * 0.52)
-        p.setPen(QPen(QColor(0, 140, 210, 48), 1))
+        center = QPointF(self.width() * 0.39, self.height() * 0.50)
+
+        p.setPen(Qt.PenStyle.NoPen)
+        for radius, alpha in ((72, 8), (56, 12), (40, 16), (24, 22), (10, 28)):
+            p.setBrush(QColor(0, 168, 235, alpha))
+            p.drawEllipse(center, radius, radius)
+
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.setPen(QPen(QColor(0, 150, 220, 56), 1))
         for radius in (24, 44, 64, 84, 104, 124):
             p.drawEllipse(center, radius, radius)
-        p.drawLine(QPointF(center.x() - 145, center.y()), QPointF(center.x() + 145, center.y()))
-        p.drawLine(QPointF(center.x(), max(0, center.y() - 105)), QPointF(center.x(), min(self.height(), center.y() + 105)))
-        p.setPen(QPen(QColor(0, 183, 255, 130), 2))
-        p.drawEllipse(center, 3, 3)
-        p.setPen(QPen(QColor(0, 136, 196, 32), 1))
-        y = 14
-        p.drawLine(QPointF(0, y), QPointF(self.width() * 0.72, y))
+        p.drawLine(QPointF(center.x() - 150, center.y()), QPointF(center.x() + 150, center.y()))
+        p.drawLine(QPointF(center.x(), max(0, center.y() - 108)), QPointF(center.x(), min(self.height(), center.y() + 108)))
+
+        p.setPen(QPen(QColor(0, 190, 255, 95), 1))
+        p.drawLine(QPointF(center.x(), 0), QPointF(center.x(), self.height()))
+        p.setPen(QPen(QColor(0, 210, 255, 190), 2))
+        p.drawEllipse(center, 4, 4)
+        p.setPen(QPen(QColor(0, 136, 196, 42), 1))
+        p.drawLine(QPointF(0, 14), QPointF(self.width() * 0.70, 14))
 
 
 class LeafIcon(QWidget):
@@ -218,13 +280,13 @@ class MonitorArt(QWidget):
         w, h = self.width(), self.height()
         x, y = w * .12, h * .12
         sw, sh = w * .66, h * .62
-        p.setPen(QPen(QColor("#0c5383"), 2))
-        p.setBrush(QColor("#0b4d78"))
+        p.setPen(QPen(QColor("#0c5f91"), 2))
+        p.setBrush(QColor("#0b527e"))
         p.drawRoundedRect(QRectF(x, y, sw, sh), 9, 9)
         p.setBrush(QColor("#021c31"))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawRect(QRectF(x + 12, y + 10, sw - 24, sh - 22))
-        p.setBrush(QColor("#0a4b73"))
+        p.setBrush(QColor("#0a527c"))
         p.drawRect(QRectF(x + sw * .45, y + sh, sw * .10, h * .10))
         p.drawRoundedRect(QRectF(x - 14, y + sh + h * .08, sw + 28, h * .09), 2, 2)
         p.setPen(QPen(QColor("#073b5d"), 2))
@@ -236,7 +298,7 @@ class HeroCard(QFrame):
         super().paintEvent(event)
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        p.setPen(QPen(QColor(0, 151, 205, 22), 1))
+        p.setPen(QPen(QColor(0, 151, 205, 25), 1))
         center = QPointF(self.width() * .92, self.height() * .52)
         for radius in (45, 75, 105, 135):
             p.drawEllipse(center, radius, radius)
@@ -246,7 +308,7 @@ class MetricCard(QFrame):
     def __init__(self, title: str, icon: str, accent: str) -> None:
         super().__init__()
         self.setObjectName("metricCard")
-        self.setMinimumHeight(100)
+        self.setMinimumHeight(104)
         row = QHBoxLayout(self)
         row.setContentsMargins(18, 14, 14, 14)
         row.setSpacing(14)
@@ -291,22 +353,24 @@ class HomeDashboard(QWidget):
         self.controller = controller
         self.setObjectName("homeDashboard")
         self.setStyleSheet(HOME_STYLESHEET)
+        self._sidebar_original: dict[str, object] | None = None
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        self.root_layout = QVBoxLayout(self)
+        self.root_layout.setContentsMargins(0, 0, 0, 0)
+        self.root_layout.setSpacing(0)
 
-        scroll = QScrollArea()
-        scroll.setObjectName("homeScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("homeScroll")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         body = QWidget()
-        body.setObjectName("homeDashboard")
+        body.setObjectName("homeBody")
         self.body_layout = QVBoxLayout(body)
-        self.body_layout.setContentsMargins(18, 8, 18, 4)
+        self.body_layout.setContentsMargins(18, 8, 18, 0)
         self.body_layout.setSpacing(14)
-        scroll.setWidget(body)
-        root.addWidget(scroll, 1)
+        self.scroll.setWidget(body)
+        self.root_layout.addWidget(self.scroll, 1)
 
         self._build_header()
         self._build_metrics()
@@ -315,11 +379,78 @@ class HomeDashboard(QWidget):
         self._build_bottom()
         self._build_footer()
 
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._apply_sidebar_refinement()
+
+    def hideEvent(self, event) -> None:
+        self._restore_sidebar_refinement()
+        super().hideEvent(event)
+
+    def _apply_sidebar_refinement(self) -> None:
+        window = self.window()
+        sidebar = getattr(window, "sidebar", None)
+        nav_buttons = getattr(window, "nav_buttons", None)
+        status_card = getattr(window, "side_status_card", None)
+        if sidebar is None or not isinstance(nav_buttons, dict) or status_card is None:
+            return
+        if self._sidebar_original is None:
+            layout = sidebar.layout()
+            status_index = layout.indexOf(status_card) if layout is not None else -1
+            anchor = sidebar.findChild(QLabel, "anchorMark")
+            self._sidebar_original = {
+                "style": sidebar.styleSheet(),
+                "nav_heights": {key: button.minimumHeight() for key, button in nav_buttons.items()},
+                "status_min": status_card.minimumHeight(),
+                "status_index": status_index,
+                "stretch": layout.stretch(status_index - 1) if layout is not None and status_index > 0 else 0,
+                "anchor": anchor,
+                "anchor_text": anchor.text() if anchor is not None else "",
+                "anchor_style": anchor.styleSheet() if anchor is not None else "",
+            }
+        sidebar.setStyleSheet(REFINED_SIDEBAR_STYLESHEET)
+        for button in nav_buttons.values():
+            button.setMinimumHeight(44)
+        status_card.setMinimumHeight(164)
+        layout = sidebar.layout()
+        status_index = layout.indexOf(status_card) if layout is not None else -1
+        if layout is not None and status_index > 0:
+            layout.setStretch(status_index - 1, 0)
+        anchor = sidebar.findChild(QLabel, "anchorMark")
+        if anchor is not None:
+            anchor.setText("⚓︎")
+            anchor.setStyleSheet("color:#f5aa00;font-family:'Segoe UI Symbol';font-size:46px;font-weight:700;background:transparent;")
+
+    def _restore_sidebar_refinement(self) -> None:
+        if self._sidebar_original is None:
+            return
+        window = self.window()
+        sidebar = getattr(window, "sidebar", None)
+        nav_buttons = getattr(window, "nav_buttons", None)
+        status_card = getattr(window, "side_status_card", None)
+        if sidebar is None or not isinstance(nav_buttons, dict) or status_card is None:
+            return
+        original = self._sidebar_original
+        sidebar.setStyleSheet(str(original["style"]))
+        for key, button in nav_buttons.items():
+            heights = original["nav_heights"]
+            if isinstance(heights, dict) and key in heights:
+                button.setMinimumHeight(int(heights[key]))
+        status_card.setMinimumHeight(int(original["status_min"]))
+        layout = sidebar.layout()
+        status_index = int(original["status_index"])
+        if layout is not None and status_index > 0:
+            layout.setStretch(status_index - 1, int(original["stretch"]))
+        anchor = original.get("anchor")
+        if isinstance(anchor, QLabel):
+            anchor.setText(str(original["anchor_text"]))
+            anchor.setStyleSheet(str(original["anchor_style"]))
+
     def _build_header(self) -> None:
         header_widget = DashboardHeader()
-        header_widget.setMinimumHeight(104)
+        header_widget.setMinimumHeight(108)
         header = QHBoxLayout(header_widget)
-        header.setContentsMargins(14, 8, 0, 2)
+        header.setContentsMargins(14, 6, 0, 2)
         header.setSpacing(18)
 
         welcome_wrap = QHBoxLayout()
@@ -341,9 +472,16 @@ class HomeDashboard(QWidget):
 
         right = QVBoxLayout()
         right.setSpacing(5)
-        slogan = _label("━━━    BRASIL SEMPRE MAIS INFORMADO", "homeSlogan")
+        slogan_row = QHBoxLayout()
+        slogan_row.setSpacing(10)
+        gold_line = _label("━━", "homeSlogan")
+        gold_line.setStyleSheet("color:#ffc21a;font-size:11px;font-weight:800;")
+        slogan_row.addWidget(gold_line)
+        slogan_row.addStretch()
+        slogan = _label("BRASIL SEMPRE MAIS INFORMADO", "homeSlogan")
         slogan.setAlignment(Qt.AlignmentFlag.AlignRight)
-        right.addWidget(slogan)
+        slogan_row.addWidget(slogan)
+        right.addLayout(slogan_row)
 
         info = QHBoxLayout()
         info.setSpacing(8)
@@ -472,8 +610,8 @@ class HomeDashboard(QWidget):
             ("Termos de busca", "Gerenciar palavras-chave", "⌕", "quickGreen", lambda: self.navigate.emit("TERMS")),
         )
         self.quick_buttons: list[QPushButton] = []
-        for idx, (title, subtitle, glyph, name, callback) in enumerate(buttons):
-            btn = QuickActionButton(title, subtitle, glyph, name)
+        for idx, (title_text, subtitle, glyph, name, callback) in enumerate(buttons):
+            btn = QuickActionButton(title_text, subtitle, glyph, name)
             btn.clicked.connect(callback)
             self.quick_buttons.append(btn)
             grid.addWidget(btn, idx // 2, idx % 2)
@@ -556,8 +694,8 @@ class HomeDashboard(QWidget):
         )
         self.bottom_content: list[QLabel] = []
         for glyph, color, title, subtitle in specs:
-            box, lay = _frame("miniCard", (18, 12, 18, 11), 4)
-            box.setMinimumHeight(112)
+            box, lay = _frame("miniCard", (18, 10, 18, 8), 3)
+            box.setMinimumHeight(90)
             title_row = QHBoxLayout()
             icon = QLabel(glyph)
             icon.setStyleSheet(f"color:{color};font-size:22px;font-weight:800;")
@@ -571,16 +709,16 @@ class HomeDashboard(QWidget):
             content = _label("", "smallContent")
             content.setWordWrap(True)
             lay.addWidget(content)
-            lay.addStretch()
             self.bottom_content.append(content)
             row.addWidget(box, 1)
         self.body_layout.addLayout(row)
 
     def _build_footer(self) -> None:
         footer_frame = QFrame()
+        footer_frame.setFixedHeight(42)
         footer_frame.setStyleSheet("QFrame{background:#031a2e;border-top:1px solid #0a456b;border-radius:0;}")
         footer = QHBoxLayout(footer_frame)
-        footer.setContentsMargins(0, 8, 4, 7)
+        footer.setContentsMargins(18, 8, 18, 7)
         footer.addWidget(_label("Monitor de Notícias v4.0.2   |   Inteligência de mídia para melhores decisões", "footerText"))
         footer.addStretch()
         self.footer_status = _label("●  Sistema operacional", "footerStatus")
@@ -590,8 +728,11 @@ class HomeDashboard(QWidget):
         divider.setFixedWidth(1)
         divider.setStyleSheet("background:#1d5575;border:0;")
         footer.addWidget(divider)
-        footer.addWidget(_label("━━    MAR  •  TERRA  •  AR  •  CIBERESPAÇO", "footerText"))
-        self.body_layout.addWidget(footer_frame)
+        gold = _label("━━", "footerText")
+        gold.setStyleSheet("color:#ffc21a;font-size:10px;font-weight:800;")
+        footer.addWidget(gold)
+        footer.addWidget(_label("MAR  •  TERRA  •  AR  •  CIBERESPAÇO", "footerText"))
+        self.root_layout.addWidget(footer_frame)
 
     @staticmethod
     def _progress_from_state(state: UiState) -> tuple[int, str]:
