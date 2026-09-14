@@ -31,6 +31,10 @@ jobs:
       SOURCE_BYTES: '4466155388'
       SOURCE_RUN_ID: '34799419049'
       SOURCE_ARTIFACT: PASS26-FFMPEG-CORRESPONDING-SOURCE-FROZEN
+      VALIDATED_RUN_ID: '34794644131'
+      VALIDATED_ARTIFACT: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
+      VALIDATED_ZIP_SHA256: 36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede
+      VALIDATED_ZIP_BYTES: '477381768'
 
     steps:
       - name: Checkout branch real
@@ -107,6 +111,46 @@ jobs:
         run: |
           python -m compileall -q src tests scripts run.py
           python -m pytest -ra --durations=20
+
+      - name: Download last validated portable only for audited FFmpeg binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.VALIDATED_ARTIFACT }}
+          repository: tysudess/MONITOR-DE-NOTICAS-PYTHON
+          run-id: ${{ env.VALIDATED_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: validated-portable
+
+      - name: Materialize audited FFmpeg and FFprobe from validated portable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=Get-ChildItem validated-portable -Recurse -File -Filter 'MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip' | Select-Object -First 1
+          if(-not $zip){throw 'ZIP do último portable validado não encontrado.'}
+          $zipHash=(Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($zipHash -ne $env:VALIDATED_ZIP_SHA256){throw "ZIP validado divergiu: $zipHash"}
+          if("$($zip.Length)" -ne $env:VALIDATED_ZIP_BYTES){throw "Tamanho do ZIP validado divergiu: $($zip.Length)"}
+          $extract=Join-Path $env:RUNNER_TEMP 'pass27-validated-portable'
+          if(Test-Path $extract){Remove-Item $extract -Recurse -Force}
+          Expand-Archive $zip.FullName $extract -Force
+          $root=Get-ChildItem $extract -Directory | Where-Object {Test-Path (Join-Path $_.FullName 'MonitorDeNoticias.exe')} | Select-Object -First 1
+          if(-not $root){throw 'Raiz do portable validado não encontrada.'}
+          $ff=Join-Path $root.FullName 'bin/ffmpeg.exe'
+          $fp=Join-Path $root.FullName 'bin/ffprobe.exe'
+          $ffHash=(Get-FileHash $ff -Algorithm SHA256).Hash.ToLowerInvariant()
+          $fpHash=(Get-FileHash $fp -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($ffHash -ne $env:EXPECTED_FFMPEG_SHA256){throw "ffmpeg.exe do portable validado divergiu: $ffHash"}
+          if($fpHash -ne $env:EXPECTED_FFPROBE_SHA256){throw "ffprobe.exe do portable validado divergiu: $fpHash"}
+          $audited=Join-Path $env:RUNNER_TEMP 'pass27-audited-ffmpeg'
+          if(Test-Path $audited){Remove-Item $audited -Recurse -Force}
+          New-Item -ItemType Directory -Force $audited | Out-Null
+          Copy-Item $ff (Join-Path $audited 'ffmpeg.exe') -Force
+          Copy-Item $fp (Join-Path $audited 'ffprobe.exe') -Force
+          "MONITOR_VALIDATED_FFMPEG_DIR=$audited" >> $env:GITHUB_ENV
+          Write-Host "VALIDATED_PORTABLE_ZIP_SHA256=$zipHash"
+          Write-Host "AUDITED_FFMPEG_SHA256=$ffHash"
+          Write-Host "AUDITED_FFPROBE_SHA256=$fpHash"
+          Write-Host 'AUDITED_BINARIES_SOURCE=PASSO24_VALIDATED_PORTABLE'
 
       - name: Official clean portable build
         shell: pwsh
