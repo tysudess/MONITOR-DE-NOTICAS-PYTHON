@@ -86,6 +86,10 @@ $denoVersion = (& (Join-Path $PortableRoot "bin/deno.exe") --version 2>&1 | Sele
 $ffmpegVersion = (& (Join-Path $PortableRoot "bin/ffmpeg.exe") -version 2>&1 | Select-Object -First 1)
 $ffprobeVersion = (& (Join-Path $PortableRoot "bin/ffprobe.exe") -version 2>&1 | Select-Object -First 1)
 
+Write-Host "== Compliance de redistribuição =="
+python scripts/collect_portable_licenses.py $PortableRoot
+if ($LASTEXITCODE -ne 0) { throw "Falha ao coletar textos oficiais de licença/notice." }
+
 Write-Host "== Metadata da build =="
 $commit = (& git rev-parse HEAD).Trim()
 $buildDate = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -130,6 +134,13 @@ $required = @(
     "VideoEditorExports",
     "README_PORTABLE.txt",
     "THIRD_PARTY_NOTICES.txt",
+    "licenses",
+    "LICENSES-MANIFEST.json",
+    "licenses/python-runtime/LICENSE.txt",
+    "licenses/ffmpeg/COPYING.GPLv3.txt",
+    "licenses/yt-dlp-stable/THIRD_PARTY_LICENSES.txt",
+    "licenses/yt-dlp-nightly/THIRD_PARTY_LICENSES.txt",
+    "licenses/deno/LICENSE.md",
     "BUILD-INFO.json",
     "BUILD-SHA.txt"
 )
