@@ -19,6 +19,17 @@ def main() -> int:
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     window._timer.stop()
+
+    # Gate funcional: trocar de seção não pode derrubar o estado maximizado.
+    window.showMaximized()
+    app.processEvents()
+    window.navigate(Section.NEWS)
+    app.processEvents()
+    app.processEvents()
+    if not window.isMaximized():
+        raise RuntimeError("Troca de aba removeu o estado maximizado da janela principal.")
+
+    window.showNormal()
     window.resize(1721, 914)
     window.show()
     app.processEvents()
