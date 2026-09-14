@@ -36,6 +36,7 @@ def main() -> int:
         (Section.SETTINGS, "configuracoes"),
         (Section.PDF_EDITOR, "editor-pdf"),
         (Section.EXTRACTOR, "extrator-videos"),
+        (Section.VIDEO_EDITOR, "editor-video"),
     ]
     for section, name in targets:
         window.navigate(section)
@@ -45,6 +46,12 @@ def main() -> int:
         window._tick()
         app.processEvents()
         app.processEvents()
+        if section == Section.VIDEO_EDITOR:
+            video_page = window.pages[section]
+            if video_page.editor.isVisible():
+                raise RuntimeError("Editor de Vídeo voltou a abrir como janela top-level.")
+            if video_page.workspace.parent() is not video_page:
+                raise RuntimeError("Editor de Vídeo não está incorporado à página do Monitor.")
         path = out_dir / f"{name}-1721x914.png"
         if not window.grab().save(str(path), "PNG"):
             raise RuntimeError(f"Falha ao salvar {path}")
