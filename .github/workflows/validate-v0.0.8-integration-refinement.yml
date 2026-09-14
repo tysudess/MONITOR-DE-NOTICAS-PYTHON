@@ -1,0 +1,101 @@
+name: Validate v0.0.8 Integration Refinement
+
+on:
+  push:
+    branches:
+      - feature/refino-integracoes-v008
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-refinement:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      MONITOR_DISABLE_WEATHER: '1'
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile and run regression suite
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+
+      - name: Materialize exact original integrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/build_external_integrations.ps1
+
+      - name: Capture refined integrated tools
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: windows
+        run: |
+          $ErrorActionPreference='Stop'
+          Remove-Item Env:MONITOR_DISABLE_EXTERNAL_INTEGRATIONS -ErrorAction SilentlyContinue
+          python scripts/capture_refined_layouts.py
+          $expected=@('editor-video','extrator-noticias','automacao-planilhas','capas')
+          foreach($name in $expected){
+            $file="artifacts/refined-ui/$name-1721x914.png"
+            if(-not(Test-Path $file)){throw "Captura ausente: $file"}
+          }
+
+      - name: Verify original integration sources remain exact
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $checks=@(
+            'resources/integrations/extrator-noticias/source/main.js',
+            'resources/integrations/extrator-noticias/source/engine/extrator-materia-v1.25.19-runtime.js',
+            'resources/integrations/automacao-planilhas/source/main.js',
+            'resources/integrations/automacao-planilhas/source/engine/index.js',
+            'resources/integrations/capas/source/app/ui.py',
+            'resources/integrations/capas/source/google-apps-script/GmailCentralClipping.gs',
+            'resources/integrations/video-editor/source/advanced_editor.py',
+            'resources/integrations/video-editor/source/range_slider.py'
+          )
+          foreach($file in $checks){if(-not(Test-Path $file)){throw "Integração ausente: $file"}}
+          if(Test-Path 'resources/integrations/video-editor/source/refined_layout_v301.py'){
+            throw 'Fonte adicional do editor foi incorporada indevidamente.'
+          }
+          Write-Host 'SOURCE_PRESERVATION_OK=YES'
+
+      - name: Upload refined screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: v0.0.8-integration-refinement-1721x914
+          path: |
+            artifacts/refined-ui/editor-video-1721x914.png
+            artifacts/refined-ui/extrator-noticias-1721x914.png
+            artifacts/refined-ui/automacao-planilhas-1721x914.png
+            artifacts/refined-ui/capas-1721x914.png
+          if-no-files-found: error
+          retention-days: 14
