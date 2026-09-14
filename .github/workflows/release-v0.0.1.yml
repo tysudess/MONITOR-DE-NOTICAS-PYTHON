@@ -15,7 +15,7 @@ jobs:
   release:
     name: publish-v0.0.1
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       PORTABLE_RUN_ID: '34794644131'
       PORTABLE_ARTIFACT: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
@@ -27,6 +27,7 @@ jobs:
       SOURCE_NAME: MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913.zip
       SOURCE_SHA256: 54a2b6472bfa13b7bdb35ee25f0793461d890e774074eab350e6e9eb812f35eb
       SOURCE_BYTES: '4466155388'
+      SOURCE_PART_BYTES: '1900000000'
     steps:
       - name: Download validated portable
         uses: actions/download-artifact@v4
@@ -46,7 +47,7 @@ jobs:
           github-token: ${{ github.token }}
           path: release-assets/source
 
-      - name: Verify exact release assets
+      - name: Verify and split exact release assets
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -64,11 +65,55 @@ jobs:
 
           New-Item -ItemType Directory -Force 'publish' | Out-Null
           Copy-Item $portable.FullName (Join-Path 'publish' $env:PORTABLE_NAME) -Force
-          Copy-Item $source.FullName (Join-Path 'publish' $env:SOURCE_NAME) -Force
+
+          $partSize=[Int64]$env:SOURCE_PART_BYTES
+          $input=[IO.File]::OpenRead($source.FullName)
+          try {
+            $buffer=New-Object byte[] (8MB)
+            $part=1
+            while($input.Position -lt $input.Length){
+              $partName="$($env:SOURCE_NAME).part$($part.ToString('000'))"
+              $partPath=Join-Path 'publish' $partName
+              $output=[IO.File]::Create($partPath)
+              try {
+                [Int64]$written=0
+                while($written -lt $partSize -and $input.Position -lt $input.Length){
+                  $remaining=[Math]::Min([Int64]$buffer.Length, $partSize-$written)
+                  $read=$input.Read($buffer,0,[int]$remaining)
+                  if($read -le 0){break}
+                  $output.Write($buffer,0,$read)
+                  $written += $read
+                }
+              } finally {$output.Dispose()}
+              if((Get-Item $partPath).Length -ge 2147483648){throw "Parte excedeu limite de 2 GiB: $partName"}
+              $part++
+            }
+          } finally {$input.Dispose()}
+
           "$pHash  $env:PORTABLE_NAME" | Set-Content 'publish/SHA256SUMS.txt' -Encoding ascii
-          "$sHash  $env:SOURCE_NAME" | Add-Content 'publish/SHA256SUMS.txt' -Encoding ascii
+          Get-ChildItem publish -File -Filter "$($env:SOURCE_NAME).part*" | Sort-Object Name | ForEach-Object {
+            $h=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$h  $($_.Name)" | Add-Content 'publish/SHA256SUMS.txt' -Encoding ascii
+          }
+          @"
+          Corresponding Source original: $env:SOURCE_NAME
+          Tamanho original: $env:SOURCE_BYTES bytes
+          SHA-256 original: $env:SOURCE_SHA256
+
+          O arquivo original excede o limite de 2 GiB por asset do GitHub Release e foi dividido em partes binárias.
+
+          Windows CMD para recompor (execute dentro da pasta contendo todas as partes):
+          copy /b "$($env:SOURCE_NAME).part001"+"$($env:SOURCE_NAME).part002"+"$($env:SOURCE_NAME).part003" "$($env:SOURCE_NAME)"
+
+          Depois confira:
+          certutil -hashfile "$($env:SOURCE_NAME)" SHA256
+
+          SHA-256 esperado: $env:SOURCE_SHA256
+          "@ | Set-Content 'publish/SOURCE_REASSEMBLY.txt' -Encoding utf8
+
           Write-Host "RELEASE_PORTABLE_SHA256=$pHash"
-          Write-Host "RELEASE_SOURCE_SHA256=$sHash"
+          Write-Host "RELEASE_SOURCE_ORIGINAL_SHA256=$sHash"
+          Write-Host "SOURCE_PART_COUNT=$((Get-ChildItem publish -File -Filter "$($env:SOURCE_NAME).part*").Count)"
           Write-Host 'RELEASE_ASSETS_VERIFIED=YES'
 
       - name: Create GitHub Release v0.0.1
@@ -82,25 +127,23 @@ jobs:
 
           Primeira publicação da migração controlada do Monitor de Notícias para Python/PySide6.
 
-          Artefatos:
+          Portable validado:
           - MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip
-          - Corresponding Source do FFmpeg redistribuído
-          - SHA256SUMS.txt
+          - SHA-256: 36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede
+          - run de validação: 34794644131
 
-          Portable validado no run 34794644131.
-          SHA-256 do portable: 36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede
+          FFmpeg/FFprobe tiveram proveniência auditada no run 34796296147. O Corresponding Source congelado é publicado nesta mesma Release em partes menores que 2 GiB por limitação do GitHub. Use SOURCE_REASSEMBLY.txt para recompor o ZIP original e SHA256SUMS.txt para verificar os assets.
 
-          FFmpeg/FFprobe do portable tiveram proveniência auditada no run 34796296147, com correspondência byte-a-byte ao pacote BtbN analisado. O Corresponding Source congelado é publicado junto nesta mesma Release.
+          SHA-256 do Corresponding Source original recomposto:
+          54a2b6472bfa13b7bdb35ee25f0793461d890e774074eab350e6e9eb812f35eb
 
           Observação: esta publicação foi autorizada explicitamente mesmo sem aguardar a conclusão do ciclo PASSO 27 que estava em andamento.
           '@
           if(gh release view v0.0.1 --repo $env:GITHUB_REPOSITORY 2>$null){
             throw 'A release v0.0.1 já existe; não sobrescrever automaticamente.'
           }
-          gh release create v0.0.1 `
-            'publish/MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip' `
-            'publish/MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913.zip' `
-            'publish/SHA256SUMS.txt' `
+          $assets=@(Get-ChildItem publish -File | Sort-Object Name | ForEach-Object {$_.FullName})
+          & gh release create v0.0.1 @assets `
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
             --title 'Monitor de Notícias Python 0.0.1' `
