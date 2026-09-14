@@ -38,20 +38,21 @@ log = logging.getLogger(__name__)
 
 SIDEBAR_STYLESHEET = """
 QFrame#sidebar {
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #052c4e, stop:0.58 #042642, stop:1 #031d34);
-    border-right: 1px solid #0a77a6;
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #052e50, stop:0.58 #042642, stop:1 #031a30);
+    border: 1px solid #087eae;
+    border-radius: 14px;
 }
 QLabel#brandTitle { color:#ffffff; font-size:17px; font-weight:800; }
 QLabel#brandSub { color:#a8c3db; font-size:10px; }
-QLabel#anchorMark { color:#f5aa00; font-size:44px; font-weight:700; }
+QLabel#anchorMark { color:#f5aa00; font-family:'Segoe UI Symbol'; font-size:46px; font-weight:700; }
 QPushButton#navButton {
     color:#eef6ff;
     background:transparent;
     border:0;
     border-radius:9px;
-    padding:8px 12px;
+    padding:9px 12px;
     text-align:left;
-    font-size:12px;
+    font-size:13px;
     font-weight:500;
 }
 QPushButton#navButton:hover { background:#083657; }
@@ -70,8 +71,8 @@ QLabel#newsBadge {
     font-weight:800;
 }
 QFrame#sideStatusCard {
-    background:#04253f;
-    border:1px solid #0a5f86;
+    background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #052b48,stop:1 #03233c);
+    border:1px solid #0a638d;
     border-radius:10px;
 }
 QLabel#sideStatusTitle { color:#ffffff; font-size:10px; font-weight:800; }
@@ -159,7 +160,7 @@ class MainWindow(QMainWindow):
 
         brand_row = QHBoxLayout()
         brand_row.setSpacing(8)
-        anchor = QLabel("⚓")
+        anchor = QLabel("⚓︎")
         anchor.setObjectName("anchorMark")
         anchor.setFixedWidth(58)
         anchor.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -192,7 +193,7 @@ class MainWindow(QMainWindow):
             button = QPushButton(f"{section.value.icon}   {section.value.label}")
             button.setObjectName("navButton")
             button.setCheckable(True)
-            button.setMinimumHeight(39)
+            button.setMinimumHeight(44)
             button.clicked.connect(lambda _=False, s=section: self.navigate(s))
             row.addWidget(button, 1)
             if section == Section.NEWS:
@@ -201,10 +202,11 @@ class MainWindow(QMainWindow):
             self.nav_holders[section] = holder
             side.addWidget(holder)
 
-        side.addStretch(1)
+        side.addSpacing(10)
 
         self.side_status_card = QFrame()
         self.side_status_card.setObjectName("sideStatusCard")
+        self.side_status_card.setMinimumHeight(180)
         status_lay = QVBoxLayout(self.side_status_card)
         status_lay.setContentsMargins(14, 10, 14, 10)
         status_lay.setSpacing(6)
@@ -240,6 +242,7 @@ class MainWindow(QMainWindow):
         motto.setObjectName("sideMotto")
         motto_row.addWidget(motto, 1)
         side.addLayout(motto_row)
+        side.addStretch(1)
 
         outer.addWidget(self.sidebar)
 
