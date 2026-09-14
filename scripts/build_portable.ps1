@@ -65,8 +65,8 @@ if (-not $validatedFfmpegDir -or -not (Test-Path $validatedFfmpegDir)) {
 $ffmpegPath = Join-Path $validatedFfmpegDir "ffmpeg.exe"
 $ffprobePath = Join-Path $validatedFfmpegDir "ffprobe.exe"
 if (-not (Test-Path $ffmpegPath) -or -not (Test-Path $ffprobePath)) { throw "ffmpeg.exe/ffprobe.exe auditados ausentes." }
-$expectedFfmpegSha = "828bef350665c78b76e4bc3597b1714c66d3bd79a642948243e59754dab1878d"
-$expectedFfprobeSha = "897cabca3eb2a16be9bf111a9955277ec93a17527aa6c6b108fd07ab182927f6"
+$expectedFfmpegSha = "91678b935eb52cc740249474574b6042768b744c622347f28a1b487e1ed29915"
+$expectedFfprobeSha = "c42ada47df746e3788e2ba3ed2f7af07662a58f9088f9894e1b14d3d5c432263"
 $downloadedFfmpegSha = (Get-FileHash $ffmpegPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $downloadedFfprobeSha = (Get-FileHash $ffprobePath -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($downloadedFfmpegSha -ne $expectedFfmpegSha) { throw "FFmpeg materializado diverge do binário auditado: $downloadedFfmpegSha" }
