@@ -41,7 +41,7 @@ jobs:
       - name: Capture all refined screens
         shell: pwsh
         env:
-          QT_QPA_PLATFORM: offscreen
+          QT_QPA_PLATFORM: windows
           MONITOR_DISABLE_WEATHER: '1'
         run: python scripts/capture_refined_layouts.py
       - name: Upload visual validation set
