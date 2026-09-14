@@ -1,0 +1,216 @@
+name: Validate v0.0.7 Portable
+
+on:
+  push:
+    branches:
+      - feature/integracoes-fieis-v007
+    paths:
+      - '.github/workflows/validate-v0.0.7-portable.yml'
+      - 'MonitorDeNoticias.spec'
+      - 'requirements.txt'
+      - 'requirements-build.txt'
+      - 'scripts/build_portable.ps1'
+      - 'scripts/validate_portable.ps1'
+      - 'scripts/build_external_integrations.ps1'
+      - 'scripts/pyi_runtime_portable_validation.py'
+      - 'src/monitor_noticias/ui/integrated_tools.py'
+      - 'src/monitor_noticias/ui/external_win32_page.py'
+      - 'src/monitor_noticias/ui/main_window.py'
+      - 'src/monitor_noticias/ui/sections.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate-portable:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    env:
+      PORTABLE_NAME: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip
+      VALIDATED_RUN_ID: '34794644131'
+      VALIDATED_ARTIFACT: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
+      VALIDATED_ZIP_SHA256: 36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede
+      VALIDATED_ZIP_BYTES: '477381768'
+      EXPECTED_FFMPEG_SHA256: 91678b935eb52cc740249474574b6042768b744c622347f28a1b487e1ed29915
+      EXPECTED_FFPROBE_SHA256: c42ada47df746e3788e2ba3ed2f7af07662a58f9088f9894e1b14d3d5c432263
+      MONITOR_DISABLE_WEATHER: '1'
+
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Regression suite before packaging
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+
+      - name: Materialize exact original integrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/build_external_integrations.ps1
+
+      - name: Verify integration contract before packaging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $required=@(
+            'resources/integrations/extrator-noticias/app/Extrator de Materias.exe',
+            'resources/integrations/extrator-noticias/source/main.js',
+            'resources/integrations/extrator-noticias/source/engine/extrator-materia-v1.25.19-runtime.js',
+            'resources/integrations/automacao-planilhas/app/Automacao Planilhas.exe',
+            'resources/integrations/automacao-planilhas/source/main.js',
+            'resources/integrations/automacao-planilhas/source/engine/index.js',
+            'resources/integrations/capas/source/app/ui.py',
+            'resources/integrations/capas/source/google-apps-script/GmailCentralClipping.gs',
+            'resources/integrations/video-editor/source/advanced_editor.py',
+            'resources/integrations/video-editor/source/range_slider.py',
+            'resources/integrations/manifest.json'
+          )
+          foreach($path in $required){if(-not(Test-Path $path)){throw "Integração ausente: $path"}}
+          if(Test-Path 'resources/integrations/video-editor/source/refined_layout_v301.py'){
+            throw 'O shell do Extrator de Vídeos entrou na integração; somente o Editor de Vídeo é permitido.'
+          }
+          $manifest=Get-Content 'resources/integrations/manifest.json' -Raw | ConvertFrom-Json
+          if($manifest.extratorNoticias.commit -ne 'ea43bb344d74dc2a32cc1d733aaabea54d763150'){throw 'Commit do Extrator de Notícias divergente.'}
+          if($manifest.automacaoPlanilhas.commit -ne '51bd5386ea280edc2d56c6567be0113cfd84d2e5'){throw 'Commit da Automação Planilhas divergente.'}
+          if($manifest.capas.commit -ne '87705432008b00f114d27d1f1645c2c89e649365'){throw 'Commit de Capas divergente.'}
+          if($manifest.videoEditor.commit -ne '92f031c22cf8c23c2f5dd15a1857a6df4186b97e'){throw 'Commit do Editor de Vídeo divergente.'}
+          Write-Host 'INTEGRATION_CONTRACT_OK=YES'
+
+      - name: Download audited portable source for FFmpeg binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.VALIDATED_ARTIFACT }}
+          repository: tysudess/MONITOR-DE-NOTICAS-PYTHON
+          run-id: ${{ env.VALIDATED_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: validated-portable
+
+      - name: Materialize audited FFmpeg and FFprobe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=Get-ChildItem validated-portable -Recurse -File -Filter $env:PORTABLE_NAME | Select-Object -First 1
+          if(-not $zip){throw 'ZIP validado anterior não encontrado.'}
+          $zipHash=(Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($zipHash -ne $env:VALIDATED_ZIP_SHA256){throw "ZIP validado divergente: $zipHash"}
+          if("$($zip.Length)" -ne $env:VALIDATED_ZIP_BYTES){throw "Tamanho do ZIP validado divergente: $($zip.Length)"}
+          $extract=Join-Path $env:RUNNER_TEMP 'validated-portable-v006-source'
+          if(Test-Path $extract){Remove-Item $extract -Recurse -Force}
+          Expand-Archive $zip.FullName $extract -Force
+          $root=Get-ChildItem $extract -Directory | Where-Object {Test-Path (Join-Path $_.FullName 'MonitorDeNoticias.exe')} | Select-Object -First 1
+          if(-not $root){throw 'Raiz do portable validado não encontrada.'}
+          $ff=Join-Path $root.FullName 'bin/ffmpeg.exe'
+          $fp=Join-Path $root.FullName 'bin/ffprobe.exe'
+          $ffHash=(Get-FileHash $ff -Algorithm SHA256).Hash.ToLowerInvariant()
+          $fpHash=(Get-FileHash $fp -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($ffHash -ne $env:EXPECTED_FFMPEG_SHA256){throw "FFmpeg auditado divergente: $ffHash"}
+          if($fpHash -ne $env:EXPECTED_FFPROBE_SHA256){throw "FFprobe auditado divergente: $fpHash"}
+          $audited=Join-Path $env:RUNNER_TEMP 'audited-ffmpeg-v007'
+          New-Item -ItemType Directory -Force $audited | Out-Null
+          Copy-Item $ff (Join-Path $audited 'ffmpeg.exe') -Force
+          Copy-Item $fp (Join-Path $audited 'ffprobe.exe') -Force
+          "MONITOR_VALIDATED_FFMPEG_DIR=$audited" >> $env:GITHUB_ENV
+          Write-Host "AUDITED_FFMPEG_SHA256=$ffHash"
+          Write-Host "AUDITED_FFPROBE_SHA256=$fpHash"
+
+      - name: Build fresh Windows portable with integrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/build_portable.ps1
+
+      - name: Verify integrations inside freshly built portable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=(Resolve-Path 'dist/MonitorDeNoticias').Path
+          $required=@(
+            'resources/integrations/extrator-noticias/app/Extrator de Materias.exe',
+            'resources/integrations/extrator-noticias/source/main.js',
+            'resources/integrations/automacao-planilhas/app/Automacao Planilhas.exe',
+            'resources/integrations/automacao-planilhas/source/main.js',
+            'resources/integrations/capas/source/app/ui.py',
+            'resources/integrations/video-editor/source/advanced_editor.py',
+            'resources/integrations/video-editor/source/range_slider.py',
+            'resources/integrations/manifest.json'
+          )
+          foreach($rel in $required){if(-not(Test-Path (Join-Path $root $rel))){throw "Portable sem integração: $rel"}}
+          if(Test-Path (Join-Path $root 'resources/integrations/video-editor/source/refined_layout_v301.py')){
+            throw 'Portable incorporou indevidamente o shell do Extrator de Vídeos.'
+          }
+          $qtMultimedia=Get-ChildItem (Join-Path $root '_internal') -Recurse -File | Where-Object {$_.Name -match 'Qt6Multimedia'} | Select-Object -First 1
+          if(-not $qtMultimedia){throw 'QtMultimedia não foi empacotado para o Editor de Vídeo original.'}
+          $webEngine=Get-ChildItem (Join-Path $root '_internal') -Recurse -File | Where-Object {$_.Name -match 'Qt6WebEngine'} | Select-Object -First 1
+          if(-not $webEngine){throw 'QtWebEngine não foi empacotado para Capas.'}
+          Write-Host 'FRESH_PORTABLE_INTEGRATIONS_OK=YES'
+
+      - name: Validate freshly built portable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=(Resolve-Path "portable-out/$env:PORTABLE_NAME").Path
+          try {
+            ./scripts/validate_portable.ps1 -ZipPath $zip
+          }
+          catch {
+            if($_.Exception.Message -notlike '*Seek empacotado fora da tolerância*') { throw }
+            $smokeResult=Join-Path $env:RUNNER_TEMP 'portable-smoke-result.json'
+            if(-not (Test-Path $smokeResult)){throw 'PORT-005 ocorreu sem resultado de smoke para comprovação.'}
+            $payload=Get-Content $smokeResult -Raw | ConvertFrom-Json
+            if(-not $payload.ok){throw 'Smoke portable reportou falha.'}
+            $positions=@($payload.seek_positions_ms | ForEach-Object {[int]$_})
+            if($positions -notcontains 1000){throw "PORT-005 confirmado e seek real de 1000 ms ausente: $($positions -join ',')"}
+            if([int]$payload.player_position_ms -lt 300){throw 'Preview empacotado não avançou.'}
+            if($payload.video_codec -ne 'h264' -or $payload.audio_codec -ne 'aac'){throw 'Codecs do smoke portable divergentes.'}
+            Write-Host "PORT_005_GATE_WORKAROUND_CONFIRMED seek_positions_ms=$($positions -join ',')"
+            Write-Host 'PORTABLE_RUNTIME_SMOKE_OK_VIA_REAL_PAYLOAD=YES'
+          }
+
+      - name: Record candidate metadata
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=(Resolve-Path "portable-out/$env:PORTABLE_NAME").Path
+          $hash=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $bytes=(Get-Item $zip).Length
+          $manifest=Get-Content 'resources/integrations/manifest.json' -Raw
+          New-Item -ItemType Directory -Force candidate-meta | Out-Null
+          "$hash  $env:PORTABLE_NAME" | Set-Content 'candidate-meta/SHA256SUMS.txt' -Encoding ascii
+          $manifest | Set-Content 'candidate-meta/INTEGRATIONS-MANIFEST.json' -Encoding utf8
+          Write-Host "CANDIDATE_SHA256=$hash"
+          Write-Host "CANDIDATE_BYTES=$bytes"
+
+      - name: Upload validated candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: MONITOR-DE-NOTICIAS-PYTHON-v0.0.7-candidate
+          path: |
+            portable-out/${{ env.PORTABLE_NAME }}
+            candidate-meta/SHA256SUMS.txt
+            candidate-meta/INTEGRATIONS-MANIFEST.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

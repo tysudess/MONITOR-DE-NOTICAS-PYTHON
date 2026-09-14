@@ -6,15 +6,33 @@ from PyInstaller.utils.hooks import collect_all
 # require. This avoids redistributing unrelated Qt modules while preserving the
 # functional dependency graph proved by the portable smoke suite.
 pdfium_datas, pdfium_bins, pdfium_hidden = collect_all("pypdfium2")
+fitz_datas, fitz_bins, fitz_hidden = collect_all("fitz")
+trust_datas, trust_bins, trust_hidden = collect_all("truststore")
 
 block_cipher = None
 
 a = Analysis(
     ["run.py"],
     pathex=["src"],
-    binaries=pdfium_bins,
-    datas=pdfium_datas,
-    hiddenimports=pdfium_hidden,
+    binaries=pdfium_bins + fitz_bins + trust_bins,
+    datas=pdfium_datas + fitz_datas + trust_datas,
+    hiddenimports=(
+        pdfium_hidden
+        + fitz_hidden
+        + trust_hidden
+        + [
+            # Capas é carregado dinamicamente a partir do fonte original e usa
+            # WebEngine; o Editor de Vídeo original também é carregado
+            # dinamicamente e usa QtMultimedia. Portanto esses imports não podem
+            # depender de descoberta estática do PyInstaller.
+            "PySide6.QtWebEngineCore",
+            "PySide6.QtWebEngineWidgets",
+            "PySide6.QtWebChannel",
+            "PySide6.QtPrintSupport",
+            "PySide6.QtMultimedia",
+            "PySide6.QtMultimediaWidgets",
+        ]
+    ),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=["scripts/pyi_runtime_portable_validation.py"],

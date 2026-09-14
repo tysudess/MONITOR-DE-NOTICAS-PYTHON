@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QStyle,
     QSystemTrayIcon,
@@ -22,7 +23,9 @@ from monitor_noticias.app.paths import AppPaths
 from monitor_noticias.collectors.video.catalog import VIDEO_SOURCES
 from monitor_noticias.ui.catalog import NEWS_SOURCES, SPECIALIZED
 from monitor_noticias.ui.controller import MainUiController
+from monitor_noticias.ui.external_win32_page import ExternalWin32AppPage
 from monitor_noticias.ui.home_dashboard import HomeDashboard
+from monitor_noticias.ui.integrated_tools import CoversPage, OriginalVideoEditorPage
 from monitor_noticias.ui.refined_pages import (
     DemandsPage,
     HistoryPage,
@@ -37,7 +40,6 @@ from monitor_noticias.ui.refined_shell import RadarHeader, TechFooter
 from monitor_noticias.ui.refined_tools import RefinedExtractorPage, RefinedPdfEditorPage
 from monitor_noticias.ui.sections import SECTION_ORDER, TOOL_SECTIONS, Section
 from monitor_noticias.ui.theme import APP_STYLESHEET
-from monitor_noticias.ui.video_editor_page import VideoEditorPage
 from monitor_noticias.windows.notifications import WindowsTrayNotifier
 
 log = logging.getLogger(__name__)
@@ -66,6 +68,13 @@ QFrame#sideStatusCard { background:#052b48; border:1px solid #0a638d; border-rad
 QLabel#sideStatusTitle { color:#ffffff; font-size:10px; font-weight:800; }
 QLabel#sideStatusText, QLabel#sideStatusGood { color:#a9c6df; font-size:9px; }
 QLabel#sideMotto { color:#54bff2; font-size:8px; font-weight:700; letter-spacing:1px; }
+QScrollArea#sidebarScroll { background:transparent; border:0; }
+QScrollArea#sidebarScroll > QWidget > QWidget { background:transparent; }
+QScrollBar:vertical { background:#031a30; width:9px; margin:4px 1px 4px 1px; border:0; }
+QScrollBar::handle:vertical { background:#087eae; min-height:32px; border-radius:4px; }
+QScrollBar::handle:vertical:hover { background:#00a9e8; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background:transparent; }
 """
 
 
@@ -134,8 +143,16 @@ class MainWindow(QMainWindow):
         root = QWidget(); root.setObjectName("root"); self.setCentralWidget(root)
         outer = QHBoxLayout(root); outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
 
+        # A barra lateral inteira passa a ser rolável. Com isso todas as novas abas
+        # permanecem acessíveis em 1366x768, escala do Windows ou janela menor.
         self.sidebar = QFrame(); self.sidebar.setObjectName("sidebar"); self.sidebar.setStyleSheet(SIDEBAR_STYLESHEET); self.sidebar.setFixedWidth(255)
-        side = QVBoxLayout(self.sidebar); side.setContentsMargins(14, 13, 14, 10); side.setSpacing(4)
+        sidebar_shell = QVBoxLayout(self.sidebar); sidebar_shell.setContentsMargins(0, 0, 0, 0); sidebar_shell.setSpacing(0)
+        sidebar_scroll = QScrollArea(); sidebar_scroll.setObjectName("sidebarScroll"); sidebar_scroll.setWidgetResizable(True)
+        sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        sidebar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        side_content = QWidget(); side_content.setStyleSheet("background:transparent;")
+        side = QVBoxLayout(side_content); side.setContentsMargins(14, 13, 14, 10); side.setSpacing(4)
+        sidebar_scroll.setWidget(side_content); sidebar_shell.addWidget(sidebar_scroll)
 
         brand_row = QHBoxLayout(); brand_row.setSpacing(8)
         anchor = QLabel("⚓︎"); anchor.setObjectName("anchorMark"); anchor.setFixedWidth(58); anchor.setAlignment(Qt.AlignmentFlag.AlignCenter); brand_row.addWidget(anchor)
@@ -150,7 +167,7 @@ class MainWindow(QMainWindow):
         for section in SECTION_ORDER:
             holder = QWidget(); holder.setStyleSheet("background:transparent;")
             row = QHBoxLayout(holder); row.setContentsMargins(0,0,0,0); row.setSpacing(4)
-            button = QPushButton(f"{section.value.icon}   {section.value.label}"); button.setObjectName("navButton"); button.setCheckable(True); button.setMinimumHeight(44); button.clicked.connect(lambda _=False,s=section:self.navigate(s)); row.addWidget(button,1)
+            button = QPushButton(f"{section.value.icon}   {section.value.label}"); button.setObjectName("navButton"); button.setCheckable(True); button.setMinimumHeight(44); button.setToolTip(section.value.label); button.clicked.connect(lambda _=False,s=section:self.navigate(s)); row.addWidget(button,1)
             if section == Section.NEWS: row.addWidget(self.news_badge,0,Qt.AlignmentFlag.AlignVCenter)
             self.nav_buttons[section]=button; self.nav_holders[section]=holder; side.addWidget(holder)
         side.addSpacing(8)
@@ -180,18 +197,32 @@ class MainWindow(QMainWindow):
             Section.HISTORY: HistoryPage(self.controller),
             Section.TERMS: TermsPage(self.controller),
             Section.STOP: StopPage(self.controller),
-            Section.SETTINGS: SettingsPage(self.controller),
             Section.PDF_EDITOR: RefinedPdfEditorPage(self.paths.root),
             Section.EXTRACTOR: RefinedExtractorPage(self.paths.root),
-            Section.VIDEO_EDITOR: VideoEditorPage(self.paths.root),
+            Section.VIDEO_EDITOR: OriginalVideoEditorPage(self.paths.root),
+            Section.NEWS_EXTRACTOR: ExternalWin32AppPage(
+                self.paths.root,
+                title="Extrator de Notícias",
+                executable_relpath="extrator-noticias/app/Extrator de Materias.exe",
+                expected_window_title="Extrator",
+                description="Aplicativo original v1.25.19, completo e isolado em processo próprio.",
+            ),
+            Section.SHEET_AUTOMATION: ExternalWin32AppPage(
+                self.paths.root,
+                title="Automação de Planilhas",
+                executable_relpath="automacao-planilhas/app/Automacao Planilhas.exe",
+                expected_window_title="Automação Planilhas",
+                description="Aplicativo original WhatsApp → Planilhas Google, completo e isolado em processo próprio.",
+            ),
+            Section.COVERS: CoversPage(self.paths.root),
+            # Configurações é deliberadamente a última seção do SECTION_ORDER.
+            Section.SETTINGS: SettingsPage(self.controller),
         }
         for section in SECTION_ORDER: self.stack.addWidget(self.pages[section])
         home=self.pages[Section.HOME]
         if isinstance(home,HomeDashboard): home.navigate.connect(lambda name:self.navigate(Section[name]))
         pdf_page=self.pages[Section.PDF_EDITOR]
         if isinstance(pdf_page,RefinedPdfEditorPage): pdf_page.back_requested.connect(lambda:self.navigate(Section.HOME))
-        video_page=self.pages[Section.VIDEO_EDITOR]
-        if isinstance(video_page,VideoEditorPage): video_page.back_requested.connect(lambda:self.navigate(Section.HOME))
         self.footer_widget=TechFooter(); self.content_layout.addWidget(self.footer_widget)
         outer.addWidget(content,1)
 
@@ -204,10 +235,26 @@ class MainWindow(QMainWindow):
         videos=menu.addAction("Buscar vídeos agora"); videos.triggered.connect(self.controller.search_videos)
         demands=menu.addAction("Buscar demandas agora"); demands.triggered.connect(self.controller.search_all_demands)
         stop=menu.addAction("Parar buscas"); stop.triggered.connect(self.controller.stop_all_searches); menu.addSeparator()
-        tools=menu.addMenu("Ferramentas"); pdf=tools.addAction("Editor de PDF"); pdf.triggered.connect(lambda:self.navigate(Section.PDF_EDITOR)); extractor=tools.addAction("Extrator de Vídeos"); extractor.triggered.connect(lambda:self.navigate(Section.EXTRACTOR)); video_editor=tools.addAction("Editor de Vídeo"); video_editor.triggered.connect(lambda:self.navigate(Section.VIDEO_EDITOR)); menu.addSeparator(); exit_action=menu.addAction("Sair"); exit_action.triggered.connect(self.exit_application)
+        tools=menu.addMenu("Ferramentas")
+        pdf=tools.addAction("Editor de PDF"); pdf.triggered.connect(lambda:self.navigate(Section.PDF_EDITOR))
+        extractor=tools.addAction("Extrator de Vídeos"); extractor.triggered.connect(lambda:self.navigate(Section.EXTRACTOR))
+        video_editor=tools.addAction("Editor de Vídeo"); video_editor.triggered.connect(lambda:self.navigate(Section.VIDEO_EDITOR))
+        news_extractor=tools.addAction("Extrator de Notícias"); news_extractor.triggered.connect(lambda:self.navigate(Section.NEWS_EXTRACTOR))
+        sheet=tools.addAction("Automação Planilhas"); sheet.triggered.connect(lambda:self.navigate(Section.SHEET_AUTOMATION))
+        covers=tools.addAction("Capas"); covers.triggered.connect(lambda:self.navigate(Section.COVERS))
+        menu.addSeparator(); exit_action=menu.addAction("Sair"); exit_action.triggered.connect(self.exit_application)
         self.tray.setContextMenu(menu); self.tray.activated.connect(lambda reason:self._restore() if reason==QSystemTrayIcon.ActivationReason.Trigger else None)
         if QSystemTrayIcon.isSystemTrayAvailable(): self.tray.show()
         self.notifier=WindowsTrayNotifier(self.tray)
+
+    def _safe_refresh_page(self, section: Section) -> None:
+        try:
+            self.pages[section].refresh(self.controller.state)
+        except Exception as exc:
+            # Uma falha de UI de uma ferramenta não pode derrubar o Monitor inteiro.
+            log.exception("Falha ao atualizar a seção %s", section.name)
+            if hasattr(self, "footer_widget"):
+                self.footer_widget.status.setText(f"Falha isolada em {section.value.label}: {exc}")
 
     def navigate(self, section: Section) -> None:
         keep_maximized = self.isMaximized() or bool(
@@ -220,7 +267,7 @@ class MainWindow(QMainWindow):
         else: self.content_layout.setContentsMargins(18,8,18,0); self.content_layout.setSpacing(10)
         for tool in TOOL_SECTIONS: self.nav_holders[tool].setVisible(not on_home)
         self.header_widget.set_section(section.value.label,section.value.subtitle)
-        self.pages[section].refresh(self.controller.state)
+        self._safe_refresh_page(section)
         if keep_maximized:
             QTimer.singleShot(0, self._restore_maximized_after_navigation)
 
@@ -229,9 +276,17 @@ class MainWindow(QMainWindow):
             self.showMaximized()
 
     def _tick(self) -> None:
-        self.controller.sync_automation_state(); self.pages[self._current].refresh(self.controller.state)
+        try:
+            self.controller.sync_automation_state()
+        except Exception:
+            log.exception("Falha isolada ao sincronizar automação")
+        self._safe_refresh_page(self._current)
         state=self.controller.state; cfg=self.controller.proxy_config; auto=self.controller.automation_settings
-        if self._current != Section.HOME: self.header_widget.update_runtime(self.controller)
+        if self._current != Section.HOME:
+            try:
+                self.header_widget.update_runtime(self.controller)
+            except Exception:
+                log.exception("Falha isolada ao atualizar cabeçalho")
         new_count=len(state.new_news_links); self.news_badge.setText(str(new_count)); self.news_badge.setVisible(new_count>0)
         busy=state.news_busy or state.video_busy
         self.side_status_title.setText("●   Busca em andamento" if busy else "●   Sistema operacional"); self.side_status_title.setStyleSheet("color:#ffffff;")
@@ -248,7 +303,15 @@ class MainWindow(QMainWindow):
 
     def exit_application(self) -> None:
         extractor=self.pages.get(Section.EXTRACTOR)
-        if isinstance(extractor,RefinedExtractorPage) and not extractor.shutdown(): self.footer_widget.status.setText("Aguardando o Extrator encerrar a operação ativa antes de sair."); self._restore(); return
-        video_editor=self.pages.get(Section.VIDEO_EDITOR)
-        if isinstance(video_editor,VideoEditorPage) and not video_editor.shutdown(): self.footer_widget.status.setText("Não foi possível fechar todas as janelas do Editor de Vídeo."); self._restore(); return
+        if isinstance(extractor,RefinedExtractorPage) and not extractor.shutdown():
+            self.footer_widget.status.setText("Aguardando o Extrator encerrar a operação ativa antes de sair."); self._restore(); return
+
+        # Todas as demais ferramentas implementam shutdown isolado. O encerramento
+        # de um app externo nunca usa QApplication.quit e nunca fecha o Monitor.
+        for section in (Section.VIDEO_EDITOR, Section.NEWS_EXTRACTOR, Section.SHEET_AUTOMATION, Section.COVERS):
+            page = self.pages.get(section)
+            shutdown = getattr(page, "shutdown", None)
+            if callable(shutdown) and not shutdown():
+                self.footer_widget.status.setText(f"Não foi possível encerrar {section.value.label}."); self._restore(); return
+
         self._allow_close=True; self._timer.stop(); self.controller.close(); self.tray.hide(); self.close()

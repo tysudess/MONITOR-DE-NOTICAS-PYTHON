@@ -5,11 +5,14 @@ from monitor_noticias.ui.theme import V5_BG, V5_BLUE, V5_GREEN, V5_INK, V5_NAVY,
 
 def test_dashboard_v5_section_order_after_release_transform():
     assert [s.name for s in SECTION_ORDER] == [
-        "HOME","NEWS","VIDEOS","DEMANDS","SOURCES","HISTORY","TERMS","STOP","SETTINGS","PDF_EDITOR","EXTRACTOR","VIDEO_EDITOR"
+        "HOME","NEWS","VIDEOS","DEMANDS","SOURCES","HISTORY","TERMS","STOP",
+        "PDF_EDITOR","EXTRACTOR","VIDEO_EDITOR","NEWS_EXTRACTOR","SHEET_AUTOMATION","COVERS","SETTINGS"
     ]
     assert [s.value.label for s in SECTION_ORDER] == [
-        "Início","Notícias","Vídeos","Demandas","Fontes","Histórico","Termos","Parar buscas","Configurações","Editor de PDF","Extrator de Vídeos","Editor de Vídeo"
+        "Início","Notícias","Vídeos","Demandas","Fontes","Histórico","Termos","Parar buscas",
+        "Editor de PDF","Extrator de Vídeos","Editor de Vídeo","Extrator de Notícias","Automação Planilhas","Capas","Configurações"
     ]
+    assert SECTION_ORDER[-1] is Section.SETTINGS
 
 
 def test_dashboard_v5_visual_identity_constants():
@@ -31,3 +34,7 @@ def test_tool_sections_are_visual_integration_points_only():
     assert Section.PDF_EDITOR.value.label=="Editor de PDF"
     assert Section.EXTRACTOR.value.label=="Extrator de Vídeos"
     assert Section.VIDEO_EDITOR.value.label=="Editor de Vídeo"
+    assert Section.NEWS_EXTRACTOR.value.label=="Extrator de Notícias"
+    assert Section.SHEET_AUTOMATION.value.label=="Automação Planilhas"
+    assert Section.COVERS.value.label=="Capas"
+    assert Section.SETTINGS.value.label=="Configurações"

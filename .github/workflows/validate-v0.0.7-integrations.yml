@@ -1,0 +1,141 @@
+name: Validate v0.0.7 Integrations
+
+on:
+  push:
+    branches:
+      - feature/integracoes-fieis-v007
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-integrations:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      MONITOR_DISABLE_WEATHER: '1'
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile and run complete regression suite
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+
+      - name: Gate extractor cannot close the Monitor on a UI exception
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / 'src'))
+          from PySide6.QtWidgets import QApplication
+          from monitor_noticias.ui.main_window import MainWindow
+          from monitor_noticias.ui.sections import Section
+
+          app = QApplication.instance() or QApplication([])
+          window = MainWindow()
+          window._timer.stop()
+          window.show()
+          app.processEvents()
+          window.navigate(Section.EXTRACTOR)
+          app.processEvents()
+          if not window.isVisible():
+              raise RuntimeError('Abrir o Extrator ocultou/fechou o Monitor.')
+          extractor = window.pages[Section.EXTRACTOR]
+          original_refresh = extractor.refresh
+          def explode(_state=None):
+              raise RuntimeError('falha artificial do gate')
+          extractor.refresh = explode
+          window.navigate(Section.EXTRACTOR)
+          app.processEvents()
+          if not window.isVisible() or window._current is not Section.EXTRACTOR:
+              raise RuntimeError('Falha isolada do Extrator derrubou o Monitor.')
+          extractor.refresh = original_refresh
+          window.exit_application()
+          app.processEvents()
+          print('EXTRACTOR_CRASH_ISOLATION_OK=YES')
+          '@ | Set-Content gate_extractor.py -Encoding utf8
+          python gate_extractor.py
+
+      - name: Materialize exact uploaded-source integrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/build_external_integrations.ps1
+
+      - name: Capture all sections with original integrations
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: windows
+        run: |
+          $ErrorActionPreference='Stop'
+          Remove-Item Env:MONITOR_DISABLE_EXTERNAL_INTEGRATIONS -ErrorAction SilentlyContinue
+          python scripts/capture_refined_layouts.py
+          $expected=@(
+            'inicio','noticias','videos','demandas','fontes','historico','termos',
+            'editor-pdf','extrator-videos','editor-video','extrator-noticias',
+            'automacao-planilhas','capas','configuracoes'
+          )
+          foreach($name in $expected){
+            $file="artifacts/refined-ui/$name-1721x914.png"
+            if(-not (Test-Path $file)){throw "Captura ausente: $file"}
+          }
+
+      - name: Verify complete source preservation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $checks=@(
+            'resources/integrations/extrator-noticias/source/main.js',
+            'resources/integrations/extrator-noticias/source/engine/extrator-materia-v1.25.19-runtime.js',
+            'resources/integrations/automacao-planilhas/source/main.js',
+            'resources/integrations/automacao-planilhas/source/engine/index.js',
+            'resources/integrations/capas/source/app/ui.py',
+            'resources/integrations/capas/source/google-apps-script/GmailCentralClipping.gs',
+            'resources/integrations/video-editor/source/advanced_editor.py',
+            'resources/integrations/video-editor/source/range_slider.py'
+          )
+          foreach($file in $checks){if(-not(Test-Path $file)){throw "Integração ausente: $file"}}
+          if(Test-Path 'resources/integrations/video-editor/source/refined_layout_v301.py'){
+            throw 'Shell do Extrator de Vídeos foi incorporado indevidamente; somente o editor era permitido.'
+          }
+          Write-Host 'SOURCE_PRESERVATION_OK=YES'
+
+      - name: Upload integration validation screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: v0.0.7-integrations-1721x914
+          path: artifacts/refined-ui/*.png
+          if-no-files-found: error
+          retention-days: 14

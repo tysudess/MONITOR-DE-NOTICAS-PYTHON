@@ -20,13 +20,34 @@ class Section(Enum):
     HISTORY = SectionSpec("Histórico", "Histórico local das buscas e resultados", "↺")
     TERMS = SectionSpec("Termos", "Termos independentes para notícias e vídeos", "⌕")
     STOP = SectionSpec("Parar buscas", "Interrompa buscas manuais em andamento", "■")
-    SETTINGS = SectionSpec("Configurações", "Automação, proxy, inicialização e operação do aplicativo", "⚙")
     PDF_EDITOR = SectionSpec("Editor de PDF", "Monte, reorganize, recorte e exporte PDFs e imagens", "PDF")
     EXTRACTOR = SectionSpec("Extrator de Vídeos", "Baixe vídeos com o fluxo direto v3.0.1", "⇩")
-    VIDEO_EDITOR = SectionSpec("Editor de Vídeo", "Abra o editor nativo PySide6/QtMultimedia", "▰")
+    VIDEO_EDITOR = SectionSpec("Editor de Vídeo", "Editor original do Extrator de Vídeos integrado ao Monitor", "▰")
+    NEWS_EXTRACTOR = SectionSpec("Extrator de Notícias", "Programa original de extração de matérias integrado em aba própria", "✦")
+    SHEET_AUTOMATION = SectionSpec("Automação Planilhas", "Automação original WhatsApp → Planilhas Google em aba própria", "▦")
+    COVERS = SectionSpec("Capas", "Programa Principais Capas completo integrado ao Monitor", "▧")
+    SETTINGS = SectionSpec("Configurações", "Automação, proxy, inicialização e operação do aplicativo", "⚙")
 
 
-SECTION_ORDER = tuple(Section)
+# Ordem visual deliberada. Configurações permanece SEMPRE como a última aba.
+SECTION_ORDER = (
+    Section.HOME,
+    Section.NEWS,
+    Section.VIDEOS,
+    Section.DEMANDS,
+    Section.SOURCES,
+    Section.HISTORY,
+    Section.TERMS,
+    Section.STOP,
+    Section.PDF_EDITOR,
+    Section.EXTRACTOR,
+    Section.VIDEO_EDITOR,
+    Section.NEWS_EXTRACTOR,
+    Section.SHEET_AUTOMATION,
+    Section.COVERS,
+    Section.SETTINGS,
+)
+
 CORE_SECTIONS = {
     Section.HOME,
     Section.NEWS,
@@ -38,4 +59,11 @@ CORE_SECTIONS = {
     Section.STOP,
     Section.SETTINGS,
 }
-TOOL_SECTIONS = {Section.PDF_EDITOR, Section.EXTRACTOR, Section.VIDEO_EDITOR}
+TOOL_SECTIONS = {
+    Section.PDF_EDITOR,
+    Section.EXTRACTOR,
+    Section.VIDEO_EDITOR,
+    Section.NEWS_EXTRACTOR,
+    Section.SHEET_AUTOMATION,
+    Section.COVERS,
+}
