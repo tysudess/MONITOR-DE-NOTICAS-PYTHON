@@ -64,6 +64,12 @@ class VideoEditorPage(QWidget):
         self.editor.setParent(self)
         self.editor.setMinimumSize(0, 0)
 
+        # Compatibilidade com o gate portable legado: historicamente o launcher
+        # expunha uma lista de janelas. Agora há um único editor incorporado, mas
+        # mantemos a mesma referência para o smoke exercitar exatamente o mesmo
+        # motor sem reabrir uma janela top-level.
+        self._windows = [self.editor]
+
         # A barra lateral interna do editor duplicava a navegação principal do
         # Monitor e comprimía preview/timeline. Ela é somente apresentação; as
         # funções continuam disponíveis nos controles reais do editor.
