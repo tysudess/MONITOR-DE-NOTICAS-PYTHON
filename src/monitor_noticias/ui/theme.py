@@ -100,5 +100,101 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
 QTabWidget::pane { border:0; background:transparent; }
 QTabBar::tab { background:#052945; color:#d6e8f7; border:1px solid #0a79aa; padding:9px 18px; margin-right:7px; border-radius:8px; font-weight:700; }
 QTabBar::tab:selected { background:#186be7; color:white; border-color:#4bcaff; }
+
+/* Editor de Vídeo original incorporado: somente apresentação visual. */
+QWidget#embeddedVideoEditor,
+QWidget#embeddedVideoEditor QWidget {
+    background:#031a30;
+    color:#f4f8fc;
+    selection-background-color:#087af7;
+    selection-color:#ffffff;
+}
+QWidget#embeddedVideoEditor QFrame {
+    background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #061d35,stop:0.55 #06182d,stop:1 #041326);
+    border:1px solid #0a5279;
+    border-radius:12px;
+}
+QWidget#embeddedVideoEditor QLabel {
+    background:transparent;
+    border:0;
+    color:#d8e8f5;
+}
+QWidget#embeddedVideoEditor QLineEdit,
+QWidget#embeddedVideoEditor QSpinBox,
+QWidget#embeddedVideoEditor QDoubleSpinBox,
+QWidget#embeddedVideoEditor QComboBox,
+QWidget#embeddedVideoEditor QTimeEdit {
+    background:#04192d;
+    color:#f4f8fc;
+    border:1px solid #0a6f9c;
+    border-radius:9px;
+    padding:8px 10px;
+}
+QWidget#embeddedVideoEditor QLineEdit:focus,
+QWidget#embeddedVideoEditor QSpinBox:focus,
+QWidget#embeddedVideoEditor QDoubleSpinBox:focus,
+QWidget#embeddedVideoEditor QComboBox:focus {
+    border-color:#00b7ff;
+}
+QWidget#embeddedVideoEditor QPushButton {
+    background:#071a31;
+    color:#eef7ff;
+    border:1px solid #17476e;
+    border-radius:9px;
+    padding:9px 14px;
+    font-weight:700;
+}
+QWidget#embeddedVideoEditor QPushButton:hover {
+    background:#0a3151;
+    border-color:#00a9e8;
+}
+QWidget#embeddedVideoEditor QPushButton:checked {
+    background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0a659d,stop:1 #073f68);
+    border-color:#00b7ff;
+}
+QWidget#embeddedVideoEditor QPushButton:disabled {
+    background:#11283a;
+    color:#658097;
+    border-color:#27465b;
+}
+QWidget#embeddedVideoEditor QListWidget,
+QWidget#embeddedVideoEditor QTreeWidget,
+QWidget#embeddedVideoEditor QTableWidget {
+    background:#031426;
+    border:1px solid #0a5279;
+    border-radius:10px;
+    color:#e8f4fc;
+}
+QWidget#embeddedVideoEditor QSlider::groove:horizontal {
+    height:7px;
+    background:#123d56;
+    border-radius:3px;
+}
+QWidget#embeddedVideoEditor QSlider::sub-page:horizontal {
+    background:#00a9e8;
+    border-radius:3px;
+}
+QWidget#embeddedVideoEditor QSlider::handle:horizontal {
+    width:16px;
+    margin:-5px 0;
+    background:#67d9ff;
+    border:2px solid #0b789f;
+    border-radius:8px;
+}
+QWidget#embeddedVideoEditor QScrollArea,
+QWidget#embeddedVideoEditor QScrollArea QWidget#qt_scrollarea_viewport {
+    background:#031a30;
+    border:0;
+}
+QWidget#embeddedVideoEditor QScrollBar:vertical,
+QWidget#embeddedVideoEditor QScrollBar:horizontal {
+    background:#031725;
+}
+QWidget#embeddedVideoEditor QScrollBar::handle:vertical,
+QWidget#embeddedVideoEditor QScrollBar::handle:horizontal {
+    background:#0b789f;
+    border-radius:4px;
+}
+
 QToolTip { background:#052d57; color:white; border:1px solid #0a82b4; }
 """
