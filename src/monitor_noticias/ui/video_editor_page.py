@@ -9,11 +9,11 @@ from monitor_noticias.video_editor.window import VideoEditorWindow
 
 
 class VideoEditorPage(QWidget):
-    """Workspace launcher equivalente ao VideoEditorScreen.kt ativo.
+    """Hospeda o editor PySide6 dentro do QStackedWidget principal do Monitor.
 
-    A release original abria um executável PyInstaller separado. No Monitor Python
-    o mesmo editor PySide6 é uma janela nativa top-level no mesmo processo; esta é
-    a única diferença arquitetural deliberada do Passo 12 e não altera o motor.
+    O motor do VideoEditorWindow (QMediaPlayer, QVideoWidget, timeline e FFmpeg)
+    permanece o mesmo. A única mudança é de hospedagem: a centralWidget do editor
+    é incorporada nesta página em vez de abrir uma janela top-level separada.
     """
 
     back_requested = Signal()
@@ -21,75 +21,87 @@ class VideoEditorPage(QWidget):
     def __init__(self, app_root: Path) -> None:
         super().__init__()
         self.app_root = Path(app_root)
-        self._opened_once = False
-        self._windows: list[VideoEditorWindow] = []
         self._build()
 
     def _build(self) -> None:
-        root = QVBoxLayout(self); root.setContentsMargins(12, 12, 12, 12); root.setSpacing(10)
-        header = QFrame(); hl = QHBoxLayout(header); hl.setContentsMargins(18, 10, 18, 10)
-        logo = QLabel("▥"); logo.setStyleSheet("color:#37a6ff;font-size:42px")
-        titles = QVBoxLayout(); title = QLabel("VideoMaster PRO"); title.setStyleSheet("font-size:27px;font-weight:700")
-        subtitle = QLabel("Editor de Vídeo nativo • PySide6 6.9.1 • QtMultimedia • QMediaPlayer")
-        subtitle.setStyleSheet("color:#a8b4c7")
-        titles.addWidget(title); titles.addWidget(subtitle); hl.addWidget(logo); hl.addLayout(titles); hl.addStretch(1)
-        self.open_button = QPushButton("Abrir Editor"); self.open_button.clicked.connect(self.open_editor); hl.addWidget(self.open_button)
-        back = QPushButton("Voltar ao Monitor"); back.clicked.connect(self.back_requested.emit); hl.addWidget(back); root.addWidget(header)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(8)
 
-        body = QHBoxLayout(); rail = QFrame(); rail.setFixedWidth(230); rl = QVBoxLayout(rail)
-        for text, active in [
-            ("✂  Editor de Vídeo", True), ("⇩  Extração", False), ("▤  Compactação", False),
-            ("✄  Corte", False), ("▣  Unir Vídeos", False), ("↻  Converter", False),
-        ]:
-            button = QPushButton(text); button.setMinimumHeight(48)
-            if active: button.setStyleSheet("background:#168fff;color:white;font-weight:700")
-            else: button.setEnabled(False)
-            rl.addWidget(button)
-        rl.addStretch(1)
-        motor = QLabel("Motor do preview\nPySide6.QtMultimedia.QMediaPlayer\nQVideoWidget para vídeo\nQAudioOutput para áudio")
-        motor.setWordWrap(True); motor.setStyleSheet("color:#a8b4c7;padding:10px;border:1px solid #243650")
-        rl.addWidget(motor); body.addWidget(rail)
+        toolbar = QFrame()
+        toolbar.setObjectName("filterCard")
+        tl = QHBoxLayout(toolbar)
+        tl.setContentsMargins(14, 8, 14, 8)
+        titles = QVBoxLayout()
+        titles.setSpacing(1)
+        title = QLabel("Editor de Vídeo integrado")
+        title.setObjectName("sectionTitle")
+        subtitle = QLabel(
+            "Preview, áudio, timeline e exportação permanecem no mesmo motor; agora tudo abre dentro do Monitor."
+        )
+        subtitle.setObjectName("smallText")
+        subtitle.setWordWrap(True)
+        titles.addWidget(title)
+        titles.addWidget(subtitle)
+        tl.addLayout(titles, 1)
+        back = QPushButton("←  Voltar ao Monitor")
+        back.setProperty("secondary", True)
+        back.clicked.connect(self.back_requested.emit)
+        tl.addWidget(back)
+        root.addWidget(toolbar)
 
-        center = QFrame(); cl = QVBoxLayout(center); cl.addStretch(1)
-        name = QLabel("Editor de Vídeo PySide6"); name.setStyleSheet("font-size:32px;font-weight:700"); cl.addWidget(name)
-        desc = QLabel("A interface principal do editor abre em uma janela nativa Qt, usando QMediaPlayer + QVideoWidget + QAudioOutput para preview e FFmpeg apenas para exportação.")
-        desc.setWordWrap(True); desc.setStyleSheet("color:#a8b4c7;font-size:15px"); cl.addWidget(desc)
-        chips = QLabel("Preview real   •   Áudio real   •   Timeline visual   •   Exportação FFmpeg")
-        chips.setStyleSheet("color:#4ed69e;padding:12px"); cl.addWidget(chips)
-        big = QPushButton("Abrir Editor de Vídeo"); big.setMinimumHeight(56); big.clicked.connect(self.open_editor); cl.addWidget(big)
-        self.status = QLabel("Pronto para abrir o Editor de Vídeo PySide6."); self.status.setStyleSheet("color:#a8b4c7"); cl.addWidget(self.status)
-        cl.addStretch(1); body.addWidget(center, 1); root.addLayout(body, 1)
+        self.editor = VideoEditorWindow(self.app_root)
+        self.editor.hide()
+        self.workspace = self.editor.takeCentralWidget()
+        if self.workspace is None:
+            raise RuntimeError("O Editor de Vídeo não forneceu uma área central para integração.")
+        self.workspace.setParent(self)
+        # O tema original do editor era herdado do QMainWindow top-level. Ao
+        # incorporar a centralWidget, reaplicamos a mesma folha visual nela.
+        self.workspace.setStyleSheet(self.editor.styleSheet())
+        root.addWidget(self.workspace, 1)
+
+        status_card = QFrame()
+        status_card.setObjectName("footerFrame")
+        sl = QHBoxLayout(status_card)
+        sl.setContentsMargins(10, 5, 10, 5)
+        self.status = QLabel("Pronto. Abra um ou mais vídeos.")
+        self.status.setObjectName("smallText")
+        sl.addWidget(self.status, 1)
+        integrated = QLabel("●  Editor integrado ao Monitor")
+        integrated.setStyleSheet("color:#19e5a1;font-size:10px;font-weight:700;")
+        sl.addWidget(integrated)
+        root.addWidget(status_card)
+
+        self._status_timer = QTimer(self)
+        self._status_timer.setInterval(250)
+        self._status_timer.timeout.connect(self._sync_status)
+        self._status_timer.start()
+        self._sync_status()
+
+    def _sync_status(self) -> None:
+        try:
+            message = self.editor.statusBar().currentMessage().strip()
+        except RuntimeError:
+            message = ""
+        if message:
+            self.status.setText(message)
 
     def refresh(self, _state=None) -> None:
-        if not self._opened_once:
-            self._opened_once = True
-            QTimer.singleShot(0, self.open_editor)
+        # A página já está viva dentro do Monitor; não abra nova janela ao navegar.
+        self._sync_status()
 
     def open_editor(self) -> None:
-        try:
-            window = VideoEditorWindow(self.app_root)
-            # No baseline o editor vivia em processo separado; fechar a janela
-            # encerrava esse processo e seus handles. No editor integrado, apagar
-            # a top-level window reproduz esse teardown sem trocar o player.
-            window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-            window.destroyed.connect(lambda _=None, w=window: self._discard_window(w))
-            self._windows.append(window)
-            window.show(); window.raise_(); window.activateWindow()
-            self.status.setText("Editor de Vídeo aberto em janela nativa PySide6 com QMediaPlayer, QVideoWidget e QAudioOutput.")
-        except Exception as exc:
-            self.status.setText(f"Falha ao abrir Editor de Vídeo PySide6: {exc}")
-
-    def _discard_window(self, window: VideoEditorWindow) -> None:
-        try: self._windows.remove(window)
-        except ValueError: pass
+        """Compatibilidade com chamadas antigas: apenas foca o editor incorporado."""
+        self.workspace.setFocus(Qt.FocusReason.OtherFocusReason)
+        self._sync_status()
 
     def shutdown(self) -> bool:
-        """Reproduz o teardown do processo separado antes do Monitor sair."""
-        for window in list(self._windows):
-            try:
-                window.player.stop()
-                window.player.setSource(QUrl())
-                window.close()
-            except RuntimeError:
-                self._discard_window(window)
-        return all(not window.isVisible() for window in list(self._windows))
+        """Encerra os handles do player sem criar/fechar janelas auxiliares."""
+        self._status_timer.stop()
+        try:
+            self.editor.player.stop()
+            self.editor.player.setSource(QUrl())
+        except RuntimeError:
+            return True
+        return True
