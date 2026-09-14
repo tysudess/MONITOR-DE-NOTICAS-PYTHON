@@ -10,9 +10,10 @@ from monitor_noticias.collectors.video.catalog import VIDEO_SOURCES
 from monitor_noticias.ui.catalog import NEWS_SOURCES, SPECIALIZED
 from monitor_noticias.ui.controller import MainUiController
 from monitor_noticias.ui.extractor_page import ExtractorPage
+from monitor_noticias.ui.home_page import HomePage
 from monitor_noticias.ui.pdf_editor_page import PdfEditorPage
 from monitor_noticias.ui.video_editor_page import VideoEditorPage
-from monitor_noticias.ui.pages import DemandsPage,HistoryPage,HomePage,NewsPage,SettingsPage,StopPage,VideosPage
+from monitor_noticias.ui.pages import DemandsPage,HistoryPage,NewsPage,SettingsPage,StopPage,VideosPage
 from monitor_noticias.ui.runtime_pages import TermsPage
 from monitor_noticias.ui.source_page import SourcesPage
 from monitor_noticias.ui.sections import SECTION_ORDER,Section
@@ -42,7 +43,8 @@ class MainWindow(QMainWindow):
         for section in SECTION_ORDER:
             button=QPushButton(f"{section.value.icon}   {section.value.label}"); button.setObjectName("navButton"); button.setCheckable(True); button.setMinimumHeight(36); button.clicked.connect(lambda _=False,s=section:self.navigate(s)); side.addWidget(button); self.nav_buttons[section]=button
         side.addStretch(); self.sidebar_status=QLabel(); self.sidebar_status.setObjectName("brandSub"); self.sidebar_status.setWordWrap(True); side.addWidget(self.sidebar_status); ver=QLabel("Windows Portable v4.0.2"); ver.setObjectName("brandSub"); side.addWidget(ver); outer.addWidget(self.sidebar)
-        content=QWidget(); cl=QVBoxLayout(content); cl.setContentsMargins(18,12,18,8); cl.setSpacing(8); header=QHBoxLayout(); text=QVBoxLayout(); self.kicker=QLabel("CENTRAL DE MONITORAMENTO"); self.kicker.setObjectName("pageKicker"); self.title=QLabel(); self.title.setObjectName("pageTitle"); self.subtitle=QLabel(); self.subtitle.setObjectName("pageSubtitle"); text.addWidget(self.kicker); text.addWidget(self.title); text.addWidget(self.subtitle); header.addLayout(text); header.addStretch(); self.clock=QLabel(); self.clock.setObjectName("muted"); header.addWidget(self.clock); cl.addLayout(header)
+        content=QWidget(); cl=QVBoxLayout(content); cl.setContentsMargins(18,12,18,8); cl.setSpacing(8)
+        self.page_header=QWidget(); header=QHBoxLayout(self.page_header); header.setContentsMargins(0,0,0,0); text=QVBoxLayout(); self.kicker=QLabel("CENTRAL DE MONITORAMENTO"); self.kicker.setObjectName("pageKicker"); self.title=QLabel(); self.title.setObjectName("pageTitle"); self.subtitle=QLabel(); self.subtitle.setObjectName("pageSubtitle"); text.addWidget(self.kicker); text.addWidget(self.title); text.addWidget(self.subtitle); header.addLayout(text); header.addStretch(); self.clock=QLabel(); self.clock.setObjectName("muted"); header.addWidget(self.clock); cl.addWidget(self.page_header)
         self.stack=QStackedWidget(); cl.addWidget(self.stack,1)
         self.pages={Section.HOME:HomePage(self.controller),Section.NEWS:NewsPage(self.controller),Section.VIDEOS:VideosPage(self.controller),Section.DEMANDS:DemandsPage(self.controller),Section.SOURCES:SourcesPage(self.controller),Section.HISTORY:HistoryPage(self.controller),Section.TERMS:TermsPage(self.controller),Section.STOP:StopPage(self.controller),Section.SETTINGS:SettingsPage(self.controller),Section.PDF_EDITOR:PdfEditorPage(self.paths.root),Section.EXTRACTOR:ExtractorPage(self.paths.root),Section.VIDEO_EDITOR:VideoEditorPage(self.paths.root)}
         for section in SECTION_ORDER:self.stack.addWidget(self.pages[section])
@@ -64,7 +66,7 @@ class MainWindow(QMainWindow):
         self.notifier=WindowsTrayNotifier(self.tray)
 
     def navigate(self,section:Section)->None:
-        self._current=section; self.stack.setCurrentIndex(SECTION_ORDER.index(section))
+        self._current=section; self.stack.setCurrentIndex(SECTION_ORDER.index(section)); self.page_header.setVisible(section!=Section.HOME)
         for sec,button in self.nav_buttons.items():button.setChecked(sec==section)
         self.title.setText(section.value.label); self.subtitle.setText(section.value.subtitle); self.pages[section].refresh(self.controller.state)
 
