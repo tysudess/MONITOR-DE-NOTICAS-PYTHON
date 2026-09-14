@@ -223,7 +223,7 @@ jobs:
           if($ff -ne $env:EXPECTED_FFMPEG_SHA256 -or $fp -ne $env:EXPECTED_FFPROBE_SHA256){throw 'Hashes FFmpeg/FFprobe divergiram dentro do ZIP final.'}
           foreach($dir in @('data','logs','temp','Videos','VideoEditorExports')){
             $full=Join-Path $root.FullName $dir
-            if(Test-Path $full -and (Get-ChildItem $full -Recurse -Force -File -ErrorAction SilentlyContinue | Select-Object -First 1)){throw "Estado pessoal/teste no ZIP: $dir"}
+            if((Test-Path $full) -and (Get-ChildItem $full -Recurse -Force -File -ErrorAction SilentlyContinue | Select-Object -First 1)){throw "Estado pessoal/teste no ZIP: $dir"}
           }
           $bad=Get-ChildItem $root.FullName -Recurse -Force -File | Where-Object {$_.Name -match '(?i)^\.env$|monitor_prefs\.properties$|news\.db$|videos\.db$|\.dpapi$|cookies?\.txt$'}
           if($bad){throw "Dados pessoais/sensíveis evidentes no ZIP: $(($bad.FullName)-join '; ')"}
