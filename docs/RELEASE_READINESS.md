@@ -1,58 +1,59 @@
-# RELEASE READINESS — PASSO 24
+# RELEASE READINESS — PASSO 26
 
 ## Estado técnico
 
-**NOVO PORTABLE COM COMPLIANCE DOCUMENTAL: VALIDADO TECNICAMENTE**
+O portable do Passo 24 continua sendo o último portable tecnicamente validado:
 
 - commit da build: `2c52d9b00e06cb6becb7265371c5d35ab45492f8`
 - run: `34794644131`
-- ZIP: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
-- tamanho ZIP: `477381768` bytes
-- tamanho descompactado: `830499134` bytes
 - SHA-256: `36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede`
-- suíte: `149 passed`
-- Windows: Microsoft Windows Server 2025 / NT 10.0.26100 / AMD64
 
-O run completo passou: build limpa, smoke local, transporte do ZIP, hash idêntico no segundo Windows sem checkout, reextração, primeira execução, primeiro smoke, reabertura, movimentação, paths com espaços/acentos, segundo smoke, preview, seeks, FFmpeg/FFprobe, exportação, shutdown, órfãos 0, temporários, logs, segredos e dados pessoais.
-
-PORT-001 a PORT-005 continuam **RESOLVIDOS**. MIG-079 a MIG-083 continuam satisfeitos.
-
-## Compliance presente no ZIP
-
-A build inclui `THIRD_PARTY_NOTICES.txt`, `LICENSES-MANIFEST.json` e `licenses/`. Foram gerados 45 arquivos de licença/notice.
-
-O run independente `34795191703` baixou exatamente o artifact do run `34794644131`, verificou SHA-256/tamanho, extraiu em Windows limpo e confirmou:
-
-- THIRD_PARTY_NOTICES = PASS
-- licenses/ = PASS
-- LICENSES-MANIFEST = PASS
-- 45 arquivos = presentes e legíveis
-- dados/paths locais nos textos adicionados = 0
+Nenhum novo portable foi gerado no Passo 26.
 
 ## PUB-001 — LICENÇAS
 
-**STATUS: BLOQUEADO**
+**STATUS: PRONTO PARA REVALIDAÇÃO**
 
-O Passo 24 corrigiu o excesso de coleta do PySide6 no aplicativo principal e incluiu os textos/notices oficiais disponíveis para os componentes inventariados. Porém o FFmpeg/FFprobe efetivamente distribuído informa `--enable-gpl --enable-version3`, com `libx264` e `libx265` habilitados.
+A cadeia FFmpeg/FFprobe foi congelada:
 
-O ZIP contém a GPLv3 e o LICENSE do FFmpeg, mas o repositório/artefato não demonstra disponibilização do **código-fonte correspondente exato** da build FFmpeg redistribuída no mesmo canal da futura publicação. Portanto o simples acréscimo dos textos legais não é evidência suficiente para declarar compliance integral.
+- binários de referência preservados sem alteração;
+- origem BtbN comprovada;
+- build recipe commit `3e6685eda92f9288c15ac320139622dcedca09a4`;
+- FFmpeg source commit `ad500d59cb6e0126add4fcb95afb4e2557c4292c`;
+- x264 commit `0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee`;
+- x265 commit `116b87573ed0cec20b75ccacd5641bf06f6e57bd`;
+- Corresponding Source final: `MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913.zip`;
+- tamanho: `4466155388` bytes;
+- SHA-256: `54a2b6472bfa13b7bdb35ee25f0793461d890e774074eab350e6e9eb812f35eb`;
+- reextração/integridade: PASS;
+- segredos reais classificados no source: 0.
 
-Também não foi comprovada a correspondência exata do agregado `THIRD_PARTY_LICENSES` coletado de upstream com o binário yt-dlp nightly `2026.08.30.232658`.
+O source será anexado à mesma futura GitHub Release que o portable Windows. A URL final ainda não existe e não foi inventada.
 
-Assim, as incertezas bloqueadoras de redistribuição não são zero.
+O próximo passo deverá gerar um novo portable contendo os materiais de compliance atualizados e executar novamente a validação completa. Portanto **PRONTO PARA REVALIDAÇÃO não significa PRONTO PARA MERGE/RELEASE**.
 
 ## PUB-002 — SEGREDOS
 
 **STATUS: RESOLVIDO**
 
-O resultado do Passo 23 permanece válido: Gitleaks 8.30.1 auditou o histórico relevante; segredos reais não tratados = 0. O novo ciclo técnico também terminou com `SEGREDOS_REAIS_ENCONTRADOS=0` e `DADOS_PESSOAIS_NO_ZIP=0`.
+Segredos reais não tratados: `0`.
+
+## Alterações funcionais
+
+- `src/`: NÃO
+- `ffmpeg.exe`: NÃO
+- `ffprobe.exe`: NÃO
+- comandos FFmpeg: NÃO
+- requirements: NÃO
+- recompilação de FFmpeg: NÃO
+- nova build do Monitor: NÃO
 
 ## Fonte histórica Kotlin
 
-O repositório `tysudess/noticias-monitor` continua sendo a fonte histórica e não foi alterado pelo Passo 24.
+`tysudess/noticias-monitor` permaneceu inalterado.
 
 ## Decisão
 
-**NÃO PRONTO PARA MERGE/RELEASE**
+**PUB-001 PRONTO PARA REVALIDAÇÃO**
 
-Motivo: **PUB-001 permanece BLOQUEADO apesar de o novo ZIP estar tecnicamente validado e conter os notices/textos inventariados.**
+Ainda não executar merge, tag ou release.
