@@ -49,28 +49,30 @@ $ToolsRoot = Join-Path $Root ".portable-tools"
 $BinStage = Join-Path $ToolsRoot "bin"
 New-Item -ItemType Directory -Force -Path $BinStage | Out-Null
 
-Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe" -OutFile (Join-Path $BinStage "yt-dlp.exe") -TimeoutSec 180
-Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile (Join-Path $BinStage "yt-dlp-stable.exe") -TimeoutSec 180
-Invoke-WebRequest -Uri "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip" -OutFile (Join-Path $ToolsRoot "deno.zip") -TimeoutSec 180
+# PASSO 27: manter exatamente as versões do portable já validado; não usar aliases latest mutáveis.
+Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.08.30.232658/yt-dlp.exe" -OutFile (Join-Path $BinStage "yt-dlp.exe") -TimeoutSec 180
+Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe" -OutFile (Join-Path $BinStage "yt-dlp-stable.exe") -TimeoutSec 180
+Invoke-WebRequest -Uri "https://github.com/denoland/deno/releases/download/v2.9.6/deno-x86_64-pc-windows-msvc.zip" -OutFile (Join-Path $ToolsRoot "deno.zip") -TimeoutSec 180
 Expand-Archive (Join-Path $ToolsRoot "deno.zip") (Join-Path $ToolsRoot "deno") -Force
 Copy-Item (Join-Path $ToolsRoot "deno/deno.exe") (Join-Path $BinStage "deno.exe") -Force
 
-$ffSources = @(
-    "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n9.0-latest-win64-gpl-9.0.zip",
-    "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-)
-$ffOk = $false
-foreach ($source in $ffSources) {
-    try {
-        Invoke-WebRequest -Uri $source -OutFile (Join-Path $ToolsRoot "ffmpeg.zip") -TimeoutSec 240
-        if ((Get-Item (Join-Path $ToolsRoot "ffmpeg.zip")).Length -gt 1000000) { $ffOk = $true; break }
-    } catch { Write-Warning $_.Exception.Message }
+$ffSource = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-13-14-50/ffmpeg-n9.0.1-29-gad500d59cb-win64-gpl-9.0.zip"
+Invoke-WebRequest -Uri $ffSource -OutFile (Join-Path $ToolsRoot "ffmpeg.zip") -TimeoutSec 240
+if (-not (Test-Path (Join-Path $ToolsRoot "ffmpeg.zip")) -or (Get-Item (Join-Path $ToolsRoot "ffmpeg.zip")).Length -le 1000000) {
+    throw "Não foi possível obter o FFmpeg BtbN exato auditado no Passo 26."
 }
-if (-not $ffOk) { throw "Não foi possível baixar FFmpeg." }
 Expand-Archive (Join-Path $ToolsRoot "ffmpeg.zip") (Join-Path $ToolsRoot "ffmpeg") -Force
 $ffmpeg = Get-ChildItem (Join-Path $ToolsRoot "ffmpeg") -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
 $ffprobe = Get-ChildItem (Join-Path $ToolsRoot "ffmpeg") -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
 if (-not $ffmpeg -or -not $ffprobe) { throw "ffmpeg.exe/ffprobe.exe ausentes." }
+$expectedFfmpegSha = "828bef350665c78b76e4bc3597b1714c66d3bd79a642948243e59754dab1878d"
+$expectedFfprobeSha = "897cabca3eb2a16be9bf111a9955277ec93a17527aa6c6b108fd07ab182927f6"
+$downloadedFfmpegSha = (Get-FileHash $ffmpeg.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+$downloadedFfprobeSha = (Get-FileHash $ffprobe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($downloadedFfmpegSha -ne $expectedFfmpegSha) { throw "FFmpeg baixado diverge do binário auditado: $downloadedFfmpegSha" }
+if ($downloadedFfprobeSha -ne $expectedFfprobeSha) { throw "FFprobe baixado diverge do binário auditado: $downloadedFfprobeSha" }
+Write-Host "FFMPEG_AUDITED_SHA256=$downloadedFfmpegSha"
+Write-Host "FFPROBE_AUDITED_SHA256=$downloadedFfprobeSha"
 Copy-Item $ffmpeg.FullName (Join-Path $BinStage "ffmpeg.exe") -Force
 Copy-Item $ffprobe.FullName (Join-Path $BinStage "ffprobe.exe") -Force
 
