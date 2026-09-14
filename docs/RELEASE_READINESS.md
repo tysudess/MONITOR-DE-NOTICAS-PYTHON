@@ -1,79 +1,87 @@
-# RELEASE READINESS — PASSO 22
+# RELEASE READINESS — PASSO 23
 
 ## Estado oficial
 
-**PORTABLE WINDOWS: VALIDADO**
+**PORTABLE WINDOWS TÉCNICO: VALIDADO**
 
-O candidato técnico aprovado é exatamente o artefato produzido a partir de `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d` no run `34776048157`. Nenhum commit mais recente deve ser apresentado como origem desse ZIP.
+**PUBLICAÇÃO DO ZIP ATUAL: BLOQUEADA POR PUB-001**
+
+O candidato técnico aprovado continua sendo exatamente o artefato produzido a partir de `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d` no run `34776048157`. O Passo 23 não rebuildou e não modificou esse ZIP.
 
 - repositório: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
 - branch do artefato: `migration/python-foundation`
-- workflow: `Passo 17 - Windows Portable`
+- workflow de build: `Passo 17 - Windows Portable`
 - commit do artefato: `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`
 - ZIP: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
 - tamanho ZIP: `651329315` bytes
 - tamanho descompactado: `1262862742` bytes
 - SHA-256: `259739899fe044157d350ab077d877ef8dd9e024cd33939266e026e8df3563f4`
 - plataforma validada: Microsoft Windows Server 2025 / NT 10.0.26100 / AMD64
-- arquitetura do pacote: Windows x64
+- suíte: `149 passed`
 
-## Gate técnico final
+## Gate técnico
 
-- BUILD = PASS
-- ZIP = PASS
-- HASH = PASS
-- SEGUNDO RUNNER = PASS
-- REEXTRAÇÃO = PASS
-- PRIMEIRO SMOKE = PASS
-- REABERTURA = PASS
-- MOVIMENTAÇÃO = PASS
-- PATH COM ESPAÇOS = PASS
-- PATH COM ACENTOS = PASS
-- SEGUNDO SMOKE = PASS
-- SHUTDOWN = PASS
-- PROCESSOS ÓRFÃOS = PASS (`0`)
-- TEMPORÁRIOS = PASS
-- LOGS = PASS
-- SEGREDOS NO ARTEFATO = PASS (`SEGREDOS_REAIS_ENCONTRADOS=0`)
-- DADOS PESSOAIS NO ZIP = PASS (`DADOS_PESSOAIS_NO_ZIP=0`)
+Permanece integralmente aprovado: build, ZIP, hash, segundo runner, reextração, primeiro smoke, reabertura, movimentação, paths com espaços/acentos, segundo smoke, shutdown, processos órfãos, temporários, logs, segredos e dados pessoais do ciclo técnico.
 
-A suíte que acompanhou o candidato aprovado terminou em `149 passed`, sem falhas.
+PORT-001 a PORT-005 permanecem **RESOLVIDOS**. Os MIGs de portable aprovados no Passo 22 não são revertidos pela auditoria de publicação.
 
-## PORT-001 a PORT-005
+## PUB-001 — LICENÇAS
 
-Todos os bloqueadores PORT conhecidos foram resolvidos e preservados historicamente em `docs/MIGRACAO_PASSO_21.md`.
+**STATUS: BLOQUEADO**
 
-## MIGs de portable
+A auditoria comprovou que o empacotamento validado usa `collect_all("PySide6")` e inclui módulos Qt além dos realmente necessários, inclusive módulos que a documentação oficial do Qt lista como GPL-only para usuários open-source (`Qt Graphs`, `Qt HTTP Server`, `Qt Network Authorization`, `Qt Quick 3D`). A build foi feita com a distribuição pública de PySide6 via pip; eventual licença comercial Qt aplicável ao projeto é **NÃO DETERMINADO PELO CÓDIGO/ARTEFATO ANALISADO**.
 
-O ciclo externo completo fornece evidência objetiva para promover:
-- `MIG-002` — raiz portable/frozen;
-- `MIG-079` — entrada Desktop original;
-- `MIG-080` — transformações/workflow de build;
-- `MIG-081` — empacotamento PyInstaller do editor/aplicação final;
-- `MIG-082` — cinco binários portáteis;
-- `MIG-083` — `BUILD-SHA` e hash do ZIP.
+Também são redistribuídos componentes com obrigações próprias, incluindo QtWebEngine/Chromium, FFmpeg/FFprobe com build GPL (`--enable-gpl --enable-version3`), executáveis PyInstaller de yt-dlp que o upstream classifica como GPLv3+, e PDFium/pypdfium2 cujo upstream exige licenças de dependências junto à distribuição binária.
 
-Estado consolidado: 116 MIGs; 77 APROVADOS; 37 EM TESTE; 2 PENDENTES (`MIG-061`, `MIG-114`); 0 BLOQUEADOS.
+A inspeção do artifact exato encontrou o `THIRD_PARTY_NOTICES.txt`, mas o conjunto atual não fornece evidência suficiente para declarar satisfeitas todas as obrigações de redistribuição.
 
-## Separação entre artefato e documentação
+**ARTEFATO VALIDADO PRECISA SER ALTERADO PARA CONFORMIDADE.**
 
-`docs/**` não entra no ZIP e também não está nos paths que disparam a workflow portable. Portanto mudanças documentais posteriores devem permanecer em commit separado e NÃO alteram o candidato `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`.
+**NOVA BUILD + NOVO CICLO DE VALIDAÇÃO NECESSÁRIOS: SIM.**
 
-## Bloqueadores para publicação pública
+Nenhuma alteração foi aplicada ao ZIP neste passo.
 
-O portable está tecnicamente validado, porém este Passo 22 não prova dois requisitos de governança para uma publicação pública:
+## PUB-002 — SEGREDOS EM TODO O HISTÓRICO
 
-1. **Licenças de terceiros:** `portable/THIRD_PARTY_NOTICES.txt` inventaria as dependências, mas o build copia esse resumo junto aos binários e não há evidência suficiente, neste passo, de que todos os textos/avisos/código-fonte ou ofertas de código-fonte exigidos pelas licenças aplicáveis de componentes nativos/copyleft estejam completos. Conformidade jurídica integral: **NÃO DETERMINADO PELO CÓDIGO ANALISADO.**
-2. **Histórico Git completo:** a árvore atual e o artefato não exibem segredos ou estado pessoal, mas não foi executado um scanner dedicado sobre todos os blobs históricos já removidos. A afirmação “nenhum commit histórico jamais conteve segredo” é **NÃO DETERMINADO PELO CÓDIGO ANALISADO.**
+**STATUS: RESOLVIDO**
 
-Esses pontos não invalidam o ZIP técnico aprovado e não autorizam rebuild silencioso. Devem ser resolvidos antes de publicação pública.
+Auditoria dedicada executada no run `34791248748` com Gitleaks `8.30.1`, checkout completo e fetch explícito das branches/tags.
+
+Escopo registrado:
+- 168 commits alcançáveis pelo Git;
+- 4 branches remotas;
+- 0 tags;
+- Gitleaks reportou 164 commits efetivamente percorridos em seu modo `git`.
+
+Resultado histórico:
+- findings Gitleaks: 2;
+- regra: `generic-api-key`;
+- ambos em `scripts/pyi_runtime_portable_validation.py`;
+- classificação: **DADOS DE TESTE**, pois o código histórico os declara explicitamente `fake_secret`, `somente dado fictício`, com literais `SEGREDO-FICTICIO-PASSO17/18` usados para testar DPAPI;
+- segredos reais: **0**;
+- findings não determinados: **0**;
+- objetos históricos com nomes sensíveis suspeitos: **0**;
+- blobs históricos >=5 MiB: **0**.
+
+A única correspondência textual a marcador de private key veio do próprio padrão de busca do workflow de auditoria; Gitleaks não encontrou chave privada real.
+
+O ZIP exato também foi escaneado após revalidação de SHA-256/tamanho. Houve 4 findings `generic-api-key` em recursos de terceiros (`qtwebengine_resources.pak` e `pypdfium2/internal/consts.py`), classificados como falsos positivos de recursos/constantes de terceiros. Segredos reais no ZIP: **0**. Estado pessoal evidente: **0**.
+
+**SEGREDOS REAIS NÃO TRATADOS = 0**
+
+Revogação/rotação: **NÃO necessária**.
+Reescrita de histórico: **NÃO necessária**.
+
+## Documento detalhado
+
+Ver `docs/PUBLICATION_COMPLIANCE.md`.
 
 ## Fonte histórica Kotlin
 
-Fonte funcional de referência: `df1701ba5427a04954093e8ebed63f26abb2b2b7` + transformações comprovadas do workflow V8. A branch observada do repositório original continua em `e7b5d8eaac68bce6a9785e4da5b8ca5f83c34d2e` e não foi alterada pelo Passo 22.
+Fonte funcional de referência: `df1701ba5427a04954093e8ebed63f26abb2b2b7` + transformações comprovadas do workflow V8. O repositório Kotlin não foi alterado no Passo 23.
 
 ## Decisão
 
-**PORTABLE WINDOWS: VALIDADO**
+**NÃO PRONTO PARA MERGE/RELEASE**
 
-**PUBLICAÇÃO PÚBLICA: BLOQUEADA ATÉ FECHAR LICENÇAS E AUDITORIA HISTÓRICA DE SEGREDOS.**
+Motivo: **PUB-001 BLOQUEADO E NOVO PORTABLE NECESSÁRIO PARA COMPLIANCE DE LICENÇAS.**
