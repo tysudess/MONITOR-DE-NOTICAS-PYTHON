@@ -1,0 +1,57 @@
+name: Validate Home Layout
+
+on:
+  push:
+    branches:
+      - layout/inicio-dashboard-fiel
+    paths:
+      - 'src/monitor_noticias/ui/**'
+      - 'scripts/capture_home_layout.py'
+      - 'tests/**'
+      - 'requirements.txt'
+      - '.github/workflows/home-layout-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile UI sources
+        shell: pwsh
+        run: python -m compileall -q src scripts/capture_home_layout.py
+
+      - name: Run UI and regression tests
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q
+
+      - name: Capture HOME 1721x914
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python scripts/capture_home_layout.py
+
+      - name: Upload HOME screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-layout-1721x914
+          path: artifacts/home-1721x914.png
+          if-no-files-found: error
+          retention-days: 14
