@@ -1,100 +1,88 @@
-# RELEASE CANDIDATE
+# RELEASE CANDIDATE — PASSO 24
 
-## Identificação técnica validada
+## Identificação
 
-- PROJETO: Monitor de Notícias Python
-- REPOSITÓRIO: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
-- ORIGINAL HISTÓRICO: `tysudess/noticias-monitor`
-- COMMIT VALIDADO: `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`
-- BRANCH: `migration/python-foundation`
-- RUN: `34776048157`
-- ZIP: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
+- projeto: Monitor de Notícias Python
+- repositório: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
+- branch: `migration/python-foundation`
+- original histórico: `tysudess/noticias-monitor`
+
+### Candidato funcional anterior
+
+- commit: `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`
+- run: `34776048157`
 - SHA-256: `259739899fe044157d350ab077d877ef8dd9e024cd33939266e026e8df3563f4`
-- TAMANHO ZIP: `651329315` bytes
-- TAMANHO DESCOMPACTADO: `1262862742` bytes
-- WINDOWS TESTADO: Microsoft Windows Server 2025 / NT 10.0.26100
-- ARQUITETURA: x64
-- STATUS TÉCNICO: **PORTABLE VALIDADO**
-- STATUS DE PUBLICAÇÃO: **BLOQUEADO — NOVO CANDIDATO DE COMPLIANCE NECESSÁRIO**
 
-O Passo 23 não altera o ZIP acima e não o apresenta como publicável.
+### Novo candidato do Passo 24
 
-## Versões comprovadas
+- commit da build: `2c52d9b00e06cb6becb7265371c5d35ab45492f8`
+- run: `34794644131`
+- ZIP: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
+- tamanho ZIP: `477381768` bytes
+- tamanho descompactado: `830499134` bytes
+- SHA-256: `36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede`
+- Windows: Microsoft Windows Server 2025 / NT 10.0.26100 / AMD64
+- arquitetura: x64
+- status técnico: **VALIDADO**
+- status de publicação: **BLOQUEADO POR PUB-001**
 
-- versão do projeto: `0.0.1`
+## Versões
+
+- projeto: `0.0.1`
 - Python: `3.12.10`
 - PySide6: `6.9.1`
 - Qt: `6.9.1`
-- PyInstaller: `6.15.0`, onedir
-- FFmpeg: `n9.0.1-29-gad500d59cb-20260913`
-- FFprobe: `n9.0.1-29-gad500d59cb-20260913`
-- preview: PySide6 QtMultimedia (`QMediaPlayer + QVideoWidget + QAudioOutput`)
-- PDF: `pypdf 6.18.0` + `pypdfium2 5.13.0/PDFium` + `Pillow 12.3.0`
+- PyInstaller: `6.15.0`
 - yt-dlp nightly: `2026.08.30.232658`
 - yt-dlp stable: `2026.08.19`
 - Deno: `2.9.6`
+- FFmpeg/FFprobe: `n9.0.1-29-gad500d59cb-20260913`
+- preview: `QMediaPlayer + QVideoWidget + QAudioOutput`
+- PDF: pypdf `6.18.0`, pypdfium2 `5.13.0`/PDFium, Pillow `12.3.0`
 
-## Funcionalidades técnicas
+## Mudança do Passo 24
 
-O candidato permanece tecnicamente aprovado nos fluxos já validados: Dashboard, Notícias, Vídeos, Demandas, Termos, Fontes, Histórico, Configurações, Automação, proxy/DPAPI, startup, notificações/wiring, Extrator, Editor PDF, Editor de Vídeo, preview, play/pause, seek, FFmpeg, FFprobe e exportação.
+**CÓDIGO FUNCIONAL ALTERADO = NÃO.**
 
-Nenhum bug funcional bloqueador foi introduzido ou descoberto pelo Passo 23.
+O candidato muda somente empacotamento/compliance:
 
-## Compliance de publicação — Passo 23
+- o aplicativo principal não usa mais `collect_all("PySide6")`; PyInstaller coleta o grafo Qt necessário pelos imports reais;
+- `pypdfium2` mantém a coleta necessária ao motor PDF;
+- a build adiciona `licenses/`, `LICENSES-MANIFEST.json` e THIRD_PARTY_NOTICES rastreável;
+- o helper Globoplay permanece funcional e preserva seus imports QtWebEngine reais.
 
-### PUB-001 — Licenças
+## Validação técnica
 
-**BLOQUEADO.**
+Suíte pré-build: 149/149 PASS.
 
-O ZIP atual não deve ser publicado. A auditoria provou que o empacotamento coleta todo o PySide6 e inclui módulos Qt GPL-only para usuários open-source, além de QtWebEngine/Chromium. Também redistribui FFmpeg/FFprobe em build GPLv3-or-later, executáveis PyInstaller de yt-dlp classificados pelo upstream como GPLv3+, e PDFium com licenças de dependências que precisam acompanhar distribuições binárias.
+O build local congelado e o segundo Windows independente comprovaram novamente navegação, notícias, vídeos, banco/persistência, deduplicação, automação, proxy/DPAPI, startup, notificação/wiring, Extrator, PDF, Editor de Vídeo, preview/play-pause, seeks 500/1000/1500, FFmpeg, FFprobe e exportação H.264/AAC.
 
-A existência de eventual licença comercial Qt aplicável é **NÃO DETERMINADO PELO CÓDIGO/ARTEFATO ANALISADO**. O repositório também não estabelece um regime GPL da aplicação que permita concluir conformidade com os módulos GPL-only coletados.
+O segundo smoke após movimentação também passou. Hash build/runner idêntico, processos órfãos 0, segredos reais 0 e dados pessoais evidentes 0.
 
-O `THIRD_PARTY_NOTICES.txt` presente no ZIP é um inventário resumido e não é evidência suficiente do conjunto completo de obrigações aplicáveis.
+## Compliance físico
 
-**NOVA BUILD NECESSÁRIA POR COMPLIANCE = SIM.**
+Run independente `34795191703`: PASS.
 
-O próximo candidato deverá, antes de nova validação, delimitar os módulos realmente utilizados e incluir os textos/notices/fontes ou ofertas exigidos pelo regime de distribuição escolhido.
+O mesmo ZIP foi extraído em Windows independente e comprovou:
 
-### PUB-002 — Segredos no histórico
+- `THIRD_PARTY_NOTICES.txt` presente;
+- `LICENSES-MANIFEST.json` presente;
+- `licenses/` presente;
+- 45 arquivos de licença/notice legíveis;
+- textos adicionados sem paths/dados locais do desenvolvedor.
 
-**RESOLVIDO.**
+## Bloqueador restante
 
-Run de auditoria: `34791248748`.
-Scanner: Gitleaks `8.30.1`.
+**PUB-001 permanece BLOQUEADO.**
 
-- refs: todas as branches remotas e tags buscadas explicitamente;
-- commits alcançáveis registrados: 168;
-- branches remotas: 4;
-- tags: 0;
-- findings históricos: 2;
-- classificação: 2 dados fictícios de teste (`fake_secret` para DPAPI);
-- segredos reais históricos: 0;
-- findings não determinados: 0;
-- arquivos históricos sensíveis suspeitos: 0;
-- blobs históricos >=5 MiB: 0;
-- necessidade de revogação/rotação: NÃO;
-- necessidade de reescrita do histórico: NÃO.
+A build FFmpeg/FFprobe usada está explicitamente configurada com `--enable-gpl --enable-version3`, `libx264` e `libx265`. Os textos GPL estão presentes, mas o candidato não demonstra disponibilização do código-fonte correspondente exato da build redistribuída no mesmo canal de uma futura publicação. Logo, a presença dos textos não basta para declarar a obrigação de redistribuição integralmente satisfeita.
 
-O ZIP exato também foi escaneado: 4 padrões em recursos de terceiros, todos classificados como falsos positivos; segredos reais no ZIP = 0; estado pessoal evidente = 0.
+A correspondência exata do THIRD_PARTY_LICENSES coletado para o binário yt-dlp nightly também não está comprovada pelo artifact.
 
-Detalhes: `docs/PUBLICATION_COMPLIANCE.md`.
-
-## Limitações conhecidas anteriores
-
-- O editor ativo preserva ausências da baseline já documentadas (split, delete/reorder, IN/OUT manual, undo/redo, compactação, concatenação etc.).
-- O gate técnico não substitui inspeção visual humana integral.
-- `MIG-061` e `MIG-114` continuam pendências de equivalência já documentadas, não bugs comprovados do portable.
-
-## Versionamento proposto
-
-A versão existente continua `0.0.1`.
-
-- tag anteriormente sugerida: `v0.0.1`;
-- título anteriormente sugerido: `Monitor de Notícias Python v0.0.1 — Windows Portable x64`.
-
-**Não criar tag/release enquanto PUB-001 estiver bloqueado.**
+PUB-002 permanece RESOLVIDO e segredos reais não tratados = 0.
 
 ## Decisão
 
 **NÃO PRONTO PARA MERGE/RELEASE**
+
+Nenhuma tag, merge ou GitHub Release deve ser criada enquanto PUB-001 permanecer bloqueado.
