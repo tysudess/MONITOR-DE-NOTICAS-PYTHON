@@ -1,7 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-pyside_datas, pyside_bins, pyside_hidden = collect_all("PySide6")
+# PySide6 is intentionally NOT collected wholesale here. PyInstaller's Qt hooks
+# follow the application's real imports and collect the Qt modules/plugins they
+# require. This avoids redistributing unrelated Qt modules while preserving the
+# functional dependency graph proved by the portable smoke suite.
 pdfium_datas, pdfium_bins, pdfium_hidden = collect_all("pypdfium2")
 
 block_cipher = None
@@ -9,9 +12,9 @@ block_cipher = None
 a = Analysis(
     ["run.py"],
     pathex=["src"],
-    binaries=pyside_bins + pdfium_bins,
-    datas=pyside_datas + pdfium_datas,
-    hiddenimports=pyside_hidden + pdfium_hidden,
+    binaries=pdfium_bins,
+    datas=pdfium_datas,
+    hiddenimports=pdfium_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=["scripts/pyi_runtime_portable_validation.py"],
