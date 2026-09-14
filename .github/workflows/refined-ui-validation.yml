@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - layout/refino-global-fiel-v5
-      - fix/refino-ui-integracao-v006
     paths:
       - 'src/monitor_noticias/ui/**'
       - 'scripts/capture_refined_layouts.py'
