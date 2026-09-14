@@ -210,6 +210,9 @@ class MainWindow(QMainWindow):
         self.notifier=WindowsTrayNotifier(self.tray)
 
     def navigate(self, section: Section) -> None:
+        keep_maximized = self.isMaximized() or bool(
+            self.windowState() & Qt.WindowState.WindowMaximized
+        )
         self._current=section; self.stack.setCurrentIndex(SECTION_ORDER.index(section))
         for sec,button in self.nav_buttons.items(): button.setChecked(sec==section)
         on_home=section==Section.HOME; self.header_widget.setVisible(not on_home); self.footer_widget.setVisible(not on_home)
@@ -218,6 +221,12 @@ class MainWindow(QMainWindow):
         for tool in TOOL_SECTIONS: self.nav_holders[tool].setVisible(not on_home)
         self.header_widget.set_section(section.value.label,section.value.subtitle)
         self.pages[section].refresh(self.controller.state)
+        if keep_maximized:
+            QTimer.singleShot(0, self._restore_maximized_after_navigation)
+
+    def _restore_maximized_after_navigation(self) -> None:
+        if self.isVisible() and not self.isMaximized():
+            self.showMaximized()
 
     def _tick(self) -> None:
         self.controller.sync_automation_state(); self.pages[self._current].refresh(self.controller.state)
