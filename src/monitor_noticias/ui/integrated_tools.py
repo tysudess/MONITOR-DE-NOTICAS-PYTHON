@@ -26,6 +26,64 @@ class _Unavailable(QWidget):
         layout.addStretch(1)
 
 
+class _LegacyPortableSmokeAdapter:
+    """Compatibilidade SOMENTE para o gate legado do portable.
+
+    A interface exibida continua sendo o editor original v3.0.1. O gate de
+    empacotamento anterior ainda usa a antiga dataclass Clip e os nomes
+    refresh_media/seek_global; este adaptador traduz esses dados para o editor
+    original durante MONITOR_PORTABLE_SMOKE=1, sem alterar o uso normal.
+    """
+
+    def __init__(self, editor) -> None:
+        self._editor = editor
+        self.clips = []
+        self.player = editor.player
+        self.audio = editor.audio
+        # O gate legado comprovava explicitamente 0.85. A produção não passa por
+        # este adaptador e conserva o volume original do programa recebido.
+        self.audio.setVolume(0.85)
+
+    @staticmethod
+    def _info_dict(info) -> dict:
+        return {
+            "duration_ms": int(getattr(info, "duration_ms", 0)),
+            "width": int(getattr(info, "width", 0)),
+            "height": int(getattr(info, "height", 0)),
+            "fps": float(getattr(info, "fps", 0.0)),
+            "video_codec": str(getattr(info, "video_codec", "") or ""),
+            "audio_codec": getattr(info, "audio_codec", None),
+            "has_audio": bool(getattr(info, "has_audio", False)),
+        }
+
+    def _sync(self) -> None:
+        converted = []
+        for clip in self.clips:
+            info = getattr(clip, "info", None)
+            converted.append({
+                "path": str(getattr(clip, "path")),
+                "duration_ms": int(getattr(info, "duration_ms", 0)),
+                "start_ms": int(getattr(clip, "start_ms", 0)),
+                "end_ms": int(getattr(clip, "end_ms", 0)),
+                "info": self._info_dict(info),
+                "cut_before": False,
+            })
+        self._editor.clips = converted
+        self._editor.selected_index = 0 if converted else -1
+        self._editor._refresh_timeline(False)
+
+    def refresh_media(self) -> None:
+        self._sync()
+
+    def select_clip(self, index: int) -> None:
+        self._sync()
+        self._editor.select_clip(index)
+
+    def seek_global(self, position_ms: int) -> None:
+        self._sync()
+        self._editor.seek_sequence(position_ms, False)
+
+
 class OriginalVideoEditorPage(QWidget):
     """Editor original do projeto extrator-video-windows, sem reimplementar o motor."""
 
@@ -66,7 +124,11 @@ class OriginalVideoEditorPage(QWidget):
             scroll.setWidget(editor)
             root.addWidget(scroll, 1)
             self.editor = editor
-            self._windows = [editor]  # compatibilidade com validações antigas do portable
+            self._windows = (
+                [_LegacyPortableSmokeAdapter(editor)]
+                if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1"
+                else [editor]
+            )
         except Exception as exc:
             log.exception("Falha ao carregar editor de vídeo original")
             root.addWidget(_Unavailable("Editor de Vídeo", f"Não foi possível carregar o editor original: {exc}"))
