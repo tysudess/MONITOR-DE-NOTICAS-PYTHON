@@ -21,10 +21,16 @@ a = Analysis(
         + fitz_hidden
         + trust_hidden
         + [
+            # Capas é carregado dinamicamente a partir do fonte original e usa
+            # WebEngine; o Editor de Vídeo original também é carregado
+            # dinamicamente e usa QtMultimedia. Portanto esses imports não podem
+            # depender de descoberta estática do PyInstaller.
             "PySide6.QtWebEngineCore",
             "PySide6.QtWebEngineWidgets",
             "PySide6.QtWebChannel",
             "PySide6.QtPrintSupport",
+            "PySide6.QtMultimedia",
+            "PySide6.QtMultimediaWidgets",
         ]
     ),
     hookspath=[],
