@@ -1,0 +1,53 @@
+name: Validate Refined UI
+
+on:
+  push:
+    branches:
+      - layout/refino-global-fiel-v5
+    paths:
+      - 'src/monitor_noticias/ui/**'
+      - 'scripts/capture_refined_layouts.py'
+      - 'tests/**'
+      - 'requirements.txt'
+      - '.github/workflows/refined-ui-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Compile Python UI
+        shell: pwsh
+        run: python -m compileall -q src scripts run.py
+      - name: Run regression suite
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MONITOR_DISABLE_WEATHER: '1'
+        run: python -m pytest -q
+      - name: Capture all refined screens
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: windows
+          MONITOR_DISABLE_WEATHER: '1'
+        run: python scripts/capture_refined_layouts.py
+      - name: Upload visual validation set
+        uses: actions/upload-artifact@v4
+        with:
+          name: refined-ui-1721x914
+          path: artifacts/refined-ui/*.png
+          if-no-files-found: error
+          retention-days: 14
