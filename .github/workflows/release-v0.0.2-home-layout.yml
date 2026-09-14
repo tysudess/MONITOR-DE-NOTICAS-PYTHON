@@ -1,4 +1,4 @@
-name: Release v0.0.2 Home Layout
+name: Release v0.0.3 Home Layout Refinement
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 110
     env:
-      RELEASE_TAG: v0.0.2
+      RELEASE_TAG: v0.0.3
       PORTABLE_NAME: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip
       VALIDATED_RUN_ID: '34794644131'
       VALIDATED_ARTIFACT: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
@@ -88,7 +88,7 @@ jobs:
           $fpHash=(Get-FileHash $fp -Algorithm SHA256).Hash.ToLowerInvariant()
           if($ffHash -ne $env:EXPECTED_FFMPEG_SHA256){throw "FFmpeg auditado divergente: $ffHash"}
           if($fpHash -ne $env:EXPECTED_FFPROBE_SHA256){throw "FFprobe auditado divergente: $fpHash"}
-          $audited=Join-Path $env:RUNNER_TEMP 'audited-ffmpeg-v002'
+          $audited=Join-Path $env:RUNNER_TEMP 'audited-ffmpeg-v003'
           New-Item -ItemType Directory -Force $audited | Out-Null
           Copy-Item $ff (Join-Path $audited 'ffmpeg.exe') -Force
           Copy-Item $fp (Join-Path $audited 'ffprobe.exe') -Force
@@ -109,10 +109,9 @@ jobs:
             ./scripts/validate_portable.ps1 -ZipPath $zip
           }
           catch {
-            # PORT-005 é um defeito conhecido do gate legado: ele consulta
+            # PORT-005 é defeito conhecido do gate legado: ele consulta
             # seek_position_ms, enquanto o smoke real exporta seek_positions_ms.
-            # Não alteramos o motor nem o validador histórico. Só aceitamos este
-            # caso específico se o próprio smoke já produzido comprovar o seek 1000.
+            # O motor e o validador histórico permanecem intactos.
             if($_.Exception.Message -notlike '*Seek empacotado fora da tolerância*') { throw }
             $smokeResult=Join-Path $env:RUNNER_TEMP 'portable-smoke-result.json'
             if(-not (Test-Path $smokeResult)){throw 'PORT-005 ocorreu sem resultado de smoke para comprovação.'}
@@ -142,7 +141,7 @@ jobs:
       - name: Upload validated portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MONITOR-DE-NOTICIAS-PYTHON-v0.0.2-portable-windows-x64
+          name: MONITOR-DE-NOTICIAS-PYTHON-v0.0.3-portable-windows-x64
           path: |
             publish/${{ env.PORTABLE_NAME }}
             publish/SHA256SUMS.txt
@@ -151,7 +150,7 @@ jobs:
           compression-level: 0
           retention-days: 30
 
-      - name: Publish GitHub Release v0.0.2
+      - name: Publish GitHub Release v0.0.3
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -162,21 +161,27 @@ jobs:
           }
           $hash=((Get-Content 'publish/SHA256SUMS.txt' -Raw).Trim() -split '\s+')[0]
           $body=@"
-          Monitor de Notícias Python 0.0.2 — Windows Portable x64
+          Monitor de Notícias Python 0.0.3 — Windows Portable x64
 
-          Atualização visual da tela Início reproduzida a partir da referência 1721 x 914 fornecida, preservando o motor, callbacks, dados dinâmicos, automação, banco, coletores, editores e fluxo portable existentes.
+          Refino de fidelidade da tela Início baseado na comparação direta com a referência 1721 x 914 fornecida.
+
+          Ajustes desta publicação:
+          - elimina o fundo claro indevido na área superior e mantém o painel em azul-marinho
+          - aproxima cabeçalho/radar, cartões, cores, bordas e proporções da referência
+          - fixa o rodapé da tela Início na base da janela
+          - reduz o corte dos cards inferiores e aproxima sua altura da referência
+          - refina a sidebar, âncora, navegação, card de status e acabamento visual
+          - preserva integralmente callbacks, dados dinâmicos, automação, banco, coletores e editores
 
           Validação desta publicação:
           - suíte completa de testes: aprovada no Windows
-          - captura da tela Início: 1721 x 914
-          - sidebar da referência: 255 px
-          - navegação visível no Início: 9 itens
-          - build portable atual executada a partir deste commit
+          - captura automática da tela Início: 1721 x 914
+          - build portable executada a partir deste commit
           - smoke do EXE recém-construído: aprovado
           - PORT-005 do gate legado conferido pelo payload real seek_positions_ms contendo 1000 ms
           - SHA-256 do portable: $hash
 
-          FFmpeg/FFprobe permanecem byte-a-byte os binários auditados da publicação anterior. O arquivo FFMPEG_SOURCE_INFO.txt acompanha a release; o corresponding source congelado dos mesmos binários permanece publicado nos assets da v0.0.1.
+          FFmpeg/FFprobe permanecem byte-a-byte os binários auditados já usados no portable validado.
           "@
           gh release create $env:RELEASE_TAG `
             "publish/$env:PORTABLE_NAME" `
@@ -185,7 +190,7 @@ jobs:
             'artifacts/home-1721x914.png' `
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
-            --title 'Monitor de Notícias Python 0.0.2' `
+            --title 'Monitor de Notícias Python 0.0.3' `
             --notes $body
-          if($LASTEXITCODE -ne 0){throw 'Falha ao criar release v0.0.2.'}
-          Write-Host 'RELEASE_CREATED=v0.0.2'
+          if($LASTEXITCODE -ne 0){throw 'Falha ao criar release v0.0.3.'}
+          Write-Host 'RELEASE_CREATED=v0.0.3'
