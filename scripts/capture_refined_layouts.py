@@ -40,7 +40,11 @@ def main() -> int:
     for section, name in targets:
         window.navigate(section)
         window.pages[section].refresh(window.controller.state)
-        app.processEvents(); app.processEvents()
+        # Atualiza relógio, status de proxy/automação, badge e rodapé sem
+        # depender do QTimer; o clima permanece desabilitado no gate visual.
+        window._tick()
+        app.processEvents()
+        app.processEvents()
         path = out_dir / f"{name}-1721x914.png"
         if not window.grab().save(str(path), "PNG"):
             raise RuntimeError(f"Falha ao salvar {path}")
