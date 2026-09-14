@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from monitor_noticias.ui.catalog import REGIONS, STATES
 from monitor_noticias.ui.refined_base import BasePage, ToggleSwitch, card, secondary
@@ -9,82 +20,363 @@ from monitor_noticias.ui.refined_base import BasePage, ToggleSwitch, card, secon
 
 class SourceRow(QWidget):
     toggled = Signal(str, bool)
-    def __init__(self, source, checked: bool, enabled: bool) -> None:
-        super().__init__(); self.source=source
-        row=QHBoxLayout(self); row.setContentsMargins(10,4,10,4); row.setSpacing(12)
-        self.check=QCheckBox(); self.check.setChecked(checked); self.check.setEnabled(enabled); row.addWidget(self.check)
-        initials="".join(part[:1] for part in source.name.split()[:3]).upper()[:3] or source.name[:3].upper(); sig=QLabel(initials); sig.setFixedSize(64,38); sig.setAlignment(Qt.AlignmentFlag.AlignCenter); sig.setStyleSheet("color:#ffffff;background:#087af7;border:1px solid #22c5ff;border-radius:8px;font-weight:800;"); row.addWidget(sig)
-        text=QVBoxLayout(); name=QLabel(source.name); name.setObjectName("smallTitle"); meta=QLabel(f"{source.group} • {getattr(source,'region','Nacional')} • {getattr(source,'state','') or 'BR'}"); meta.setObjectName("smallText"); text.addWidget(name); text.addWidget(meta); row.addLayout(text,1)
-        badge=QLabel("modo todos" if not enabled else "selecionada" if checked else "disponível"); badge.setStyleSheet("color:#19e5a1;border:1px solid #0bba82;border-radius:7px;padding:5px 10px;font-weight:700;"); row.addWidget(badge); arrow=QLabel("›"); arrow.setStyleSheet("color:#20aaff;font-size:28px;"); row.addWidget(arrow)
-        self.check.toggled.connect(lambda v:self.toggled.emit(source.id,v))
+
+    def __init__(self, source, checked: bool, enabled: bool, all_mode: bool = False) -> None:
+        super().__init__()
+        self.source = source
+        row = QHBoxLayout(self)
+        row.setContentsMargins(12, 5, 12, 5)
+        row.setSpacing(12)
+
+        self.check = QCheckBox()
+        self.check.setChecked(checked)
+        self.check.setEnabled(enabled)
+        self.check.setToolTip(
+            "Desative 'Todos os veículos' para escolher fontes individualmente."
+            if not enabled and all_mode else
+            "Incluir ou remover esta fonte das buscas."
+        )
+        row.addWidget(self.check)
+
+        initials = "".join(part[:1] for part in source.name.split()[:3]).upper()[:3] or source.name[:3].upper()
+        sig = QLabel(initials)
+        sig.setFixedSize(58, 42)
+        sig.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sig.setStyleSheet(
+            "color:#ffffff;background:#087af7;border:1px solid #22c5ff;"
+            "border-radius:9px;font-weight:800;"
+        )
+        row.addWidget(sig)
+
+        text = QVBoxLayout()
+        text.setSpacing(1)
+        name = QLabel(source.name)
+        name.setObjectName("smallTitle")
+        meta = QLabel(
+            f"{source.group}  •  {getattr(source, 'region', 'Nacional') or 'Nacional'}"
+            f"  •  {getattr(source, 'state', '') or 'BR'}"
+        )
+        meta.setObjectName("smallText")
+        text.addWidget(name)
+        text.addWidget(meta)
+        row.addLayout(text, 1)
+
+        self.badge = QLabel()
+        self.badge.setMinimumWidth(118)
+        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if not enabled and all_mode:
+            badge_text = "Incluída por Todos"
+            badge_style = "color:#18e39c;border:1px solid #0ba779;background:#063b3f;"
+        elif checked:
+            badge_text = "Selecionada"
+            badge_style = "color:#18e39c;border:1px solid #0ba779;background:#063b3f;"
+        else:
+            badge_text = "Disponível"
+            badge_style = "color:#8fc9e9;border:1px solid #0a6b98;background:#062d49;"
+        self.badge.setText(badge_text)
+        self.badge.setStyleSheet(
+            badge_style + "border-radius:7px;padding:5px 9px;font-weight:700;"
+        )
+        row.addWidget(self.badge)
+        self.check.toggled.connect(lambda value: self.toggled.emit(source.id, value))
 
 
 class SourcesPage(BasePage):
-    def __init__(self,controller):
-        super().__init__(controller); self._guard=False; self._signature=None; self._tab=0
-        top,tl=card("filterCard",(14,10,14,12),8)
-        tabrow=QHBoxLayout(); self.tab_buttons=[]
-        for idx,text in enumerate(("Notícias","Vídeos","Mídia especializada")):
-            b=secondary(QPushButton(text)); b.setCheckable(True); b.setChecked(idx==0); b.clicked.connect(lambda _=False,i=idx:self._set_tab(i)); tabrow.addWidget(b); self.tab_buttons.append(b)
-        tabrow.addStretch(); self.query=QLineEdit(); self.query.setPlaceholderText("⌕   Pesquisar fonte..."); self.query.setMaximumWidth(460); tabrow.addWidget(self.query); tl.addLayout(tabrow)
-        rrow=QHBoxLayout(); rrow.addWidget(QLabel("Região")); self.region_buttons=[]
-        for region in REGIONS:
-            b=secondary(QPushButton(region)); b.setCheckable(True); b.setChecked(region=="Todas"); b.clicked.connect(lambda _=False,r=region:self._set_region(r)); rrow.addWidget(b); self.region_buttons.append((region,b))
-        rrow.addStretch(); tl.addLayout(rrow)
-        self.region="Todas"; self.state="Todos"; self._state_regions={code:reg for code,_name,reg in STATES}; srow=QHBoxLayout(); srow.addWidget(QLabel("Estado")); self.state_buttons=[]; allb=secondary(QPushButton("Todos")); allb.setCheckable(True); allb.setChecked(True); allb.clicked.connect(lambda:self._set_state("Todos")); srow.addWidget(allb); self.state_buttons.append(("Todos",allb))
-        for code,name,reg in STATES:
-            b=secondary(QPushButton(code)); b.setCheckable(True); b.clicked.connect(lambda _=False,c=code:self._set_state(c)); srow.addWidget(b); self.state_buttons.append((code,b))
-        srow.addStretch(); tl.addLayout(srow); self._sync_state_buttons(); self.root.addWidget(top)
-        allbox,_=card("statusCard",(16,10,16,10),4); al=allbox.layout(); ar=QHBoxLayout(); globe=QLabel("●"); globe.setStyleSheet("color:#13e39a;font-size:27px;"); ar.addWidget(globe); at=QVBoxLayout(); title=QLabel("TODOS OS VEÍCULOS — SEM EXCEÇÃO"); title.setObjectName("greenText"); sub=QLabel("Ligado: aceita qualquer veículo encontrado, inclusive fora do catálogo padrão."); sub.setObjectName("smallText"); at.addWidget(title); at.addWidget(sub); ar.addLayout(at,1); self.all_label=QLabel("LIGADO"); self.all_label.setObjectName("greenText"); ar.addWidget(self.all_label); self.all_news=ToggleSwitch(); ar.addWidget(self.all_news); al.addLayout(ar); self.root.addWidget(allbox)
-        tools,_=card("filterCard",(14,8,14,8),4); tr=QHBoxLayout(); self.info=QLabel(); self.info.setObjectName("sectionTitle"); tr.addWidget(self.info); tr.addStretch(); self.select_visible=QPushButton("Selecionar visíveis"); self.clear_visible=secondary(QPushButton("Limpar visíveis")); self.select_all=secondary(QPushButton("Todas")); self.clear_all=secondary(QPushButton("Nenhuma")); [tr.addWidget(b) for b in (self.select_visible,self.clear_visible,self.select_all,self.clear_all)]; tools.layout().addLayout(tr); self.root.addWidget(tools)
-        self.list=QListWidget(); self.list.setSpacing(3); self.root.addWidget(self.list,1)
-        self.query.textChanged.connect(lambda _:self.refresh(controller.state)); self.all_news.toggled.connect(self._all_news_changed); self.select_visible.clicked.connect(lambda:self._set_visible(True)); self.clear_visible.clicked.connect(lambda:self._set_visible(False)); self.select_all.clicked.connect(lambda:self._set_all(True)); self.clear_all.clicked.connect(lambda:self._set_all(False))
-    def _set_tab(self,i): self._tab=i; [b.setChecked(j==i) for j,b in enumerate(self.tab_buttons)]; self._signature=None; self.refresh(self.controller.state)
-    def _set_region(self,r):
-        self.region=r; [b.setChecked(name==r) for name,b in self.region_buttons]; self.state="Todos"; [b.setChecked(name=="Todos") for name,b in self.state_buttons]; self._sync_state_buttons(); self._signature=None; self.refresh(self.controller.state)
-    def _sync_state_buttons(self):
-        for name,button in self.state_buttons:
-            visible = name == "Todos" or self.region in {"Todas", "Nacional"} or self._state_regions.get(name) == self.region
-            button.setVisible(visible)
-    def _set_state(self,s): self.state=s; [b.setChecked(name==s) for name,b in self.state_buttons]; self._signature=None; self.refresh(self.controller.state)
-    def _all_news_changed(self,v):
-        if self._guard:return
-        self.controller.news_all_sources=v; self._signature=None; self.refresh(self.controller.state)
-    def _base(self): return self.controller.news_sources if self._tab==0 else (self.controller.video_sources if self._tab==1 else self.controller.specialized_sources)
+    """Seleção de fontes com filtros legíveis, preservando as preferências existentes."""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self._guard = False
+        self._signature = None
+        self._tab = 0
+        self.region = "Todas"
+        self.state = "Todos"
+        self._state_regions = {code: region for code, _name, region in STATES}
+
+        top, top_layout = card("filterCard", (14, 11, 14, 12), 9)
+
+        first = QHBoxLayout()
+        self.tab_buttons: list[QPushButton] = []
+        for index, text in enumerate(("Notícias", "Vídeos", "Mídia especializada")):
+            button = secondary(QPushButton(text))
+            button.setCheckable(True)
+            button.setMinimumHeight(42)
+            button.setChecked(index == 0)
+            button.clicked.connect(lambda _checked=False, i=index: self._set_tab(i))
+            first.addWidget(button)
+            self.tab_buttons.append(button)
+        first.addStretch()
+        self.query = QLineEdit()
+        self.query.setPlaceholderText("⌕   Pesquisar por nome, região, estado ou grupo...")
+        self.query.setMinimumWidth(390)
+        self.query.setMaximumWidth(560)
+        first.addWidget(self.query)
+        top_layout.addLayout(first)
+
+        filters = QHBoxLayout()
+        filters.setSpacing(8)
+        region_label = QLabel("Região")
+        region_label.setObjectName("smallTitle")
+        filters.addWidget(region_label)
+        self.region_combo = QComboBox()
+        self.region_combo.setMinimumWidth(170)
+        self.region_combo.addItems(REGIONS)
+        filters.addWidget(self.region_combo)
+        state_label = QLabel("Estado")
+        state_label.setObjectName("smallTitle")
+        filters.addWidget(state_label)
+        self.state_combo = QComboBox()
+        self.state_combo.setMinimumWidth(185)
+        filters.addWidget(self.state_combo)
+        self.filter_hint = QLabel("Use os filtros para reduzir a lista sem alterar sua seleção.")
+        self.filter_hint.setObjectName("smallText")
+        filters.addWidget(self.filter_hint)
+        filters.addStretch()
+        top_layout.addLayout(filters)
+        self.root.addWidget(top)
+
+        allbox, all_layout = card("statusCard", (16, 11, 16, 11), 5)
+        all_row = QHBoxLayout()
+        globe = QLabel("●")
+        globe.setStyleSheet("color:#13e39a;font-size:27px;")
+        all_row.addWidget(globe)
+        all_text = QVBoxLayout()
+        self.all_title = QLabel("Todos os veículos — sem exceção")
+        self.all_title.setObjectName("greenText")
+        self.all_description = QLabel(
+            "Quando ligado, qualquer veículo encontrado é aceito e a seleção individual abaixo fica apenas informativa."
+        )
+        self.all_description.setObjectName("smallText")
+        self.all_description.setWordWrap(True)
+        all_text.addWidget(self.all_title)
+        all_text.addWidget(self.all_description)
+        all_row.addLayout(all_text, 1)
+        self.all_label = QLabel("LIGADO")
+        self.all_label.setObjectName("greenText")
+        all_row.addWidget(self.all_label)
+        self.all_news = ToggleSwitch()
+        all_row.addWidget(self.all_news)
+        all_layout.addLayout(all_row)
+        self.root.addWidget(allbox)
+
+        tools, tools_layout = card("filterCard", (14, 9, 14, 9), 5)
+        toolbar = QHBoxLayout()
+        self.info = QLabel()
+        self.info.setObjectName("sectionTitle")
+        toolbar.addWidget(self.info)
+        self.selection_note = QLabel()
+        self.selection_note.setObjectName("smallText")
+        toolbar.addWidget(self.selection_note)
+        toolbar.addStretch()
+        self.select_visible = QPushButton("✓  Selecionar visíveis")
+        self.clear_visible = secondary(QPushButton("Limpar visíveis"))
+        self.select_all = secondary(QPushButton("Selecionar todas"))
+        self.clear_all = secondary(QPushButton("Limpar todas"))
+        for button in (self.select_visible, self.clear_visible, self.select_all, self.clear_all):
+            toolbar.addWidget(button)
+        tools_layout.addLayout(toolbar)
+        self.root.addWidget(tools)
+
+        self.list = QListWidget()
+        self.list.setSpacing(4)
+        self.list.setAlternatingRowColors(False)
+        self.root.addWidget(self.list, 1)
+
+        self.query.textChanged.connect(lambda _text: self._request_refresh())
+        self.region_combo.currentTextChanged.connect(self._region_changed)
+        self.state_combo.currentTextChanged.connect(self._state_changed)
+        self.all_news.toggled.connect(self._all_news_changed)
+        self.select_visible.clicked.connect(lambda: self._set_visible(True))
+        self.clear_visible.clicked.connect(lambda: self._set_visible(False))
+        self.select_all.clicked.connect(lambda: self._set_all(True))
+        self.clear_all.clicked.connect(lambda: self._set_all(False))
+        self._populate_states()
+
+    def _request_refresh(self) -> None:
+        if self._guard:
+            return
+        self._signature = None
+        self.refresh(self.controller.state)
+
+    def _set_tab(self, index: int) -> None:
+        self._tab = index
+        for current, button in enumerate(self.tab_buttons):
+            button.setChecked(current == index)
+        self._signature = None
+        self.refresh(self.controller.state)
+
+    def _region_changed(self, region: str) -> None:
+        if self._guard:
+            return
+        self.region = region or "Todas"
+        self.state = "Todos"
+        self._populate_states()
+        self._signature = None
+        self.refresh(self.controller.state)
+
+    def _state_changed(self, state: str) -> None:
+        if self._guard:
+            return
+        self.state = state or "Todos"
+        self._signature = None
+        self.refresh(self.controller.state)
+
+    def _populate_states(self) -> None:
+        self._guard = True
+        try:
+            self.state_combo.clear()
+            self.state_combo.addItem("Todos")
+            if self.region == "Nacional":
+                pass
+            else:
+                for code, name, region in STATES:
+                    if self.region == "Todas" or region == self.region:
+                        self.state_combo.addItem(f"{code} — {name}", code)
+            self.state_combo.setCurrentIndex(0)
+        finally:
+            self._guard = False
+
+    def _selected_state_code(self) -> str:
+        if self.state_combo.currentIndex() <= 0:
+            return "Todos"
+        data = self.state_combo.currentData()
+        return str(data) if data else "Todos"
+
+    def _all_news_changed(self, value: bool) -> None:
+        if self._guard or self._tab == 1:
+            return
+        self.controller.news_all_sources = value
+        self._signature = None
+        self.refresh(self.controller.state)
+
+    def _base(self):
+        if self._tab == 0:
+            return self.controller.news_sources
+        if self._tab == 1:
+            return self.controller.video_sources
+        return self.controller.specialized_sources
+
     def _selected_sources(self):
-        q=self.query.text().strip().lower(); result=[]
+        query = self.query.text().strip().lower()
+        result = []
+        selected_state = self._selected_state_code()
         for source in self._base():
-            src_region=getattr(source,"region","Nacional") or "Nacional"; src_state=getattr(source,"state","") or "BR"
-            if self.region!="Todas" and src_region!=self.region: continue
-            if self.state!="Todos" and src_state!=self.state: continue
-            hay=f"{source.name} {src_region} {src_state} {source.group} {' '.join(source.aliases)}".lower()
-            if q and q not in hay: continue
+            src_region = getattr(source, "region", "Nacional") or "Nacional"
+            src_state = getattr(source, "state", "") or "BR"
+            if self.region != "Todas" and src_region != self.region:
+                continue
+            if selected_state != "Todos" and src_state != selected_state:
+                continue
+            haystack = (
+                f"{source.name} {src_region} {src_state} {source.group} "
+                f"{' '.join(getattr(source, 'aliases', ()))}"
+            ).lower()
+            if query and query not in haystack:
+                continue
             result.append(source)
         return result
-    def refresh(self,state):
-        self._guard=True; self.all_news.setChecked(self.controller.news_all_sources if self._tab!=1 else False); self.all_news.setEnabled(self._tab!=1); self.all_label.setText("LIGADO" if self.controller.news_all_sources and self._tab!=1 else "DESLIGADO" if self._tab!=1 else "N/A"); self._guard=False
-        visible=self._selected_sources(); self.info.setText(f"▤   {len(visible)} fonte(s) visível(is)" + ("   seletor ignorado" if self.controller.news_all_sources and self._tab!=1 else ""))
-        selected=self.controller.selected_video_source_ids if self._tab==1 else self.controller.selected_news_source_ids; enabled=self._tab==1 or not self.controller.news_all_sources
-        signature=(self._tab,self.region,self.state,self.query.text(),self.controller.news_all_sources,tuple(sorted(selected)),tuple(s.id for s in visible))
-        if signature==self._signature:return
-        self._signature=signature; self.list.clear()
-        for source in visible:
-            item=QListWidgetItem(); item.setSizeHint(QSize(0,66)); self.list.addItem(item); widget=SourceRow(source,(not enabled or source.id in selected),enabled); widget.toggled.connect(self._source_toggled); self.list.setItemWidget(item,widget)
-    def _source_toggled(self,source_id,checked):
-        if self._tab==1:self.controller.set_video_source(source_id,checked)
-        else:self.controller.set_news_source(source_id,checked)
-        self._signature=None
-    def _set_visible(self,checked):
-        for source in self._selected_sources():
-            if self._tab==1:self.controller.set_video_source(source.id,checked)
-            else:self.controller.set_news_source(source.id,checked)
-        self._signature=None; self.refresh(self.controller.state)
-    def _set_all(self,checked):
-        base=self._base()
-        if self._tab==1:self.controller.selected_video_source_ids={s.id for s in base} if checked else set()
-        else:
-            if self._tab==0 and checked:self.controller.news_all_sources=True
-            elif self._tab==0 and not checked:self.controller.news_all_sources=False; self.controller.selected_news_source_ids=set()
+
+    def refresh(self, state) -> None:
+        all_mode = self.controller.news_all_sources and self._tab != 1
+        self._guard = True
+        try:
+            self.all_news.setEnabled(self._tab != 1)
+            self.all_news.setChecked(all_mode)
+            self.all_news._sync(all_mode)
+            if self._tab == 1:
+                self.all_label.setText("N/A")
+                self.all_title.setText("Fontes de vídeo")
+                self.all_description.setText(
+                    "Vídeos usam seleção própria; escolha abaixo quais fontes participam da varredura."
+                )
             else:
-                ids=self.controller.selected_news_source_ids; spec={s.id for s in base}; self.controller.selected_news_source_ids=(ids|spec) if checked else (ids-spec)
-        self._signature=None; self.refresh(self.controller.state)
+                self.all_label.setText("LIGADO" if all_mode else "DESLIGADO")
+                self.all_title.setText("Todos os veículos — sem exceção")
+                self.all_description.setText(
+                    "Quando ligado, qualquer veículo encontrado é aceito e a seleção individual abaixo fica apenas informativa."
+                    if all_mode else
+                    "Modo seletivo ativo: somente as fontes marcadas abaixo participam da seleção por catálogo."
+                )
+        finally:
+            self._guard = False
+
+        visible = self._selected_sources()
+        selected = (
+            self.controller.selected_video_source_ids
+            if self._tab == 1 else
+            self.controller.selected_news_source_ids
+        )
+        enabled = self._tab == 1 or not all_mode
+        selected_visible = sum(1 for source in visible if source.id in selected)
+        if all_mode:
+            selected_visible = len(visible)
+        self.info.setText(f"▤   {len(visible)} fonte(s) visível(is)")
+        self.selection_note.setText(
+            "Modo Todos ativo — seleção individual ignorada"
+            if all_mode else
+            f"{selected_visible} selecionada(s) neste filtro"
+        )
+        for button in (self.select_visible, self.clear_visible, self.select_all, self.clear_all):
+            button.setEnabled(enabled)
+
+        signature = (
+            self._tab,
+            self.region,
+            self._selected_state_code(),
+            self.query.text(),
+            all_mode,
+            tuple(sorted(selected)),
+            tuple(source.id for source in visible),
+        )
+        if signature == self._signature:
+            return
+        self._signature = signature
+        self.list.clear()
+        for source in visible:
+            item = QListWidgetItem()
+            item.setSizeHint(QSize(0, 68))
+            self.list.addItem(item)
+            widget = SourceRow(
+                source,
+                all_mode or source.id in selected,
+                enabled,
+                all_mode=all_mode,
+            )
+            widget.toggled.connect(self._source_toggled)
+            self.list.setItemWidget(item, widget)
+
+    def _source_toggled(self, source_id: str, checked: bool) -> None:
+        if self._tab == 1:
+            self.controller.set_video_source(source_id, checked)
+        else:
+            self.controller.set_news_source(source_id, checked)
+        self._signature = None
+        self.refresh(self.controller.state)
+
+    def _set_visible(self, checked: bool) -> None:
+        for source in self._selected_sources():
+            if self._tab == 1:
+                self.controller.set_video_source(source.id, checked)
+            else:
+                self.controller.set_news_source(source.id, checked)
+        self._signature = None
+        self.refresh(self.controller.state)
+
+    def _set_all(self, checked: bool) -> None:
+        base = self._base()
+        if self._tab == 1:
+            self.controller.selected_video_source_ids = {source.id for source in base} if checked else set()
+        else:
+            if self._tab == 0 and checked:
+                self.controller.news_all_sources = True
+            elif self._tab == 0 and not checked:
+                self.controller.news_all_sources = False
+                self.controller.selected_news_source_ids = set()
+            else:
+                ids = self.controller.selected_news_source_ids
+                specialized = {source.id for source in base}
+                self.controller.selected_news_source_ids = (
+                    ids | specialized if checked else ids - specialized
+                )
+        self._signature = None
+        self.refresh(self.controller.state)
