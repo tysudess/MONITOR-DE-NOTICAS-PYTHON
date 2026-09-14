@@ -56,25 +56,25 @@ Invoke-WebRequest -Uri "https://github.com/denoland/deno/releases/download/v2.9.
 Expand-Archive (Join-Path $ToolsRoot "deno.zip") (Join-Path $ToolsRoot "deno") -Force
 Copy-Item (Join-Path $ToolsRoot "deno/deno.exe") (Join-Path $BinStage "deno.exe") -Force
 
-$ffSource = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-13-14-50/ffmpeg-n9.0.1-29-gad500d59cb-win64-gpl-9.0.zip"
-Invoke-WebRequest -Uri $ffSource -OutFile (Join-Path $ToolsRoot "ffmpeg.zip") -TimeoutSec 240
-if (-not (Test-Path (Join-Path $ToolsRoot "ffmpeg.zip")) -or (Get-Item (Join-Path $ToolsRoot "ffmpeg.zip")).Length -le 1000000) {
-    throw "Não foi possível obter o FFmpeg BtbN exato auditado no Passo 26."
+# FFmpeg/FFprobe: o workflow deve materializar os executáveis byte-a-byte do último portable validado.
+# Não baixar/recompilar/substituir FFmpeg neste passo.
+$validatedFfmpegDir = $env:MONITOR_VALIDATED_FFMPEG_DIR
+if (-not $validatedFfmpegDir -or -not (Test-Path $validatedFfmpegDir)) {
+    throw "MONITOR_VALIDATED_FFMPEG_DIR ausente. O build requer os binários FFmpeg/FFprobe auditados do portable validado."
 }
-Expand-Archive (Join-Path $ToolsRoot "ffmpeg.zip") (Join-Path $ToolsRoot "ffmpeg") -Force
-$ffmpeg = Get-ChildItem (Join-Path $ToolsRoot "ffmpeg") -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
-$ffprobe = Get-ChildItem (Join-Path $ToolsRoot "ffmpeg") -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
-if (-not $ffmpeg -or -not $ffprobe) { throw "ffmpeg.exe/ffprobe.exe ausentes." }
+$ffmpegPath = Join-Path $validatedFfmpegDir "ffmpeg.exe"
+$ffprobePath = Join-Path $validatedFfmpegDir "ffprobe.exe"
+if (-not (Test-Path $ffmpegPath) -or -not (Test-Path $ffprobePath)) { throw "ffmpeg.exe/ffprobe.exe auditados ausentes." }
 $expectedFfmpegSha = "828bef350665c78b76e4bc3597b1714c66d3bd79a642948243e59754dab1878d"
 $expectedFfprobeSha = "897cabca3eb2a16be9bf111a9955277ec93a17527aa6c6b108fd07ab182927f6"
-$downloadedFfmpegSha = (Get-FileHash $ffmpeg.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-$downloadedFfprobeSha = (Get-FileHash $ffprobe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($downloadedFfmpegSha -ne $expectedFfmpegSha) { throw "FFmpeg baixado diverge do binário auditado: $downloadedFfmpegSha" }
-if ($downloadedFfprobeSha -ne $expectedFfprobeSha) { throw "FFprobe baixado diverge do binário auditado: $downloadedFfprobeSha" }
+$downloadedFfmpegSha = (Get-FileHash $ffmpegPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$downloadedFfprobeSha = (Get-FileHash $ffprobePath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($downloadedFfmpegSha -ne $expectedFfmpegSha) { throw "FFmpeg materializado diverge do binário auditado: $downloadedFfmpegSha" }
+if ($downloadedFfprobeSha -ne $expectedFfprobeSha) { throw "FFprobe materializado diverge do binário auditado: $downloadedFfprobeSha" }
 Write-Host "FFMPEG_AUDITED_SHA256=$downloadedFfmpegSha"
 Write-Host "FFPROBE_AUDITED_SHA256=$downloadedFfprobeSha"
-Copy-Item $ffmpeg.FullName (Join-Path $BinStage "ffmpeg.exe") -Force
-Copy-Item $ffprobe.FullName (Join-Path $BinStage "ffprobe.exe") -Force
+Copy-Item $ffmpegPath (Join-Path $BinStage "ffmpeg.exe") -Force
+Copy-Item $ffprobePath (Join-Path $BinStage "ffprobe.exe") -Force
 
 foreach ($name in @("yt-dlp.exe", "yt-dlp-stable.exe", "deno.exe", "ffmpeg.exe", "ffprobe.exe")) {
     $source = Join-Path $BinStage $name
