@@ -5,6 +5,7 @@ on:
     branches:
       - layout/inicio-dashboard-fiel
       - layout/inicio-refino-fidelidade-v2
+      - feature/inicio-dados-reais
     paths:
       - 'src/monitor_noticias/ui/**'
       - 'scripts/capture_home_layout.py'
