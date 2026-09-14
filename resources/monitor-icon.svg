@@ -1,9 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-<rect width="256" height="256" rx="46" fill="#083058"/>
-<rect x="51" y="56" width="154" height="144" rx="10" fill="#FFB731"/>
-<rect x="69" y="79" width="118" height="21" rx="4" fill="#1566B5"/>
-<rect x="72" y="118" width="42" height="48" rx="5" fill="#F4F9FF"/>
-<rect x="128" y="120" width="54" height="10" rx="5" fill="#F4F9FF"/>
-<rect x="128" y="143" width="54" height="10" rx="5" fill="#F4F9FF"/>
-<rect x="128" y="166" width="42" height="10" rx="5" fill="#F4F9FF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="68%">
+      <stop offset="0" stop-color="#074a77"/>
+      <stop offset="0.52" stop-color="#052e50"/>
+      <stop offset="1" stop-color="#031a30"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd44d"/>
+      <stop offset="0.55" stop-color="#ffc21a"/>
+      <stop offset="1" stop-color="#e08d00"/>
+    </linearGradient>
+  </defs>
+  <rect x="20" y="20" width="472" height="472" rx="92" fill="url(#bg)" stroke="#18bfff" stroke-width="10"/>
+  <g fill="none" stroke="#0879ad" opacity="0.78">
+    <circle cx="256" cy="250" r="178" stroke-width="8"/>
+    <circle cx="256" cy="250" r="138" stroke-width="5"/>
+    <circle cx="256" cy="250" r="96" stroke-width="4"/>
+    <path d="M86 250h340M256 80v340" stroke-width="4" opacity="0.6"/>
+  </g>
+  <g fill="url(#gold)" stroke="#b97400" stroke-width="4" stroke-linejoin="round">
+    <circle cx="256" cy="104" r="31" fill="#031a30" stroke="#ffc21a" stroke-width="14"/>
+    <rect x="242" y="126" width="28" height="216" rx="14"/>
+    <rect x="184" y="162" width="144" height="25" rx="12"/>
+    <path d="M256 350l-34-45h68z"/>
+    <path d="M127 304c21 69 69 108 129 108s108-39 129-108" fill="none" stroke="#ffc21a" stroke-width="25" stroke-linecap="round"/>
+    <path d="M119 309l49-26-7 58zM393 309l-49-26 7 58z"/>
+  </g>
+  <g transform="translate(327 318)">
+    <rect x="0" y="0" width="132" height="124" rx="24" fill="#eef8ff" stroke="#16bfff" stroke-width="8"/>
+    <rect x="22" y="22" width="34" height="48" rx="6" fill="#168cff"/>
+    <path d="M71 28h39M71 52h39M22 88h88" stroke="#16486e" stroke-width="9" stroke-linecap="round"/>
+  </g>
 </svg>
