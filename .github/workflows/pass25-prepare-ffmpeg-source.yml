@@ -1,0 +1,95 @@
+name: Passo 25 - Prepare FFmpeg Corresponding Source
+
+on:
+  push:
+    branches:
+      - migration/python-foundation
+    paths:
+      - '.github/workflows/pass25-prepare-ffmpeg-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        run: |
+          sudo apt-get clean
+          sudo rm -rf /opt/ghc /usr/local/.ghcup /usr/local/lib/android || true
+          docker system prune -a -f || true
+          df -h
+
+      - name: Checkout exact BtbN build recipe
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/BtbN/FFmpeg-Builds.git btbn
+          cd btbn
+          git checkout 3e6685eda92f9288c15ac320139622dcedca09a4
+          test "$(git rev-parse HEAD)" = "3e6685eda92f9288c15ac320139622dcedca09a4"
+          git status --porcelain
+
+      - name: Audit source selectors
+        run: |
+          set -euxo pipefail
+          cd btbn
+          echo '--- source selectors ---'
+          grep -R -nE 'SCRIPT_(REPO|COMMIT)|ffbuild_dockerdl|https?://' scripts.d > ../source-selectors.txt || true
+          cat ../source-selectors.txt
+          echo '--- suspicious moving refs ---'
+          grep -R -nE 'SCRIPT_COMMIT="(master|main|latest|HEAD)"|/releases/latest|/archive/(master|main)|refs/heads/' scripts.d > ../moving-refs.txt || true
+          cat ../moving-refs.txt || true
+
+      - name: Recreate dependency source cache from exact recipe
+        run: |
+          set -euxo pipefail
+          cd btbn
+          ./download.sh
+          find .cache/downloads -type f -o -type l | sort
+
+      - name: Checkout exact FFmpeg source commit
+        run: |
+          set -euxo pipefail
+          git clone --filter=blob:none https://github.com/FFmpeg/FFmpeg.git ffmpeg-source
+          cd ffmpeg-source
+          git checkout ad500d59cb6e0126add4fcb95afb4e2557c4292c
+          test "$(git rev-parse HEAD)" = "ad500d59cb6e0126add4fcb95afb4e2557c4292c"
+
+      - name: Assemble source package
+        run: |
+          set -euxo pipefail
+          ROOT='MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913'
+          mkdir -p "$ROOT/build-recipe" "$ROOT/ffmpeg-source" "$ROOT/dependency-sources"
+          rsync -a --exclude='.git' --exclude='.cache' btbn/ "$ROOT/build-recipe/"
+          rsync -a --exclude='.git' ffmpeg-source/ "$ROOT/ffmpeg-source/"
+          cp -aL btbn/.cache/downloads/. "$ROOT/dependency-sources/"
+          cp source-selectors.txt moving-refs.txt "$ROOT/"
+          cat > "$ROOT/SOURCE-PROVENANCE.txt" <<'EOF'
+          Binary provider: BtbN/FFmpeg-Builds
+          Build recipe commit: 3e6685eda92f9288c15ac320139622dcedca09a4
+          Historical release tag: autobuild-2026-09-13-14-50
+          Binary package family: ffmpeg-n9.0.1-29-gad500d59cb-win64-gpl-9.0.zip
+          FFmpeg source commit: ad500d59cb6e0126add4fcb95afb4e2557c4292c
+          Variant: win64 gpl 9.0 (static)
+          License mode: GPL/version3; no --enable-nonfree in the validated binary configuration.
+          Dependency source snapshots: recreated by BtbN download.sh at the exact build-recipe commit and included under dependency-sources/.
+          This package is technical provenance material and does not constitute a guarantee of legal compliance.
+          EOF
+          find "$ROOT" -type f -print0 | sort -z | xargs -0 sha256sum > "$ROOT/SHA256SUMS.txt"
+          zip -0 -r "${ROOT}.zip" "$ROOT"
+          sha256sum "${ROOT}.zip" | tee corresponding-source-sha256.txt
+          stat -c 'SOURCE_ZIP_BYTES=%s' "${ROOT}.zip" | tee source-size.txt
+
+      - name: Upload prepared corresponding source package
+        uses: actions/upload-artifact@v4
+        with:
+          name: MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913
+          path: |
+            MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913.zip
+            corresponding-source-sha256.txt
+            source-size.txt
+            moving-refs.txt
+          compression-level: 0
+          retention-days: 14
