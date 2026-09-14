@@ -1,0 +1,31 @@
+name: Passo 25 - Probe Original FFmpeg Source Cache
+
+on:
+  push:
+    branches:
+      - migration/python-foundation
+    paths:
+      - '.github/workflows/pass25-source-cache-probe.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact original BtbN cache
+        uses: actions/download-artifact@v4
+        with:
+          name: download-cache
+          path: original-cache
+          github-token: ${{ github.token }}
+          repository: BtbN/FFmpeg-Builds
+          run-id: 34756521749
+      - name: Prove cache
+        run: |
+          set -euxo pipefail
+          du -sh original-cache
+          find original-cache -maxdepth 3 -type f -printf '%P\t%s\n' | sort | head -100
+          echo PASS25_ORIGINAL_BTBN_CACHE_DOWNLOADED=YES
