@@ -67,7 +67,8 @@ def test_main_window_contract_and_all_navigation(app,tmp_path):
     c=make_controller(tmp_path); w=MainWindow(c,c.paths)
     assert w.windowTitle()=="Monitor de Notícias - Windows Portable v4.0.2"
     assert w.width()==1600 and w.height()==960
-    assert len(w.nav_buttons)==len(SECTION_ORDER)==12
+    assert len(w.nav_buttons)==len(SECTION_ORDER)==15
+    assert SECTION_ORDER[-1] is Section.SETTINGS
     for section in SECTION_ORDER:
         w.navigate(section); assert w.stack.currentWidget() is w.pages[section]; assert w.nav_buttons[section].isChecked()
     w.exit_application()
