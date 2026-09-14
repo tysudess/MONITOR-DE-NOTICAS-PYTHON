@@ -7,10 +7,52 @@ import os
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import Qt, QUrl, Signal
-from PySide6.QtWidgets import QLabel, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtWidgets import (
+    QFrame,
+    QLabel,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 log = logging.getLogger(__name__)
+
+
+_EMBEDDED_SCROLL_QSS = """
+QScrollArea#embeddedToolScroll {
+    background:#031a30;
+    border:1px solid #0a638d;
+    border-radius:12px;
+}
+QScrollBar:vertical {
+    background:#031725;
+    width:10px;
+    margin:4px 2px 4px 1px;
+    border:0;
+}
+QScrollBar::handle:vertical {
+    background:#0b789f;
+    min-height:36px;
+    border-radius:4px;
+}
+QScrollBar::handle:vertical:hover { background:#11a8d8; }
+QScrollBar:horizontal {
+    background:#031725;
+    height:10px;
+    margin:1px 4px 2px 4px;
+    border:0;
+}
+QScrollBar::handle:horizontal {
+    background:#0b789f;
+    min-width:36px;
+    border-radius:4px;
+}
+QScrollBar::handle:horizontal:hover { background:#11a8d8; }
+QScrollBar::add-line, QScrollBar::sub-line { width:0; height:0; }
+QScrollBar::add-page, QScrollBar::sub-page { background:transparent; }
+"""
 
 
 class _Unavailable(QWidget):
@@ -95,6 +137,7 @@ class OriginalVideoEditorPage(QWidget):
         self.editor = None
         self.vendor_module = None
         self._windows: list[QWidget] = []
+        self.scroll: QScrollArea | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -113,25 +156,59 @@ class OriginalVideoEditorPage(QWidget):
                 self.app_root / "bin" / "ffprobe.exe",
                 self,
             )
-            # O programa original já colocava o editor inteiro em QScrollArea.
-            # Mantemos a mesma decisão para que nenhuma parte da timeline suma em
-            # resoluções menores ou ao usar escala do Windows.
+            # A integração preserva integralmente o editor recebido. O refinamento
+            # abaixo atua somente no contêiner: fundo, expansão, scroll e posição
+            # inicial. Nenhum callback, codec, FFmpeg ou regra do editor é tocado.
+            editor.setObjectName("embeddedVideoEditor")
+            editor.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            editor.setStyleSheet(
+                (editor.styleSheet() or "")
+                + "\nQWidget#embeddedVideoEditor { background:#031a30; border:0; }"
+            )
             editor.setMinimumSize(1120, 900)
+            editor.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
             scroll = QScrollArea()
+            scroll.setObjectName("embeddedToolScroll")
+            scroll.setStyleSheet(_EMBEDDED_SCROLL_QSS)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.viewport().setStyleSheet("background:#031a30;border:0;")
             scroll.setWidgetResizable(True)
+            scroll.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             scroll.setWidget(editor)
             root.addWidget(scroll, 1)
+            self.scroll = scroll
             self.editor = editor
             self._windows = (
                 [_LegacyPortableSmokeAdapter(editor)]
                 if os.environ.get("MONITOR_PORTABLE_SMOKE") == "1"
                 else [editor]
             )
+            self._queue_scroll_origin_reset()
         except Exception as exc:
             log.exception("Falha ao carregar editor de vídeo original")
             root.addWidget(_Unavailable("Editor de Vídeo", f"Não foi possível carregar o editor original: {exc}"))
+
+    def _queue_scroll_origin_reset(self) -> None:
+        if self.scroll is None:
+            return
+        # Dois pulsos evitam que o foco automático de um controle interno mova a
+        # área para o meio da timeline logo após a criação da página.
+        QTimer.singleShot(0, self._reset_scroll_origin)
+        QTimer.singleShot(140, self._reset_scroll_origin)
+
+    def _reset_scroll_origin(self) -> None:
+        scroll = self.scroll
+        if scroll is None:
+            return
+        scroll.horizontalScrollBar().setValue(scroll.horizontalScrollBar().minimum())
+        scroll.verticalScrollBar().setValue(scroll.verticalScrollBar().minimum())
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._queue_scroll_origin_reset()
 
     @staticmethod
     def _load_vendor(source_dir: Path):
@@ -170,7 +247,10 @@ class OriginalVideoEditorPage(QWidget):
         pass
 
     def open_editor(self) -> None:
-        if self.editor is not None:
+        if self.scroll is not None:
+            self.scroll.viewport().setFocus(Qt.FocusReason.OtherFocusReason)
+            self._queue_scroll_origin_reset()
+        elif self.editor is not None:
             self.editor.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def shutdown(self) -> bool:
@@ -198,6 +278,7 @@ class CoversPage(QWidget):
         super().__init__()
         self.app_root = Path(app_root)
         self.window = None
+        self.scroll: QScrollArea | None = None
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -208,18 +289,44 @@ class CoversPage(QWidget):
             window = vendor_ui.MainWindow()
             window.setWindowFlags(Qt.WindowType.Widget)
             window.setParent(self)
-            window.setMinimumSize(1050, 680)
+            window.setMinimumSize(1120, 700)
+            window.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
             scroll = QScrollArea()
+            scroll.setObjectName("embeddedToolScroll")
+            scroll.setStyleSheet(_EMBEDDED_SCROLL_QSS)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.viewport().setStyleSheet("background:#031a30;border:0;")
             scroll.setWidgetResizable(True)
+            scroll.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             scroll.setWidget(window)
             root.addWidget(scroll, 1)
+            self.scroll = scroll
             window.show()
             self.window = window
+            self._queue_scroll_origin_reset()
         except Exception as exc:
             log.exception("Falha ao carregar Capas original")
             root.addWidget(_Unavailable("Capas", f"Não foi possível carregar o programa original: {exc}"))
+
+    def _queue_scroll_origin_reset(self) -> None:
+        if self.scroll is None:
+            return
+        QTimer.singleShot(0, self._reset_scroll_origin)
+        QTimer.singleShot(120, self._reset_scroll_origin)
+
+    def _reset_scroll_origin(self) -> None:
+        scroll = self.scroll
+        if scroll is None:
+            return
+        scroll.horizontalScrollBar().setValue(scroll.horizontalScrollBar().minimum())
+        scroll.verticalScrollBar().setValue(scroll.verticalScrollBar().minimum())
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._queue_scroll_origin_reset()
 
     def _load_vendor(self, source_dir: Path):
         package_dir = source_dir / "app"
