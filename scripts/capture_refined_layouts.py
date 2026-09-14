@@ -59,9 +59,9 @@ def main() -> int:
         app.processEvents()
         if section == Section.VIDEO_EDITOR:
             video_page = window.pages[section]
-            if video_page.editor.isVisible():
+            if video_page.editor.isWindow():
                 raise RuntimeError("Editor de Vídeo voltou a abrir como janela top-level.")
-            if video_page.workspace.parent() is not video_page:
+            if video_page.editor.parentWidget() is not video_page:
                 raise RuntimeError("Editor de Vídeo não está incorporado à página do Monitor.")
         path = out_dir / f"{name}-1721x914.png"
         if not window.grab().save(str(path), "PNG"):
