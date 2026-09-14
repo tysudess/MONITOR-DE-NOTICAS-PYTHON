@@ -2,9 +2,15 @@
 
 ## Binários distribuídos
 
-- `ffmpeg.exe` SHA-256: `828bef350665c78b76e4bc3597b1714c66d3bd79a642948243e59754dab1878d`
-- `ffprobe.exe` SHA-256: `897cabca3eb2a16be9bf111a9955277ec93a17527aa6c6b108fd07ab182927f6`
+- `ffmpeg.exe` SHA-256: `91678b935eb52cc740249474574b6042768b744c622347f28a1b487e1ed29915`
+- `ffprobe.exe` SHA-256: `c42ada47df746e3788e2ba3ed2f7af07662a58f9088f9894e1b14d3d5c432263`
 - versão: `n9.0.1-29-gad500d59cb-20260913`
+
+### Correção auditável de identidade
+
+Os hashes acima são os valores medidos diretamente no portable validado pelo workflow `Passo 25 - Audit FFmpeg Provenance`, run `34796296147`, que concluiu `PASS25_PROVENANCE_MATCH=YES` e comprovou igualdade byte-a-byte com o pacote BtbN de SHA-256 `a224a1dbea8b3e4e75ce17e9465a919cc74c9f027021046eaec610e40464bf27`.
+
+Os valores `828bef350665c78b76e4bc3597b1714c66d3bd79a642948243e59754dab1878d` e `897cabca3eb2a16be9bf111a9955277ec93a17527aa6c6b108fd07ab182927f6` registrados posteriormente no PASSO 26 eram inconsistentes com essa evidência primária. A correção deste manifesto não substitui nem recompila FFmpeg/FFprobe; corrige somente o registro dos hashes.
 
 ## Build BtbN exata
 
