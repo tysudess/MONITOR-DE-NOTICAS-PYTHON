@@ -1,0 +1,109 @@
+name: Release v0.0.1
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/release-v0.0.1.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    name: publish-v0.0.1
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PORTABLE_RUN_ID: '34794644131'
+      PORTABLE_ARTIFACT: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
+      PORTABLE_NAME: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip
+      PORTABLE_SHA256: 36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede
+      PORTABLE_BYTES: '477381768'
+      SOURCE_RUN_ID: '34799419049'
+      SOURCE_ARTIFACT: PASS26-FFMPEG-CORRESPONDING-SOURCE-FROZEN
+      SOURCE_NAME: MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913.zip
+      SOURCE_SHA256: 54a2b6472bfa13b7bdb35ee25f0793461d890e774074eab350e6e9eb812f35eb
+      SOURCE_BYTES: '4466155388'
+    steps:
+      - name: Download validated portable
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PORTABLE_ARTIFACT }}
+          repository: tysudess/MONITOR-DE-NOTICAS-PYTHON
+          run-id: ${{ env.PORTABLE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: release-assets/portable
+
+      - name: Download frozen Corresponding Source
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          repository: tysudess/MONITOR-DE-NOTICAS-PYTHON
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: release-assets/source
+
+      - name: Verify exact release assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $portable=Get-ChildItem 'release-assets/portable' -Recurse -File -Filter $env:PORTABLE_NAME | Select-Object -First 1
+          if(-not $portable){throw 'Portable validado não encontrado.'}
+          $pHash=(Get-FileHash $portable.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($pHash -ne $env:PORTABLE_SHA256){throw "Portable SHA divergente: $pHash"}
+          if("$($portable.Length)" -ne $env:PORTABLE_BYTES){throw "Portable tamanho divergente: $($portable.Length)"}
+
+          $source=Get-ChildItem 'release-assets/source' -Recurse -File -Filter $env:SOURCE_NAME | Select-Object -First 1
+          if(-not $source){throw 'Corresponding Source congelado não encontrado.'}
+          $sHash=(Get-FileHash $source.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sHash -ne $env:SOURCE_SHA256){throw "Source SHA divergente: $sHash"}
+          if("$($source.Length)" -ne $env:SOURCE_BYTES){throw "Source tamanho divergente: $($source.Length)"}
+
+          New-Item -ItemType Directory -Force 'publish' | Out-Null
+          Copy-Item $portable.FullName (Join-Path 'publish' $env:PORTABLE_NAME) -Force
+          Copy-Item $source.FullName (Join-Path 'publish' $env:SOURCE_NAME) -Force
+          "$pHash  $env:PORTABLE_NAME" | Set-Content 'publish/SHA256SUMS.txt' -Encoding ascii
+          "$sHash  $env:SOURCE_NAME" | Add-Content 'publish/SHA256SUMS.txt' -Encoding ascii
+          Write-Host "RELEASE_PORTABLE_SHA256=$pHash"
+          Write-Host "RELEASE_SOURCE_SHA256=$sHash"
+          Write-Host 'RELEASE_ASSETS_VERIFIED=YES'
+
+      - name: Create GitHub Release v0.0.1
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $body=@'
+          Monitor de Notícias Python 0.0.1 — Windows Portable x64
+
+          Primeira publicação da migração controlada do Monitor de Notícias para Python/PySide6.
+
+          Artefatos:
+          - MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip
+          - Corresponding Source do FFmpeg redistribuído
+          - SHA256SUMS.txt
+
+          Portable validado no run 34794644131.
+          SHA-256 do portable: 36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede
+
+          FFmpeg/FFprobe do portable tiveram proveniência auditada no run 34796296147, com correspondência byte-a-byte ao pacote BtbN analisado. O Corresponding Source congelado é publicado junto nesta mesma Release.
+
+          Observação: esta publicação foi autorizada explicitamente mesmo sem aguardar a conclusão do ciclo PASSO 27 que estava em andamento.
+          '@
+          if(gh release view v0.0.1 --repo $env:GITHUB_REPOSITORY 2>$null){
+            throw 'A release v0.0.1 já existe; não sobrescrever automaticamente.'
+          }
+          gh release create v0.0.1 `
+            'publish/MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip' `
+            'publish/MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913.zip' `
+            'publish/SHA256SUMS.txt' `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title 'Monitor de Notícias Python 0.0.1' `
+            --notes $body
+          if($LASTEXITCODE -ne 0){throw 'Falha ao criar GitHub Release.'}
+          Write-Host 'RELEASE_CREATED=v0.0.1'
