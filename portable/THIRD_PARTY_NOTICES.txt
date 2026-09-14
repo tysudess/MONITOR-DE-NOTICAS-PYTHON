@@ -1,19 +1,21 @@
 MONITOR DE NOTÍCIAS — THIRD-PARTY NOTICES
 
-Esta distribuição agrega componentes de terceiros. Este arquivo é um inventário técnico resumido; os termos completos aplicáveis permanecem os das respectivas distribuições incluídas.
+Esta distribuição inclui componentes de terceiros. Os textos oficiais de licença/notice coletados para o candidato Windows portable ficam em `licenses/`; o inventário gerado da build fica em `LICENSES-MANIFEST.json`.
 
-Python 3.12.x — Python Software Foundation License.
-PySide6 / Qt for Python 6.9.1 / Shiboken6 — licenciamento Qt for Python aplicável (LGPL/GPL/comercial conforme o componente e forma de distribuição).
-PyInstaller 6.15.0 — usado somente para construir a distribuição; observar os termos do projeto PyInstaller e de seu bootloader.
-requests — Apache License 2.0.
-beautifulsoup4 — MIT License.
-lxml — licença BSD-style do projeto lxml e avisos das bibliotecas nativas aplicáveis.
-pypdf 6.18.0 — BSD-3-Clause.
-pypdfium2 5.13.0 — wrapper sob BSD-3-Clause; PDFium e componentes de terceiros possuem seus próprios avisos/licenças e devem acompanhar a redistribuição conforme os arquivos fornecidos pelo pacote.
-Pillow 12.3.0 — licença do projeto Pillow.
-yt-dlp / yt-dlp nightly — licença publicada pelo projeto yt-dlp.
-Deno — MIT License.
-FFmpeg/FFprobe — a build usada é obtida de uma distribuição Windows GPL compatível com o fluxo original; redistribuição deve manter os avisos e termos correspondentes à build efetivamente incluída.
-certifi, urllib3, charset-normalizer, idna e demais dependências transitivas — licenças próprias publicadas pelos respectivos projetos.
+Componentes principais redistribuídos no candidato:
 
-Nenhuma alteração de licença é feita por este projeto. Para distribuição pública, preserve também os arquivos de licença/notice eventualmente fornecidos dentro de _internal/ e pelas distribuições nativas incluídas.
+- Python 3.12.x — Python Software Foundation License; texto em `licenses/python-runtime/LICENSE.txt`.
+- PySide6 / Qt for Python 6.9.1 / Shiboken6 — arquivos oficiais de licença fornecidos pelas distribuições instaladas são preservados sob `licenses/python/`.
+- requests e dependências transitivas redistribuídas — arquivos de licença fornecidos pelas distribuições instaladas são preservados sob `licenses/python/`.
+- beautifulsoup4 / soupsieve — arquivos de licença fornecidos pelas distribuições instaladas são preservados sob `licenses/python/`.
+- lxml — arquivos de licença/notice fornecidos pela distribuição instalada são preservados sob `licenses/python/`.
+- pypdf 6.18.0 — arquivos de licença fornecidos pela distribuição instalada são preservados sob `licenses/python/`.
+- pypdfium2 5.13.0 / PDFium — arquivos de licença/notice fornecidos pela distribuição instalada são preservados sob `licenses/python/`.
+- Pillow 12.3.0 — arquivos de licença fornecidos pela distribuição instalada são preservados sob `licenses/python/`.
+- yt-dlp stable e nightly — licença do projeto e agregados oficiais de licenças dos executáveis empacotados ficam em `licenses/yt-dlp-stable/` e `licenses/yt-dlp-nightly/`.
+- Deno 2.9.6 — licença MIT oficial em `licenses/deno/LICENSE.md`.
+- FFmpeg/FFprobe — a build Windows utilizada é da linha GPL/version3; textos oficiais do FFmpeg usados pela build ficam em `licenses/ffmpeg/`.
+
+PyInstaller é ferramenta de build. O artefato contém seu bootloader conforme os termos/exceção de distribuição do próprio projeto; os demais componentes de build/teste não são listados aqui como dependências de runtime apenas por terem sido usados durante a geração.
+
+`LICENSES-MANIFEST.json` registra a origem e o caminho dos arquivos copiados/baixados pela build de compliance. Este arquivo não substitui os textos oficiais preservados em `licenses/`.
