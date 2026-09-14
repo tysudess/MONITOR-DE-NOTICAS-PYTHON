@@ -1,0 +1,56 @@
+name: Passo 25 - Preserve Original FFmpeg Source Cache
+
+on:
+  push:
+    branches:
+      - migration/python-foundation
+    paths:
+      - '.github/workflows/pass25-preserve-original-source-cache.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  preserve-original-source-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        run: |
+          sudo apt-get clean
+          sudo rm -rf /opt/ghc /usr/local/.ghcup /usr/local/lib/android || true
+          docker system prune -a -f || true
+          df -h
+
+      - name: Download original BtbN source cache from exact build run
+        uses: actions/download-artifact@v4
+        with:
+          name: download-cache
+          path: original-cache
+          github-token: ${{ github.token }}
+          repository: BtbN/FFmpeg-Builds
+          run-id: 34756521749
+
+      - name: Audit and package original source cache
+        shell: bash
+        run: |
+          set -euxo pipefail
+          du -sh original-cache
+          find original-cache -maxdepth 3 -type f -printf '%P\t%s\n' | sort > original-cache-files.txt
+          head -200 original-cache-files.txt
+          tar -cf MONITOR-DE-NOTICIAS-FFMPEG-ORIGINAL-BTBN-SOURCE-CACHE-20260913.tar original-cache
+          sha256sum MONITOR-DE-NOTICIAS-FFMPEG-ORIGINAL-BTBN-SOURCE-CACHE-20260913.tar | tee source-cache-sha256.txt
+          stat -c 'SOURCE_CACHE_TAR_BYTES=%s' MONITOR-DE-NOTICIAS-FFMPEG-ORIGINAL-BTBN-SOURCE-CACHE-20260913.tar | tee source-cache-size.txt
+
+      - name: Upload preserved source cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: MONITOR-DE-NOTICIAS-FFMPEG-ORIGINAL-BTBN-SOURCE-CACHE-20260913
+          path: |
+            MONITOR-DE-NOTICIAS-FFMPEG-ORIGINAL-BTBN-SOURCE-CACHE-20260913.tar
+            original-cache-files.txt
+            source-cache-sha256.txt
+            source-cache-size.txt
+          compression-level: 0
+          retention-days: 14
