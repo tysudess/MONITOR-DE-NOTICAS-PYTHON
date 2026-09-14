@@ -1,119 +1,91 @@
-# BUILD PORTABLE — WINDOWS x64
+# BUILD PORTABLE — WINDOWS x64 — PASSO 24
 
-## Fonte da build aprovada
+## Fonte do novo candidato
 
-- Repositório: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
-- Branch: `migration/python-foundation`
-- Commit do artefato: `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`
-- Run: `34776048157`
-- Workflow: `.github/workflows/pass17-build-portable.yml`
-- Estratégia: PyInstaller **onedir**
-- Entry point: `run.py`
-- Executável: `MonitorDeNoticias.exe`
+- repositório: `tysudess/MONITOR-DE-NOTICAS-PYTHON`
+- branch: `migration/python-foundation`
+- commit da build: `2c52d9b00e06cb6becb7265371c5d35ab45492f8`
+- run: `34794644131`
+- workflow: `.github/workflows/pass17-build-portable.yml`
+- PyInstaller: onedir
+- entry point: `run.py`
 
-Nenhuma alteração documental posterior muda a origem do ZIP aprovado.
+## Alteração de empacotamento
+
+O Passo 24 não alterou `src/` nem comportamento funcional.
+
+O `MonitorDeNoticias.spec` deixou de usar `collect_all("PySide6")` no aplicativo principal. Os hooks do PyInstaller agora coletam os módulos Qt alcançados pelos imports reais da aplicação. `pypdfium2` continua com coleta explícita necessária ao motor PDF.
+
+O build log do aplicativo principal confirmou QtCore, QtGui, QtWidgets, QtNetwork, QtMultimedia e QtMultimediaWidgets. O helper Globoplay é construído separadamente e continua coletando seus imports reais de QtWebEngine.
 
 ## Processo efetivamente usado
 
-A build oficial foi executada pelo workflow com Python 3.12 e `scripts/build_portable.ps1`. O script:
+`scripts/build_portable.ps1`:
 
-1. limpa artefatos anteriores;
-2. instala `requirements.txt` e `requirements-build.txt`;
+1. limpa build/dist/staging relevantes;
+2. instala dependências declaradas;
 3. gera `GloboplayLoginHelper.exe`;
 4. executa PyInstaller onedir;
-5. cria diretórios graváveis e copia resources/README/notices;
-6. baixa/copia yt-dlp nightly, yt-dlp stable, Deno, FFmpeg e FFprobe;
-7. grava `BUILD-INFO.json` e `BUILD-SHA.txt`;
-8. valida estrutura e plugins Qt;
-9. executa smoke local do runtime congelado;
-10. remove estado artificial de `data`, `logs`, `temp`, `Videos` e `VideoEditorExports`;
-11. rejeita estado sensível/pessoal inesperado;
-12. cria o ZIP final e SHA-256.
+5. prepara resources e diretórios graváveis;
+6. baixa yt-dlp nightly/stable, Deno, FFmpeg e FFprobe;
+7. executa `scripts/collect_portable_licenses.py`;
+8. copia/coleta textos oficiais de licenças das distribuições Python instaladas;
+9. inclui textos oficiais externos declarados para FFmpeg, yt-dlp e Deno;
+10. grava `licenses/` e `LICENSES-MANIFEST.json`;
+11. grava BUILD-INFO/BUILD-SHA;
+12. valida estrutura Qt/compliance;
+13. executa smoke local completo;
+14. limpa estado artificial;
+15. cria ZIP e SHA-256.
 
-Não houve etapa manual fora desse processo para produzir o candidato aprovado.
-
-## Estrutura distribuída
+## Estrutura de compliance
 
 ```text
 MonitorDeNoticias/
 ├── MonitorDeNoticias.exe
 ├── _internal/
 ├── bin/
-│   ├── yt-dlp.exe
-│   ├── yt-dlp-stable.exe
-│   ├── deno.exe
-│   ├── ffmpeg.exe
-│   └── ffprobe.exe
 ├── resources/
-│   ├── monitor-icon.svg
-│   ├── pdf-default-cover.b64
-│   └── globoplay-login-helper/GloboplayLoginHelper.exe
-├── data/
-├── logs/
-├── temp/
-├── Videos/
-├── VideoEditorExports/
+├── licenses/
+│   ├── python-runtime/
+│   ├── python/
+│   ├── ffmpeg/
+│   ├── yt-dlp-stable/
+│   ├── yt-dlp-nightly/
+│   └── deno/
+├── LICENSES-MANIFEST.json
+├── THIRD_PARTY_NOTICES.txt
 ├── BUILD-INFO.json
-├── BUILD-SHA.txt
-├── README_PORTABLE.txt
-└── THIRD_PARTY_NOTICES.txt
+└── BUILD-SHA.txt
 ```
 
-`docs/` não é copiado para o portable. O workflow portable também não dispara para alterações somente em `docs/**`.
+A build registrou 45 arquivos em `licenses/`.
 
-## Versões registradas na build
+## Versões
 
-- Python: `3.12.10`
-- PySide6: `6.9.1`
-- Qt: `6.9.1`
-- PyInstaller: `6.15.0`
-- yt-dlp nightly: `2026.08.30.232658`
-- yt-dlp stable: `2026.08.19`
-- Deno: `2.9.6`
-- FFmpeg: `n9.0.1-29-gad500d59cb-20260913`
-- FFprobe: `n9.0.1-29-gad500d59cb-20260913`
+- Python 3.12.10
+- PySide6 6.9.1
+- Qt 6.9.1
+- PyInstaller 6.15.0
+- yt-dlp nightly 2026.08.30.232658
+- yt-dlp stable 2026.08.19
+- Deno 2.9.6
+- FFmpeg/FFprobe n9.0.1-29-gad500d59cb-20260913
 
-## Qt / preview
-
-O motor de preview permanece `QMediaPlayer + QVideoWidget + QAudioOutput`. FFmpeg não é o player; ele é usado em processamento/exportação. O segundo runner comprovou reprodução, pause e seeks 500/1000/1500 ms usando o bundle.
-
-## Binários externos
-
-O portable validado contém os cinco binários exigidos:
-- yt-dlp nightly
-- yt-dlp stable
-- Deno x64
-- FFmpeg
-- FFprobe
-
-O segundo runner executou FFmpeg/FFprobe próprios com os globais ausentes.
-
-## Artefato oficial
+## Artefato
 
 - nome: `MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip`
-- tamanho: `651329315` bytes
-- tamanho descompactado: `1262862742` bytes
-- SHA-256: `259739899fe044157d350ab077d877ef8dd9e024cd33939266e026e8df3563f4`
-- `BUILD-SHA`: `0f9ec957b3e9f3fdf9b02f5dbe9bb0836310d60d`
+- tamanho: `477381768` bytes
+- descompactado: `830499134` bytes
+- SHA-256: `36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede`
+- BUILD-SHA: `2c52d9b00e06cb6becb7265371c5d35ab45492f8`
 
-## Validação externa
+## Validação
 
-Job independente, sem checkout do source:
-- hash idêntico: PASS
-- reextração: PASS
-- primeira execução: PASS
-- primeiro smoke: PASS
-- reabertura: PASS
-- movimentação: PASS
-- path com espaços/acentos: PASS
-- segundo smoke: PASS
-- shutdown: PASS
-- órfãos: 0
-- temporários: PASS
-- segredos/dados pessoais no artefato: 0
+Run `34794644131`: SUCCESS. Suíte 149/149, smoke local PASS e segundo runner completo PASS.
+
+Run de verificação física de compliance `34795191703`: SUCCESS. O mesmo ZIP teve SHA/tamanho confirmados e apresentou THIRD_PARTY_NOTICES, LICENSES-MANIFEST e 45 arquivos legíveis em `licenses/`.
 
 ## Estado
 
-**PORTABLE VALIDADO**
-
-Não rebuildar somente para incorporar documentação.
+O processo de build/compliance está comprovado e o novo ZIP é tecnicamente válido. A aptidão para publicação permanece separada: PUB-001 continua bloqueado pelas obrigações de redistribuição ainda não demonstradas integralmente, conforme `docs/PUBLICATION_COMPLIANCE.md`.
