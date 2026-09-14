@@ -7,7 +7,15 @@ import subprocess
 import time
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 log = logging.getLogger(__name__)
 
@@ -19,22 +27,38 @@ class _NativeHost(QWidget):
         super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
-        self.setMinimumSize(520, 360)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumSize(640, 420)
         self._child_hwnd = 0
+        self._reflow_pending = False
 
     def attach(self, hwnd: int) -> None:
         self._child_hwnd = int(hwnd or 0)
         self._resize_child()
+        self._schedule_reflow()
 
     def detach(self) -> None:
         self._child_hwnd = 0
+        self._reflow_pending = False
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._resize_child()
+        self._schedule_reflow()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        self._resize_child()
+        self._schedule_reflow()
+
+    def _schedule_reflow(self) -> None:
+        if self._reflow_pending or not self._child_hwnd:
+            return
+        self._reflow_pending = True
+        QTimer.singleShot(90, self._delayed_reflow)
+
+    def _delayed_reflow(self) -> None:
+        self._reflow_pending = False
         self._resize_child()
 
     def _resize_child(self) -> None:
@@ -42,13 +66,33 @@ class _NativeHost(QWidget):
             return
         try:
             import ctypes
+            from ctypes import wintypes
+
             user32 = ctypes.windll.user32
-            if user32.IsWindow(self._child_hwnd):
-                user32.SetWindowPos(
-                    self._child_hwnd, 0, 0, 0,
-                    max(1, self.width()), max(1, self.height()),
-                    0x0004 | 0x0010 | 0x0040,
-                )
+            hwnd = int(self._child_hwnd)
+            if not user32.IsWindow(hwnd):
+                return
+
+            host_w = max(1, self.width())
+            host_h = max(1, self.height())
+            flags = 0x0004 | 0x0010 | 0x0040  # NOZORDER | NOACTIVATE | SHOWWINDOW
+
+            # Primeiro oferecemos toda a área disponível ao aplicativo original.
+            # Alguns programas Electron/Qt possuem tamanho mínimo ou máximo próprio
+            # e podem rejeitar parte desse resize. Nesse caso não forçamos o motor:
+            # apenas centralizamos a janela real dentro da área do Monitor.
+            user32.SetWindowPos(hwnd, 0, 0, 0, host_w, host_h, flags)
+
+            rect = wintypes.RECT()
+            if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                child_w = max(1, int(rect.right - rect.left))
+                child_h = max(1, int(rect.bottom - rect.top))
+                visible_w = min(host_w, child_w)
+                visible_h = min(host_h, child_h)
+                x = max(0, (host_w - visible_w) // 2)
+                y = max(0, (host_h - visible_h) // 2)
+                if child_w != host_w or child_h != host_h or x or y:
+                    user32.SetWindowPos(hwnd, 0, x, y, child_w, child_h, flags)
         except Exception:
             log.exception("Falha ao redimensionar janela externa incorporada")
 
@@ -90,26 +134,57 @@ class ExternalWin32AppPage(QWidget):
         QTimer.singleShot(350, self.start)
 
     def _build_ui(self) -> None:
+        self.setObjectName("externalIntegrationPage")
+        self.setStyleSheet(
+            """
+            QWidget#externalIntegrationPage { background: transparent; }
+            QFrame#integrationBar {
+                background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #073b61,stop:1 #052b49);
+                border:1px solid #0784b8;
+                border-radius:12px;
+            }
+            QLabel#integrationTitle { color:#ffffff; font-size:17px; font-weight:800; }
+            QLabel#integrationDescription { color:#9fc2dd; font-size:10px; }
+            QLabel#integrationStatus {
+                color:#b8d9ed;
+                background:#06243b;
+                border:1px solid #15597a;
+                border-radius:9px;
+                padding:6px 10px;
+                font-size:9px;
+                font-weight:700;
+            }
+            QWidget#nativeIntegrationHost {
+                background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #031827,stop:1 #020d17);
+                border:1px solid #0a6f9c;
+                border-radius:12px;
+            }
+            """
+        )
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(8)
+        root.setSpacing(10)
 
         bar = QFrame()
-        bar.setObjectName("filterCard")
+        bar.setObjectName("integrationBar")
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(14, 8, 14, 8)
+        layout.setContentsMargins(16, 9, 12, 9)
+        layout.setSpacing(10)
         text = QVBoxLayout()
         text.setSpacing(1)
         title = QLabel(self.title)
-        title.setObjectName("sectionTitle")
+        title.setObjectName("integrationTitle")
         subtitle = QLabel(self.description)
-        subtitle.setObjectName("smallText")
+        subtitle.setObjectName("integrationDescription")
         subtitle.setWordWrap(True)
         text.addWidget(title)
         text.addWidget(subtitle)
         layout.addLayout(text, 1)
         self.status = QLabel("Preparando integração...")
-        self.status.setObjectName("smallText")
+        self.status.setObjectName("integrationStatus")
+        self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status.setMinimumWidth(178)
         layout.addWidget(self.status)
         self.restart_button = QPushButton("Reabrir")
         self.restart_button.setProperty("secondary", True)
@@ -119,7 +194,7 @@ class ExternalWin32AppPage(QWidget):
         root.addWidget(bar)
 
         self.host = _NativeHost()
-        self.host.setStyleSheet("background:#020b16;border:1px solid #0a6f9c;border-radius:10px;")
+        self.host.setObjectName("nativeIntegrationHost")
         root.addWidget(self.host, 1)
 
     def refresh(self, _state=None) -> None:
@@ -184,7 +259,7 @@ class ExternalWin32AppPage(QWidget):
                 self._embed_window(hwnd)
                 self._hwnd = hwnd
                 self.host.attach(hwnd)
-                self.status.setText("Integrado e em execução")
+                self.status.setText("● Integrado • processo isolado")
                 self.restart_button.setVisible(False)
             except Exception as exc:
                 log.exception("Falha ao incorporar janela de %s", self.title)
