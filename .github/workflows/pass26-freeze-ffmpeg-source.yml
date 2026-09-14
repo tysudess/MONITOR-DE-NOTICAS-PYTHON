@@ -1,0 +1,303 @@
+name: Passo 26 - Freeze FFmpeg Corresponding Source
+
+on:
+  push:
+    branches:
+      - migration/python-foundation
+    paths:
+      - '.github/workflows/pass26-freeze-ffmpeg-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  freeze-source:
+    runs-on: ubuntu-latest
+    env:
+      SOURCE_RUN_ID: '34796686400'
+      SOURCE_ARTIFACT: 'MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913'
+      FINAL_ROOT: 'MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913'
+      FINAL_ZIP: 'MONITOR-DE-NOTICIAS-FFMPEG-CORRESPONDING-SOURCE-n9.0.1-29-gad500d59cb-20260913.zip'
+      FFMPEG_COMMIT: 'ad500d59cb6e0126add4fcb95afb4e2557c4292c'
+      BTBN_COMMIT: '3e6685eda92f9288c15ac320139622dcedca09a4'
+      X264_COMMIT: '0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee'
+      X265_COMMIT: '116b87573ed0cec20b75ccacd5641bf06f6e57bd'
+      FFMPEG_EXE_SHA256: '828bef350665c78b76e4bc3597b1714c66d3bd79a642948243e59754dab1878d'
+      FFPROBE_EXE_SHA256: '897cabca3eb2a16be9bf111a9955277ec93a17527aa6c6b108fd07ab182927f6'
+
+    steps:
+      - name: Free disk space
+        run: |
+          set -euxo pipefail
+          sudo apt-get clean
+          sudo rm -rf /opt/ghc /usr/local/.ghcup /usr/local/lib/android || true
+          docker system prune -a -f || true
+          df -h
+
+      - name: Download exact Passo 25 source artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          repository: tysudess/MONITOR-DE-NOTICAS-PYTHON
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: passo25
+
+      - name: Verify and extract Passo 25 source package
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ls -lah passo25
+          test -f "passo25/$FINAL_ZIP"
+          test -f passo25/corresponding-source-sha256.txt
+          test -f passo25/source-size.txt
+          echo 'PASS25_RECORDED_SHA:'
+          cat passo25/corresponding-source-sha256.txt
+          echo 'PASS25_RECORDED_SIZE:'
+          cat passo25/source-size.txt
+          sha256sum "passo25/$FINAL_ZIP" | tee pass25-inner-actual-sha256.txt
+          stat -c 'PASS25_INNER_ZIP_BYTES=%s' "passo25/$FINAL_ZIP" | tee pass25-inner-actual-size.txt
+          mkdir extracted
+          unzip -q "passo25/$FINAL_ZIP" -d extracted
+          test -d "extracted/$FINAL_ROOT"
+          test -d "extracted/$FINAL_ROOT/ffmpeg-source"
+          test -d "extracted/$FINAL_ROOT/build-recipe"
+          test -d "extracted/$FINAL_ROOT/dependency-sources"
+          test -f "extracted/$FINAL_ROOT/SOURCE-PROVENANCE.txt"
+          grep -F "$FFMPEG_COMMIT" "extracted/$FINAL_ROOT/SOURCE-PROVENANCE.txt"
+          grep -F "$BTBN_COMMIT" "extracted/$FINAL_ROOT/SOURCE-PROVENANCE.txt"
+          rm -f "extracted/$FINAL_ROOT/SHA256SUMS.txt"
+          find "extracted/$FINAL_ROOT" -name .git -prune -exec rm -rf {} +
+          find "extracted/$FINAL_ROOT" -type f | wc -l | tee source-file-count.txt
+          find "extracted/$FINAL_ROOT/dependency-sources" -maxdepth 2 -type f -printf '%P\n' | sort > dependency-source-files.txt
+          grep -Ei 'x264|x265' dependency-source-files.txt || true
+
+      - name: Freeze exact source archives
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ROOT="extracted/$FINAL_ROOT"
+          mkdir -p "$ROOT/source-archives"
+
+          git clone --no-checkout https://github.com/FFmpeg/FFmpeg.git ffmpeg-git
+          git -C ffmpeg-git checkout --detach "$FFMPEG_COMMIT"
+          test "$(git -C ffmpeg-git rev-parse HEAD)" = "$FFMPEG_COMMIT"
+          git -C ffmpeg-git archive --format=tar.gz --prefix="FFmpeg-$FFMPEG_COMMIT/" -o "$ROOT/source-archives/FFmpeg-$FFMPEG_COMMIT.tar.gz" "$FFMPEG_COMMIT"
+
+          git clone --no-checkout https://github.com/BtbN/FFmpeg-Builds.git btbn-git
+          git -C btbn-git checkout --detach "$BTBN_COMMIT"
+          test "$(git -C btbn-git rev-parse HEAD)" = "$BTBN_COMMIT"
+          git -C btbn-git archive --format=tar.gz --prefix="FFmpeg-Builds-$BTBN_COMMIT/" -o "$ROOT/source-archives/FFmpeg-Builds-$BTBN_COMMIT.tar.gz" "$BTBN_COMMIT"
+
+          git clone --no-checkout https://code.videolan.org/videolan/x264.git x264-git
+          git -C x264-git checkout --detach "$X264_COMMIT"
+          test "$(git -C x264-git rev-parse HEAD)" = "$X264_COMMIT"
+          git -C x264-git archive --format=tar.gz --prefix="x264-$X264_COMMIT/" -o "$ROOT/source-archives/x264-$X264_COMMIT.tar.gz" "$X264_COMMIT"
+
+          git clone --no-checkout https://github.com/Multicoreware/x265_git.git x265-git || git clone --no-checkout https://github.com/videolan/x265.git x265-git
+          git -C x265-git fetch https://github.com/Multicoreware/x265_git.git "$X265_COMMIT" || true
+          git -C x265-git fetch https://github.com/Multicorewareinc/x265.git "$X265_COMMIT" || true
+          git -C x265-git checkout --detach "$X265_COMMIT"
+          test "$(git -C x265-git rev-parse HEAD)" = "$X265_COMMIT"
+          git -C x265-git archive --format=tar.gz --prefix="x265-$X265_COMMIT/" -o "$ROOT/source-archives/x265-$X265_COMMIT.tar.gz" "$X265_COMMIT"
+
+          (cd "$ROOT/source-archives" && sha256sum *.tar.gz | sort) | tee source-archives-sha256.txt
+
+      - name: Write immutable provenance manifests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ROOT="extracted/$FINAL_ROOT"
+          FF_ARCH="FFmpeg-$FFMPEG_COMMIT.tar.gz"
+          FF_ARCH_SHA="$(sha256sum "$ROOT/source-archives/$FF_ARCH" | awk '{print $1}')"
+          BTBN_ARCH="FFmpeg-Builds-$BTBN_COMMIT.tar.gz"
+          BTBN_ARCH_SHA="$(sha256sum "$ROOT/source-archives/$BTBN_ARCH" | awk '{print $1}')"
+          X264_ARCH="x264-$X264_COMMIT.tar.gz"
+          X264_ARCH_SHA="$(sha256sum "$ROOT/source-archives/$X264_ARCH" | awk '{print $1}')"
+          X265_ARCH="x265-$X265_COMMIT.tar.gz"
+          X265_ARCH_SHA="$(sha256sum "$ROOT/source-archives/$X265_ARCH" | awk '{print $1}')"
+          OBTAINED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          cat > "$ROOT/SOURCES_ORIGIN.md" <<EOF
+          # FFmpeg Corresponding Source — Origins
+
+          Data de materialização final: $OBTAINED
+
+          ## FFmpeg
+          - COMPONENTE: FFmpeg
+          - ORIGEM: repositório oficial FFmpeg
+          - URL/REPOSITÓRIO: https://github.com/FFmpeg/FFmpeg.git
+          - COMMIT: $FFMPEG_COMMIT
+          - ARQUIVO: source-archives/$FF_ARCH
+          - SHA-256: $FF_ARCH_SHA
+
+          ## BtbN build scripts
+          - COMPONENTE: BtbN/FFmpeg-Builds
+          - URL/REPOSITÓRIO: https://github.com/BtbN/FFmpeg-Builds.git
+          - COMMIT: $BTBN_COMMIT
+          - TAG HISTÓRICA COMPROVADA: autobuild-2026-09-13-14-50
+          - ARQUIVO: source-archives/$BTBN_ARCH
+          - SHA-256: $BTBN_ARCH_SHA
+
+          ## x264
+          - COMPONENTE: x264
+          - URL/REPOSITÓRIO: https://code.videolan.org/videolan/x264.git
+          - COMMIT: $X264_COMMIT
+          - ARQUIVO: source-archives/$X264_ARCH
+          - SHA-256: $X264_ARCH_SHA
+
+          ## x265
+          - COMPONENTE: x265
+          - URL/REPOSITÓRIO: https://github.com/Multicorewareinc/x265.git
+          - COMMIT: $X265_COMMIT
+          - ARQUIVO: source-archives/$X265_ARCH
+          - SHA-256: $X265_ARCH_SHA
+
+          ## Dependências adicionais
+          Os snapshots de source preparados pelos scripts BtbN no commit exato acima estão preservados em \`dependency-sources/\`. A lista física está incluída em \`DEPENDENCY_SOURCE_FILES.txt\`.
+          EOF
+
+          cp dependency-source-files.txt "$ROOT/DEPENDENCY_SOURCE_FILES.txt"
+          cp source-archives-sha256.txt "$ROOT/SOURCE_ARCHIVES_SHA256.txt"
+
+          cat > "$ROOT/FFMPEG_BUILD_MANIFEST.md" <<EOF
+          # FFmpeg Build Manifest
+
+          ## Binários distribuídos pelo Monitor
+          - ffmpeg.exe SHA-256: $FFMPEG_EXE_SHA256
+          - ffprobe.exe SHA-256: $FFPROBE_EXE_SHA256
+          - versão: n9.0.1-29-gad500d59cb-20260913
+          - fornecedor: BtbN/FFmpeg-Builds
+          - pacote histórico: ffmpeg-n9.0.1-29-gad500d59cb-win64-gpl-9.0.zip
+          - família histórica usada pelo projeto: ffmpeg-n9.0-latest-win64-gpl-9.0.zip
+          - pacote histórico SHA-256 comprovado: a224a1dbea8b3e4e75ce17e9465a919cc74c9f027021046eaec610e40464bf27
+          - BtbN run: 34756521749
+          - BtbN artifact: ffmpeg-win64-gpl-9.0 / id 10319722058
+          - BtbN recipe commit: $BTBN_COMMIT
+          - BtbN tag histórica: autobuild-2026-09-13-14-50
+
+          ## Source FFmpeg
+          - commit: $FFMPEG_COMMIT
+          - branch da variante BtbN: release/9.0
+          - archive: source-archives/$FF_ARCH
+          - archive SHA-256: $FF_ARCH_SHA
+
+          ## Componentes GPL externos explicitamente relevantes
+          - x264 commit: $X264_COMMIT
+          - x264 archive SHA-256: $X264_ARCH_SHA
+          - x265 commit: $X265_COMMIT
+          - x265 archive SHA-256: $X265_ARCH_SHA
+          - demais sources obtidos pelas recipes históricas BtbN: dependency-sources/
+
+          ## Patches / transformações
+          Os scripts históricos em \`build-recipe/scripts.d/\` são preservados integralmente. Transformações aplicadas pelas recipes, inclusive as do x265, permanecem nos scripts originais; não foram reinterpretadas nem reescritas.
+
+          ## Configuration integral
+          \`--prefix=/ffbuild/prefix --pkg-config-flags=--static --pkg-config=pkg-config --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --target-os=mingw32 --enable-gpl --enable-version3 --disable-debug --disable-w32threads --enable-pthreads --enable-iconv --enable-zlib --enable-libxml2 --enable-libvmaf --enable-fontconfig --enable-libharfbuzz --enable-libfreetype --enable-libfribidi --enable-vulkan --enable-libdav1d --enable-libvorbis --enable-librav1e --enable-librsvg --disable-libxcb --disable-xlib --disable-libpulse --enable-gmp --enable-lzma --enable-liblcevc-dec --enable-opencl --enable-amf --enable-libaom --enable-avisynth --enable-chromaprint --enable-libdavs2 --enable-libdvdread --enable-libdvdnav --disable-libfdk-aac --enable-ffnvcodec --enable-cuda-llvm --enable-frei0r --enable-libgme --enable-libjxl --enable-libkvazaar --enable-libaribb24 --enable-libaribcaption --enable-libass --enable-libbluray --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-librist --enable-libssh --enable-libtheora --enable-libvpx --enable-libwebp --enable-libzmq --enable-lv2 --enable-libvpl --enable-openal --enable-liboapv --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopenmpt --enable-librubberband --enable-schannel --enable-sdl2 --enable-libsnappy --enable-libsoxr --enable-libsrt --enable-libsvtav1 --enable-libtwolame --enable-libuavs3d --disable-libdrm --enable-vaapi --enable-libvidstab --enable-libvvenc --disable-whisper --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxvid --enable-libzimg --enable-libzvbi --extra-cflags=-DLIBTWOLAME_STATIC --extra-cxxflags= --extra-libs=-lgomp --extra-ldflags=-pthread --extra-ldexeflags= --cc=x86_64-w64-mingw32-gcc --cxx=x86_64-w64-mingw32-g++ --ar=x86_64-w64-mingw32-gcc-ar --ranlib=x86_64-w64-mingw32-gcc-ranlib --nm=x86_64-w64-mingw32-gcc-nm --extra-version=20260913\`
+
+          ## Licença
+          - --enable-gpl: SIM
+          - --enable-version3: SIM
+          - --enable-nonfree: NÃO
+          - classificação técnica da build: GPL/version3
+
+          O pacote final que contém este manifesto é o Corresponding Source preparado para futura publicação junto ao portable. O SHA-256 externo do ZIP final é registrado fora do próprio ZIP para evitar autorreferência.
+          EOF
+
+          find "$ROOT" -type f ! -name 'SOURCE_TREE_SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum > "$ROOT/SOURCE_TREE_SHA256SUMS.txt"
+
+      - name: Validate source tree before packaging
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ROOT="extracted/$FINAL_ROOT"
+          test -f "$ROOT/FFMPEG_BUILD_MANIFEST.md"
+          test -f "$ROOT/SOURCES_ORIGIN.md"
+          test -f "$ROOT/SOURCE_TREE_SHA256SUMS.txt"
+          test -f "$ROOT/ffmpeg-source/COPYING.GPLv3"
+          test -f "$ROOT/source-archives/FFmpeg-$FFMPEG_COMMIT.tar.gz"
+          test -f "$ROOT/source-archives/FFmpeg-Builds-$BTBN_COMMIT.tar.gz"
+          test -f "$ROOT/source-archives/x264-$X264_COMMIT.tar.gz"
+          test -f "$ROOT/source-archives/x265-$X265_COMMIT.tar.gz"
+          test -z "$(find "$ROOT" -name .git -print -quit)"
+          test -z "$(find "$ROOT" -type f \( -name '*.pfx' -o -name '*.p12' -o -name '*.pem' -o -name '*.key' \) -print -quit)"
+          echo "SOURCE_TREE_FILES=$(find "$ROOT" -type f | wc -l)"
+          echo "SOURCE_TREE_BYTES=$(du -sb "$ROOT" | awk '{print $1}')"
+
+      - name: Scan prepared source tree for secrets
+        shell: bash
+        run: |
+          set -euxo pipefail
+          VER=8.30.1
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks version
+          set +e
+          ./gitleaks dir --redact --report-format json --report-path source-gitleaks.json "extracted/$FINAL_ROOT"
+          RC=$?
+          set -e
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('source-gitleaks.json')
+          data=json.loads(p.read_text()) if p.exists() and p.stat().st_size else []
+          print(f'GITLEAKS_SOURCE_FINDINGS={len(data)}')
+          from collections import Counter
+          print('GITLEAKS_SOURCE_RULES='+json.dumps(Counter(x.get('RuleID') for x in data), sort_keys=True))
+          print('GITLEAKS_SOURCE_PATHS='+json.dumps(Counter(x.get('File') for x in data), sort_keys=True))
+          PY
+          # Do not fail merely because upstream source contains scanner matches; classification is done from the redacted report/log.
+          echo "GITLEAKS_EXIT_CODE=$RC"
+          grep -RIlE --exclude='source-gitleaks.json' --exclude='SOURCE_TREE_SHA256SUMS.txt' 'BEGIN (RSA |DSA |EC |OPENSSH )?PRIVATE KEY' "extracted/$FINAL_ROOT" | tee private-key-marker-files.txt || true
+          echo "PRIVATE_KEY_MARKER_FILE_COUNT=$(wc -l < private-key-marker-files.txt)"
+          grep -RIlE --exclude='source-gitleaks.json' '(/home/runner|[A-Za-z]:\\Users\\|/Users/[^/]+/)' "extracted/$FINAL_ROOT" | tee local-path-marker-files.txt || true
+          echo "LOCAL_PATH_MARKER_FILE_COUNT=$(wc -l < local-path-marker-files.txt)"
+
+      - name: Create immutable final source ZIP
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -f "$FINAL_ZIP"
+          (cd extracted && zip -0 -q -r "../$FINAL_ZIP" "$FINAL_ROOT")
+          sha256sum "$FINAL_ZIP" | tee FINAL_SOURCE_SHA256.txt
+          stat -c 'FINAL_SOURCE_ZIP_BYTES=%s' "$FINAL_ZIP" | tee FINAL_SOURCE_SIZE.txt
+          echo "FINAL_SOURCE_ZIP=$FINAL_ZIP" | tee FINAL_SOURCE_NAME.txt
+
+      - name: Re-extract and verify immutable package
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir verify
+          unzip -q "$FINAL_ZIP" -d verify
+          ROOT="verify/$FINAL_ROOT"
+          test -f "$ROOT/FFMPEG_BUILD_MANIFEST.md"
+          test -f "$ROOT/SOURCES_ORIGIN.md"
+          test -f "$ROOT/SOURCE_TREE_SHA256SUMS.txt"
+          test -f "$ROOT/ffmpeg-source/COPYING.GPLv3"
+          test -f "$ROOT/source-archives/FFmpeg-$FFMPEG_COMMIT.tar.gz"
+          test -f "$ROOT/source-archives/FFmpeg-Builds-$BTBN_COMMIT.tar.gz"
+          test -f "$ROOT/source-archives/x264-$X264_COMMIT.tar.gz"
+          test -f "$ROOT/source-archives/x265-$X265_COMMIT.tar.gz"
+          test -z "$(find "$ROOT" -name .git -print -quit)"
+          (cd verify && sha256sum -c "$FINAL_ROOT/SOURCE_TREE_SHA256SUMS.txt")
+          echo 'PASS26_EXTRACTION_INTEGRITY=PASS'
+
+      - name: Upload final source package and audit sidecars
+        uses: actions/upload-artifact@v4
+        with:
+          name: PASS26-FFMPEG-CORRESPONDING-SOURCE-FROZEN
+          path: |
+            ${{ env.FINAL_ZIP }}
+            FINAL_SOURCE_SHA256.txt
+            FINAL_SOURCE_SIZE.txt
+            FINAL_SOURCE_NAME.txt
+            pass25-inner-actual-sha256.txt
+            pass25-inner-actual-size.txt
+            source-archives-sha256.txt
+            dependency-source-files.txt
+            source-gitleaks.json
+            private-key-marker-files.txt
+            local-path-marker-files.txt
+          compression-level: 0
+          retention-days: 14
