@@ -1,0 +1,87 @@
+name: Passo 25 - Audit FFmpeg Provenance
+
+on:
+  push:
+    branches:
+      - migration/python-foundation
+    paths:
+      - '.github/workflows/pass25-ffmpeg-provenance.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  audit-ffmpeg-provenance:
+    runs-on: windows-latest
+    steps:
+      - name: Download exact validated portable artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64
+          path: artifact
+          github-token: ${{ github.token }}
+          repository: tysudess/MONITOR-DE-NOTICAS-PYTHON
+          run-id: 34794644131
+
+      - name: Inspect exact portable binaries and compare with BtbN release asset
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $portableZip=(Get-ChildItem artifact -Recurse -Filter 'MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip' | Select-Object -First 1).FullName
+          if(-not $portableZip){throw 'Portable ZIP ausente.'}
+          $portableHash=(Get-FileHash $portableZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($portableHash -ne '36e161e4ce27103b6668a4471fe381b03ec28c1b6231a9fd137fa2672cfd9ede'){throw "Portable SHA inesperado: $portableHash"}
+          $extract=Join-Path $env:RUNNER_TEMP 'pass25-portable'
+          Expand-Archive $portableZip $extract -Force
+          $root=Get-ChildItem $extract -Directory | Where-Object {Test-Path (Join-Path $_.FullName 'MonitorDeNoticias.exe')} | Select-Object -First 1
+          if(-not $root){throw 'Raiz portable ausente.'}
+          $ffmpeg=Join-Path $root.FullName 'bin/ffmpeg.exe'
+          $ffprobe=Join-Path $root.FullName 'bin/ffprobe.exe'
+          $ffmpegHash=(Get-FileHash $ffmpeg -Algorithm SHA256).Hash.ToLowerInvariant()
+          $ffprobeHash=(Get-FileHash $ffprobe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $ffmpegInfo=(Get-Item $ffmpeg).VersionInfo
+          $ffprobeInfo=(Get-Item $ffprobe).VersionInfo
+          $ffmpegVersion=& $ffmpeg -version 2>&1
+          if($LASTEXITCODE -ne 0){throw 'ffmpeg -version falhou.'}
+          $ffprobeVersion=& $ffprobe -version 2>&1
+          if($LASTEXITCODE -ne 0){throw 'ffprobe -version falhou.'}
+
+          $providerUrl='https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip'
+          $providerZip=Join-Path $env:RUNNER_TEMP 'ffmpeg-n9.0-latest-win64-gpl-9.0.zip'
+          Invoke-WebRequest -Uri $providerUrl -OutFile $providerZip -TimeoutSec 300
+          $providerHash=(Get-FileHash $providerZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($providerHash -ne 'a224a1dbea8b3e4e75ce17e9465a919cc74c9f027021046eaec610e40464bf27'){throw "BtbN package SHA mudou/não corresponde: $providerHash"}
+          $providerExtract=Join-Path $env:RUNNER_TEMP 'pass25-btbn'
+          Expand-Archive $providerZip $providerExtract -Force
+          $providerFfmpeg=Get-ChildItem $providerExtract -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          $providerFfprobe=Get-ChildItem $providerExtract -Recurse -Filter ffprobe.exe | Select-Object -First 1
+          if(-not $providerFfmpeg -or -not $providerFfprobe){throw 'Binários BtbN ausentes.'}
+          $providerFfmpegHash=(Get-FileHash $providerFfmpeg.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $providerFfprobeHash=(Get-FileHash $providerFfprobe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($providerFfmpegHash -ne $ffmpegHash){throw 'ffmpeg.exe do portable não é byte-idêntico ao BtbN asset.'}
+          if($providerFfprobeHash -ne $ffprobeHash){throw 'ffprobe.exe do portable não é byte-idêntico ao BtbN asset.'}
+
+          Write-Host 'PASS25_PROVENANCE_MATCH=YES'
+          Write-Host "PORTABLE_SHA256=$portableHash"
+          Write-Host "FFMPEG_PATH=bin/ffmpeg.exe"
+          Write-Host "FFMPEG_BYTES=$((Get-Item $ffmpeg).Length)"
+          Write-Host "FFMPEG_SHA256=$ffmpegHash"
+          Write-Host "FFMPEG_FILE_VERSION=$($ffmpegInfo.FileVersion)"
+          Write-Host "FFMPEG_PRODUCT_VERSION=$($ffmpegInfo.ProductVersion)"
+          Write-Host "FFPROBE_PATH=bin/ffprobe.exe"
+          Write-Host "FFPROBE_BYTES=$((Get-Item $ffprobe).Length)"
+          Write-Host "FFPROBE_SHA256=$ffprobeHash"
+          Write-Host "FFPROBE_FILE_VERSION=$($ffprobeInfo.FileVersion)"
+          Write-Host "FFPROBE_PRODUCT_VERSION=$($ffprobeInfo.ProductVersion)"
+          Write-Host "BTBN_PACKAGE=ffmpeg-n9.0-latest-win64-gpl-9.0.zip"
+          Write-Host "BTBN_PACKAGE_SHA256=$providerHash"
+          Write-Host "BTBN_ASSET_ID=561416974"
+          Write-Host "BTBN_RELEASE_PUBLISHED_AT=2026-09-13T15:11:20Z"
+          Write-Host '--- FFMPEG -VERSION BEGIN ---'
+          $ffmpegVersion | ForEach-Object { Write-Host $_ }
+          Write-Host '--- FFMPEG -VERSION END ---'
+          Write-Host '--- FFPROBE -VERSION BEGIN ---'
+          $ffprobeVersion | ForEach-Object { Write-Host $_ }
+          Write-Host '--- FFPROBE -VERSION END ---'
