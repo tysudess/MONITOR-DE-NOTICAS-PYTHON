@@ -68,6 +68,61 @@ jobs:
             if(-not(Test-Path $file)){throw "Captura ausente: $file"}
           }
 
+      - name: Capture native child windows from desktop
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: windows
+        run: |
+          $ErrorActionPreference='Stop'
+          Remove-Item Env:MONITOR_DISABLE_EXTERNAL_INTEGRATIONS -ErrorAction SilentlyContinue
+          @'
+          import sys
+          import time
+          from pathlib import Path
+
+          from PIL import ImageGrab
+          from PySide6.QtWidgets import QApplication
+
+          sys.path.insert(0, str(Path.cwd() / "src"))
+          from monitor_noticias.ui.main_window import MainWindow
+          from monitor_noticias.ui.sections import Section
+
+          out = Path("artifacts/refined-ui")
+          out.mkdir(parents=True, exist_ok=True)
+          app = QApplication.instance() or QApplication([])
+          window = MainWindow()
+          window._timer.stop()
+          window.resize(1721, 914)
+          window.move(0, 0)
+          window.show()
+
+          def wait(seconds):
+              deadline = time.monotonic() + seconds
+              while time.monotonic() < deadline:
+                  app.processEvents()
+                  time.sleep(0.03)
+
+          def capture(section, filename):
+              window.navigate(section)
+              wait(5.0)
+              geo = window.frameGeometry()
+              left = max(0, geo.left())
+              top = max(0, geo.top())
+              right = max(left + 1, geo.right() + 1)
+              bottom = max(top + 1, geo.bottom() + 1)
+              image = ImageGrab.grab(bbox=(left, top, right, bottom), all_screens=True)
+              image.save(out / filename)
+
+          wait(3.0)
+          capture(Section.NEWS_EXTRACTOR, "native-extrator-noticias.png")
+          capture(Section.SHEET_AUTOMATION, "native-automacao-planilhas.png")
+          window.exit_application()
+          app.processEvents()
+          '@ | Set-Content capture_native.py -Encoding utf8
+          python capture_native.py
+          if(-not(Test-Path 'artifacts/refined-ui/native-extrator-noticias.png')){throw 'Captura nativa do Extrator ausente'}
+          if(-not(Test-Path 'artifacts/refined-ui/native-automacao-planilhas.png')){throw 'Captura nativa da Automação ausente'}
+
       - name: Verify original integration sources remain exact
         shell: pwsh
         run: |
@@ -97,5 +152,7 @@ jobs:
             artifacts/refined-ui/extrator-noticias-1721x914.png
             artifacts/refined-ui/automacao-planilhas-1721x914.png
             artifacts/refined-ui/capas-1721x914.png
+            artifacts/refined-ui/native-extrator-noticias.png
+            artifacts/refined-ui/native-automacao-planilhas.png
           if-no-files-found: error
           retention-days: 14
