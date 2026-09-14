@@ -46,8 +46,8 @@ jobs:
         run: |
           set -euxo pipefail
           cd btbn
-          ./download.sh
-          find .cache/downloads -type f -o -type l | sort
+          GITHUB_REPOSITORY='BtbN/FFmpeg-Builds' ./download.sh
+          find .cache/downloads \( -type f -o -type l \) | sort
 
       - name: Checkout exact FFmpeg source commit
         run: |
