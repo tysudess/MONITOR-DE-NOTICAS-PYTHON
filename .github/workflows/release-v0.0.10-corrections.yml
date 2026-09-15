@@ -162,7 +162,7 @@ jobs:
             'resources/pdf-default-cover.b64',
             'resources/integrations/extrator-noticias/app/Extrator de Materias.exe',
             'resources/integrations/automacao-planilhas/app/Automacao Planilhas.exe'
-          )){if(-not(Test-Path (Join-Path $root $path)){throw "Arquivo empacotado ausente: $path"}}
+          )){if(-not(Test-Path (Join-Path $root $path))){throw "Arquivo empacotado ausente: $path"}}
           Write-Host 'PACKAGED_V010_CORRECTIONS_OK=YES'
 
       - name: Validate freshly built portable
