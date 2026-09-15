@@ -24,7 +24,6 @@ from monitor_noticias.ui.v013_sidebar_reference import install_v013_sidebar_refe
 from monitor_noticias.ui.v014_full_reference_layout import install_v014_full_reference_layout
 from monitor_noticias.ui.v014_reference_sidebar_local import install_v014_reference_sidebar_local
 from monitor_noticias.ui.v015_shell_reference import install_v015_shell_reference
-from monitor_noticias.ui.v015_font_fix import install_v015_font_fix
 from monitor_noticias.ui.v016_layout_only import install_v016_layout_only
 
 install_v009_runtime_fixes()
@@ -41,7 +40,6 @@ install_v014_reference_sidebar_local()
 # v0.0.16: as imagens comandam apenas a aparencia.
 # Nao substituir paginas, nao esconder secoes, nao trocar callbacks.
 install_v015_shell_reference()
-install_v015_font_fix()
 install_v016_layout_only()
 
 from monitor_noticias.app.application import main
