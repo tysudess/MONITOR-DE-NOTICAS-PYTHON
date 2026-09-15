@@ -15,10 +15,12 @@ if "--extractor-worker" in sys.argv:
 from monitor_noticias.ui.v009_runtime_fixes import install_v009_runtime_fixes
 from monitor_noticias.ui.v009_pdf_cover_patch import install_v009_pdf_cover_patch
 from monitor_noticias.ui.v010_runtime_fixes import install_v010_runtime_fixes
+from monitor_noticias.ui.v010_external_bridge import install_v010_external_bridge
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
 install_v010_runtime_fixes()
+install_v010_external_bridge()
 
 from monitor_noticias.app.application import main
 
