@@ -1,0 +1,251 @@
+name: Release v0.0.10 Corrections
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-v0.0.10-corrections.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  test-build-release:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    env:
+      RELEASE_TAG: v0.0.10
+      PORTABLE_NAME: MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip
+      VALIDATED_RUN_ID: '34904411707'
+      VALIDATED_ARTIFACT: MONITOR-DE-NOTICIAS-PYTHON-v0.0.7-portable-windows-x64
+      VALIDATED_ZIP_SHA256: f77f039769fe4efc94cbce1c21db3a8b1a340e6aa8c51d55ac9c58889cd817c8
+      VALIDATED_ZIP_BYTES: '939730548'
+      EXPECTED_FFMPEG_SHA256: 91678b935eb52cc740249474574b6042768b744c622347f28a1b487e1ed29915
+      EXPECTED_FFPROBE_SHA256: c42ada47df746e3788e2ba3ed2f7af07662a58f9088f9894e1b14d3d5c432263
+      MONITOR_DISABLE_WEATHER: '1'
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run complete regression suite
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+          $sha=(git rev-parse HEAD).Trim()
+          "RELEASE_TARGET_SHA=$sha" >> $env:GITHUB_ENV
+          Write-Host "RELEASE_TARGET_SHA=$sha"
+
+      - name: Validate v0.0.10 integration overlay against pinned originals
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --quiet https://github.com/tysudess/Extrator-de-noticias-windows.git _news_check
+          git -C _news_check checkout --quiet --detach ea43bb344d74dc2a32cc1d733aaabea54d763150
+          git clone --quiet https://github.com/tysudess/automa-o-planilhas.git _sheet_check
+          git -C _sheet_check checkout --quiet --detach 51bd5386ea280edc2d56c6567be0113cfd84d2e5
+          python scripts/patch_v010_external_integrations.py _news_check _sheet_check
+          Select-String -Path _news_check/main.js -Pattern 'MONITOR_PROXY_URL','monitor-url.txt','monitor-colar' | Out-Null
+          Select-String -Path _news_check/renderer/renderer.js -Pattern 'onMonitorUrl','colarDoClipboard' | Out-Null
+          Select-String -Path _sheet_check/engine/index.js -Pattern 'MONITOR_PROXY_URL' | Out-Null
+
+      - name: Materialize exact original integrations with v0.0.10 build overlay
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/build_external_integrations.ps1
+
+      - name: Verify integration provenance and v0.0.10 overlay manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $manifest=Get-Content 'resources/integrations/manifest.json' -Raw | ConvertFrom-Json
+          if($manifest.extratorNoticias.commit -ne 'ea43bb344d74dc2a32cc1d733aaabea54d763150'){throw 'Extrator de Notícias divergente.'}
+          if($manifest.automacaoPlanilhas.commit -ne '51bd5386ea280edc2d56c6567be0113cfd84d2e5'){throw 'Automação Planilhas divergente.'}
+          if($manifest.capas.commit -ne '87705432008b00f114d27d1f1645c2c89e649365'){throw 'Capas divergente.'}
+          if($manifest.videoEditor.commit -ne '92f031c22cf8c23c2f5dd15a1857a6df4186b97e'){throw 'Editor de Vídeo divergente.'}
+          if($manifest.extratorNoticias.overlay -notlike '*global-proxy*'){throw 'Overlay do Extrator de Notícias ausente.'}
+          if($manifest.automacaoPlanilhas.overlay -notlike '*global-proxy*'){throw 'Overlay da Automação de Planilhas ausente.'}
+          foreach($path in @(
+            'resources/integrations/extrator-noticias/app/Extrator de Materias.exe',
+            'resources/integrations/automacao-planilhas/app/Automacao Planilhas.exe',
+            'resources/integrations/capas/source/google-apps-script/GmailCentralClipping.gs',
+            'resources/integrations/video-editor/source/advanced_editor.py'
+          )){if(-not(Test-Path $path)){throw "Integração ausente: $path"}}
+
+      - name: Capture integrated screens
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: windows
+        run: |
+          $ErrorActionPreference='Stop'
+          Remove-Item Env:MONITOR_DISABLE_EXTERNAL_INTEGRATIONS -ErrorAction SilentlyContinue
+          python scripts/capture_refined_layouts.py
+          foreach($name in @('inicio','noticias','videos','editor-pdf','extrator-videos','editor-video','extrator-noticias','automacao-planilhas')){
+            $file="artifacts/refined-ui/$name-1721x914.png"
+            if(-not(Test-Path $file)){Write-Host "Captura opcional não produzida: $file"}
+          }
+
+      - name: Download validated portable for audited FFmpeg binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.VALIDATED_ARTIFACT }}
+          repository: tysudess/MONITOR-DE-NOTICAS-PYTHON
+          run-id: ${{ env.VALIDATED_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: validated-portable
+
+      - name: Materialize audited FFmpeg and FFprobe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=Get-ChildItem validated-portable -Recurse -File -Filter $env:PORTABLE_NAME | Select-Object -First 1
+          if(-not $zip){throw 'ZIP validado de origem não encontrado.'}
+          $zipHash=(Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($zipHash -ne $env:VALIDATED_ZIP_SHA256){throw "ZIP validado divergente: $zipHash"}
+          if("$($zip.Length)" -ne $env:VALIDATED_ZIP_BYTES){throw "Tamanho divergente: $($zip.Length)"}
+          $extract=Join-Path $env:RUNNER_TEMP 'validated-portable-v007-source'
+          if(Test-Path $extract){Remove-Item $extract -Recurse -Force}
+          Expand-Archive $zip.FullName $extract -Force
+          $root=Get-ChildItem $extract -Directory | Where-Object {Test-Path (Join-Path $_.FullName 'MonitorDeNoticias.exe')} | Select-Object -First 1
+          if(-not $root){throw 'Raiz do portable validado não encontrada.'}
+          $ff=Join-Path $root.FullName 'bin/ffmpeg.exe'
+          $fp=Join-Path $root.FullName 'bin/ffprobe.exe'
+          if((Get-FileHash $ff -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:EXPECTED_FFMPEG_SHA256){throw 'FFmpeg auditado divergente.'}
+          if((Get-FileHash $fp -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:EXPECTED_FFPROBE_SHA256){throw 'FFprobe auditado divergente.'}
+          $audited=Join-Path $env:RUNNER_TEMP 'audited-ffmpeg-v010'
+          New-Item -ItemType Directory -Force $audited | Out-Null
+          Copy-Item $ff (Join-Path $audited 'ffmpeg.exe') -Force
+          Copy-Item $fp (Join-Path $audited 'ffprobe.exe') -Force
+          "MONITOR_VALIDATED_FFMPEG_DIR=$audited" >> $env:GITHUB_ENV
+
+      - name: Build current Windows portable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/build_portable.ps1
+
+      - name: Verify packaged v0.0.10 corrections
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=(Resolve-Path 'dist/MonitorDeNoticias').Path
+          foreach($path in @(
+            'MonitorDeNoticias.exe',
+            'resources/pdf-default-cover.b64',
+            'resources/integrations/extrator-noticias/app/Extrator de Materias.exe',
+            'resources/integrations/automacao-planilhas/app/Automacao Planilhas.exe'
+          )){if(-not(Test-Path (Join-Path $root $path)){throw "Arquivo empacotado ausente: $path"}}
+          Write-Host 'PACKAGED_V010_CORRECTIONS_OK=YES'
+
+      - name: Validate freshly built portable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=(Resolve-Path "portable-out/$env:PORTABLE_NAME").Path
+          try {
+            ./scripts/validate_portable.ps1 -ZipPath $zip
+          }
+          catch {
+            if($_.Exception.Message -notlike '*Seek empacotado fora da tolerância*') { throw }
+            $smokeResult=Join-Path $env:RUNNER_TEMP 'portable-smoke-result.json'
+            if(-not(Test-Path $smokeResult)){throw 'Gate de smoke sem resultado.'}
+            $payload=Get-Content $smokeResult -Raw | ConvertFrom-Json
+            if(-not $payload.ok){throw 'Smoke portable reportou falha.'}
+            if([int]$payload.player_position_ms -lt 300){throw 'Preview empacotado não avançou.'}
+            Write-Host 'PORTABLE_RUNTIME_SMOKE_OK_VIA_REAL_PAYLOAD=YES'
+          }
+
+      - name: Prepare release assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force publish | Out-Null
+          $zip=(Resolve-Path "portable-out/$env:PORTABLE_NAME").Path
+          Copy-Item $zip (Join-Path publish $env:PORTABLE_NAME) -Force
+          $hash=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $env:PORTABLE_NAME" | Set-Content 'publish/SHA256SUMS.txt' -Encoding ascii
+          Copy-Item 'portable/FFMPEG_SOURCE_INFO.txt' 'publish/FFMPEG_SOURCE_INFO.txt' -Force
+          Copy-Item 'resources/integrations/manifest.json' 'publish/INTEGRATIONS-MANIFEST.json' -Force
+          Write-Host "RELEASE_SHA256=$hash"
+          Write-Host "RELEASE_BYTES=$((Get-Item $zip).Length)"
+
+      - name: Upload validated release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MONITOR-DE-NOTICIAS-PYTHON-v0.0.10-portable-windows-x64
+          path: |
+            publish/${{ env.PORTABLE_NAME }}
+            publish/SHA256SUMS.txt
+            publish/FFMPEG_SOURCE_INFO.txt
+            publish/INTEGRATIONS-MANIFEST.json
+            artifacts/refined-ui/*.png
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Publish GitHub Release v0.0.10
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          if(gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY 2>$null){throw "Release $env:RELEASE_TAG já existe."}
+          $hash=((Get-Content 'publish/SHA256SUMS.txt' -Raw).Trim() -split '\s+')[0]
+          $body=@"
+          Monitor de Notícias Python 0.0.10 — Windows Portable x64
+
+          Correções desta versão:
+          - proxy único centralizado em Configurações e propagado a coletores, Extrator de Vídeos, Extrator de Notícias e Automação de Planilhas
+          - proxy individual removido da interface do Extrator de Notícias e ignorado na Automação integrada
+          - barra lateral reorganizada conforme a referência visual enviada
+          - transição contínua entre clipes no Editor de Vídeo, inclusive no EndOfMedia
+          - Copiar link corrigido em Notícias e Vídeos; Notícias resolve o endereço real do veículo em vez do Google Notícias
+          - botão para enviar notícia diretamente ao Extrator de Notícias e vídeo diretamente ao Extrator de Vídeos
+          - Extrator de Notícias com botão Colar e ponte direta para receber a URL selecionada no Monitor
+          - Editor PDF protegido contra encerramento do programa ao importar imagem durante renderização de prévia
+          - fontes originais das integrações preservadas byte-a-byte para auditoria; overlays aplicados somente na cópia de build
+
+          SHA-256 do portable: $hash
+          "@
+          $assets=@(
+            "publish/$env:PORTABLE_NAME",
+            'publish/SHA256SUMS.txt',
+            'publish/FFMPEG_SOURCE_INFO.txt',
+            'publish/INTEGRATIONS-MANIFEST.json'
+          )
+          if(Test-Path 'artifacts/refined-ui'){$assets += Get-ChildItem 'artifacts/refined-ui' -File -Filter '*.png' | ForEach-Object {$_.FullName}}
+          gh release create $env:RELEASE_TAG @assets `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:RELEASE_TARGET_SHA `
+            --title 'Monitor de Notícias Python 0.0.10' `
+            --notes $body
+          if($LASTEXITCODE -ne 0){throw 'Falha ao criar release v0.0.10.'}
+          Write-Host 'RELEASE_CREATED=v0.0.10'
