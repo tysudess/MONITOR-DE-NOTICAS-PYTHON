@@ -128,7 +128,20 @@ foreach ($page in $expectedPages) {
 }
 if ($smokePayload.video_codec -ne "h264" -or $smokePayload.audio_codec -ne "aac") { throw "Exportação empacotada não preservou H.264/AAC." }
 if ([int]$smokePayload.player_position_ms -lt 300) { throw "Preview empacotado não avançou." }
-if ([Math]::Abs([int]$smokePayload.seek_position_ms - 1000) -gt 250) { throw "Seek empacotado fora da tolerância." }
+
+# O runtime hook atual valida cada seek no próprio player e publica as três posições
+# observadas. O gate externo deve conferir esse contrato real, e não o campo singular
+# legado seek_position_ms, que não existe mais no payload.
+$seekPositions = @($smokePayload.seek_positions_ms | ForEach-Object { [int]$_ })
+$expectedSeekTargets = @(500, 1000, 1500)
+if ($seekPositions.Count -ne $expectedSeekTargets.Count) {
+    throw "Smoke interno informou quantidade inesperada de seeks: $($seekPositions.Count)."
+}
+for ($i = 0; $i -lt $expectedSeekTargets.Count; $i++) {
+    if ([Math]::Abs($seekPositions[$i] - $expectedSeekTargets[$i]) -gt 250) {
+        throw "Seek empacotado fora da tolerância: alvo=$($expectedSeekTargets[$i]) atual=$($seekPositions[$i])."
+    }
+}
 
 # O hook testa shutdown coordenado e libera handles. A pasta temporária precisa ser removível.
 $RootTemp = Join-Path $Root "temp"
@@ -154,5 +167,6 @@ finally {
     }
 }
 
-Write-Host "PORTABLE_RUNTIME_SMOKE_OK player=$($smokePayload.player_position_ms)ms seek=$($smokePayload.seek_position_ms)ms codec=$($smokePayload.video_codec) audio=$($smokePayload.audio_codec) resolution=$($smokePayload.resolution)"
+$seekSummary = ($seekPositions -join ",")
+Write-Host "PORTABLE_RUNTIME_SMOKE_OK player=$($smokePayload.player_position_ms)ms seeks=$seekSummary codec=$($smokePayload.video_codec) audio=$($smokePayload.audio_codec) resolution=$($smokePayload.resolution)"
 Write-Host "PORTABLE_ZIP_VALIDATION_OK sha256=$actual"
