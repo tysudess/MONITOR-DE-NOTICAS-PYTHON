@@ -64,3 +64,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run release-v0.0.9-corrections.yml --repo ${{ github.repository }} --ref main
+
+# Redisparo após atualização do contrato de formatos de vídeo da v0.0.9.
