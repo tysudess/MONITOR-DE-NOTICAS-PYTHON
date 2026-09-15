@@ -7,12 +7,12 @@ Esta camada não substitui paginas, não esconde secoes e não troca callbacks.
 """
 
 from PySide6.QtCore import QSize
-from PySide6.QtWidgets import QLabel, QPushButton
+from PySide6.QtWidgets import QPushButton
 
 _INSTALLED = False
 
 REFERENCE_STYLE = r"""
-QWidget#root,QWidget#mainContent{background:#031525;color:#f2f7fd;font-family:Arial;}
+QWidget#root,QWidget#mainContent{background:#031525;color:#f2f7fd;font-family:'Segoe UI';}
 QFrame#sidebar{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #031426,stop:.72 #041b2e,stop:1 #031321);border:0;border-right:1px solid #0b4c6c;border-radius:0;}
 QLabel#anchorMark{color:#ffc61a;font-size:38px;font-weight:800;background:transparent;border:0;}
 QLabel#brandTitle{color:#fff;font-size:16px;font-weight:800;} QLabel#brandSub{color:#9eb7ce;font-size:9px;}
@@ -44,7 +44,6 @@ def _apply(window) -> None:
     sidebar = getattr(window, "sidebar", None)
     if sidebar is not None:
         sidebar.setFixedWidth(220)
-        # NUNCA esconder itens: toda funcionalidade existente permanece acessivel.
         for holder in getattr(window, "nav_holders", {}).values():
             holder.show()
         for button in getattr(window, "nav_buttons", {}).values():
