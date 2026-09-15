@@ -42,8 +42,10 @@ class _DownloadWorker(QObject):
                 lambda pct, msg: self.progress.emit(int(pct), str(msg)),
             )
             self.finished.emit(result)
-        except Exception as exc:
-            self.failed.emit(str(exc) or "Falha no download.")
+        except BaseException as exc:
+            # yt-dlp/FFmpeg e seus auxiliares não podem encerrar o processo principal.
+            # Até SystemExit originado por dependência é convertido em erro da operação.
+            self.failed.emit(str(exc) or f"Falha no download ({type(exc).__name__}).")
 
 
 class _UpdaterWorker(QObject):

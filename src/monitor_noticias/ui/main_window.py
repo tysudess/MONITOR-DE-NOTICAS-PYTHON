@@ -262,10 +262,13 @@ class MainWindow(QMainWindow):
         )
         self._current=section; self.stack.setCurrentIndex(SECTION_ORDER.index(section))
         for sec,button in self.nav_buttons.items(): button.setChecked(sec==section)
-        on_home=section==Section.HOME; self.header_widget.setVisible(not on_home); self.footer_widget.setVisible(not on_home)
-        if on_home: self.content_layout.setContentsMargins(0,0,0,0); self.content_layout.setSpacing(0)
+        full_workspace = section in {Section.HOME, Section.EXTRACTOR, Section.SHEET_AUTOMATION}
+        self.header_widget.setVisible(not full_workspace); self.footer_widget.setVisible(not full_workspace)
+        if full_workspace: self.content_layout.setContentsMargins(0,0,0,0); self.content_layout.setSpacing(0)
         else: self.content_layout.setContentsMargins(18,8,18,0); self.content_layout.setSpacing(10)
-        for tool in TOOL_SECTIONS: self.nav_holders[tool].setVisible(not on_home)
+        # As ferramentas devem existir e permanecer visíveis desde a primeira pintura.
+        # A release anterior as ocultava no HOME e só as mostrava após a primeira navegação.
+        for tool in TOOL_SECTIONS: self.nav_holders[tool].setVisible(True)
         self.header_widget.set_section(section.value.label,section.value.subtitle)
         self._safe_refresh_page(section)
         if keep_maximized:

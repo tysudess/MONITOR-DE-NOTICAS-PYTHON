@@ -73,26 +73,19 @@ class _NativeHost(QWidget):
             if not user32.IsWindow(hwnd):
                 return
 
-            host_w = max(1, self.width())
-            host_h = max(1, self.height())
-            flags = 0x0004 | 0x0010 | 0x0040  # NOZORDER | NOACTIVATE | SHOWWINDOW
-
-            # Primeiro oferecemos toda a área disponível ao aplicativo original.
-            # Alguns programas Electron/Qt possuem tamanho mínimo ou máximo próprio
-            # e podem rejeitar parte desse resize. Nesse caso não forçamos o motor:
-            # apenas centralizamos a janela real dentro da área do Monitor.
+            # winId()/GetClientRect trabalham no mesmo sistema de coordenadas Win32.
+            # self.width()/height() são pixels lógicos do Qt e causavam folgas/cortes
+            # quando o Windows estava em 125%, 150% ou outra escala de DPI.
+            parent_hwnd = int(self.winId())
+            client = wintypes.RECT()
+            if user32.GetClientRect(parent_hwnd, ctypes.byref(client)):
+                host_w = max(1, int(client.right - client.left))
+                host_h = max(1, int(client.bottom - client.top))
+            else:
+                host_w = max(1, self.width())
+                host_h = max(1, self.height())
+            flags = 0x0004 | 0x0010 | 0x0040 | 0x0020  # NOZORDER | NOACTIVATE | SHOWWINDOW | FRAMECHANGED
             user32.SetWindowPos(hwnd, 0, 0, 0, host_w, host_h, flags)
-
-            rect = wintypes.RECT()
-            if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-                child_w = max(1, int(rect.right - rect.left))
-                child_h = max(1, int(rect.bottom - rect.top))
-                visible_w = min(host_w, child_w)
-                visible_h = min(host_h, child_h)
-                x = max(0, (host_w - visible_w) // 2)
-                y = max(0, (host_h - visible_h) // 2)
-                if child_w != host_w or child_h != host_h or x or y:
-                    user32.SetWindowPos(hwnd, 0, x, y, child_w, child_h, flags)
         except Exception:
             log.exception("Falha ao redimensionar janela externa incorporada")
 

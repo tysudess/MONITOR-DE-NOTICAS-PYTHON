@@ -199,7 +199,8 @@ class VideoEditorWindow(QMainWindow):
         self.statusBar().showMessage(text)
 
     def open_files(self) -> None:
-        files, _ = QFileDialog.getOpenFileNames(self, "Abrir vídeos", str(Path.home()), "Vídeos (*.mp4 *.mkv *.webm *.mov *.avi *.m4v)")
+        patterns = " ".join(f"*{ext}" for ext in sorted(SUPPORTED_EXTENSIONS))
+        files, _ = QFileDialog.getOpenFileNames(self, "Abrir vídeos", str(Path.home()), f"Vídeos ({patterns});;Todos os arquivos (*.*)")
         if not files: return
         added = 0; errors: list[str] = []
         for name in files:
