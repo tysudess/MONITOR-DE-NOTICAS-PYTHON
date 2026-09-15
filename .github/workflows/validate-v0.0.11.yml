@@ -1,0 +1,68 @@
+name: Validate v0.0.11 PDF Sidebar
+
+on:
+  push:
+    branches: [fix/v0.0.11-pdf-sidebar]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+      MONITOR_DISABLE_WEATHER: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Compile and run regression suite
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+      - name: Validate PDF cover asset
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          from pathlib import Path
+          from PIL import Image
+          p=Path('resources/pdf-default-cover.png')
+          with Image.open(p) as im:
+              im.load()
+              print(f'PDF_COVER={im.format} {im.width}x{im.height}')
+              assert im.format == 'PNG'
+              assert im.width >= 1000 and im.height >= 1000
+          assert not Path('resources/pdf-default-cover.webp').exists()
+          '@ | python -
+      - name: Smoke construct main window
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import os
+          os.environ['QT_QPA_PLATFORM']='offscreen'
+          from PySide6.QtWidgets import QApplication
+          import run
+          from monitor_noticias.ui.main_window import MainWindow
+          app=QApplication.instance() or QApplication([])
+          w=MainWindow()
+          assert w.sidebar.width() == 318
+          assert w.nav_buttons
+          print('MAIN_WINDOW_CONSTRUCTION_OK=YES')
+          w._timer.stop()
+          try: w.controller.close()
+          except Exception: pass
+          w.deleteLater()
+          app.processEvents()
+          '@ | python -
