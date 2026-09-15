@@ -8,12 +8,20 @@ from monitor_noticias.video_editor import (
 )
 
 
+V009_SUPPORTED_EXTENSIONS = {
+    ".3gp", ".avi", ".flv", ".m2ts", ".m4v", ".mkv", ".mov", ".mp4",
+    ".mpeg", ".mpg", ".mts", ".mxf", ".ogv", ".ts", ".vob", ".webm", ".wmv",
+}
+
+
 def _info(ms: int, audio: str | None = "aac") -> VideoInfo:
     return VideoInfo(ms, 1280, 720, 30.0, "h264", audio)
 
 
-def test_active_editor_formats_match_baseline_exactly():
-    assert SUPPORTED_EXTENSIONS == {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"}
+def test_active_editor_formats_match_v009_release_contract_exactly():
+    # v0.0.9 amplia somente os formatos de entrada reconhecidos. O pipeline de
+    # edição/exportação continua sendo o mesmo já validado nas releases anteriores.
+    assert SUPPORTED_EXTENSIONS == V009_SUPPORTED_EXTENSIONS
 
 
 def test_active_clip_model_has_only_proven_temporal_semantics(tmp_path):
