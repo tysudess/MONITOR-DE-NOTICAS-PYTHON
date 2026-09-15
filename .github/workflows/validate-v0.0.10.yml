@@ -1,0 +1,58 @@
+name: Validate v0.0.10 Corrections
+
+on:
+  push:
+    branches:
+      - fix/v0.0.10-proxy-links-editors-sidebar
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: windows-2022
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+      MONITOR_DISABLE_WEATHER: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile and run regression suite
+        shell: pwsh
+        run: |
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+
+      - name: Validate external integration overlay against pinned originals
+        shell: pwsh
+        run: |
+          git clone --quiet https://github.com/tysudess/Extrator-de-noticias-windows.git _news
+          git -C _news checkout --quiet --detach ea43bb344d74dc2a32cc1d733aaabea54d763150
+          git clone --quiet https://github.com/tysudess/automa-o-planilhas.git _sheet
+          git -C _sheet checkout --quiet --detach 51bd5386ea280edc2d56c6567be0113cfd84d2e5
+          python scripts/patch_v010_external_integrations.py _news _sheet
+          Select-String -Path _news/main.js -Pattern 'MONITOR_PROXY_URL','monitor-url.txt','monitor-colar' | Out-Null
+          Select-String -Path _news/renderer/renderer.js -Pattern 'onMonitorUrl','colarDoClipboard' | Out-Null
+          Select-String -Path _sheet/engine/index.js -Pattern 'MONITOR_PROXY_URL' | Out-Null
+
+      - name: Verify originals remain pinned in build script
+        shell: pwsh
+        run: |
+          $t = Get-Content scripts/build_external_integrations.ps1 -Raw
+          foreach($sha in @(
+            'ea43bb344d74dc2a32cc1d733aaabea54d763150',
+            '51bd5386ea280edc2d56c6567be0113cfd84d2e5',
+            '87705432008b00f114d27d1f1645c2c89e649365',
+            '92f031c22cf8c23c2f5dd15a1857a6df4186b97e'
+          )) { if(-not $t.Contains($sha)){ throw "Commit fixado ausente: $sha" } }

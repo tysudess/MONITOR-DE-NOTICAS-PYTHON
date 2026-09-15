@@ -93,10 +93,15 @@ $sheetStage = Join-Path $StageRoot "automacao-planilhas"
 $coversStage = Join-Path $StageRoot "capas"
 $videoStage = Join-Path $StageRoot "video-editor"
 
-# Mantém TODO o programa original dos três projetos pedidos, sem editar seus fontes.
+# Mantém TODO o programa original dos três projetos pedidos, sem editar a cópia de auditoria.
 Copy-Original-Source $news (Join-Path $newsStage "source")
 Copy-Original-Source $sheet (Join-Path $sheetStage "source")
 Copy-Original-Source $covers (Join-Path $coversStage "source")
+
+# v0.0.10: depois de preservar a cópia byte-a-byte acima, aplica somente na cópia
+# de BUILD o overlay de integração do Monitor: proxy global único e ponte de URL.
+python (Join-Path $Root "scripts/patch_v010_external_integrations.py") $news $sheet
+if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar overlay v0.0.10 nas integrações externas." }
 
 # Do extrator-video-windows entra SOMENTE o editor original solicitado.
 New-Item -ItemType Directory -Force (Join-Path $videoStage "source") | Out-Null
@@ -109,16 +114,16 @@ Integração: somente AdvancedVideoEditorWidget e RangeSlider, conforme solicita
 Os arquivos acima são copiados byte-a-byte do repositório de origem.
 "@ | Set-Content (Join-Path $videoStage "source/ORIGIN.txt") -Encoding utf8
 
-# Os aplicativos Electron são empacotados como diretórios, não reescritos.
-# Assim o executável real continua sendo o original e pode ser hospedado em uma aba.
+# Os aplicativos Electron são empacotados como diretórios. O fonte original
+# continua preservado em /source e o executável recebe apenas o overlay acima.
 Build-Electron-App "Extrator de Notícias" $news (Join-Path $newsStage "app")
 Build-Electron-App "Automação de Planilhas" $sheet (Join-Path $sheetStage "app")
 
 $manifest = [ordered]@{
     schema = 1
     generatedAtUtc = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
-    extratorNoticias = [ordered]@{ repo=$sources.extratorNoticias.repo; commit=$sources.extratorNoticias.sha; executable="extrator-noticias/app/Extrator de Materias.exe" }
-    automacaoPlanilhas = [ordered]@{ repo=$sources.automacaoPlanilhas.repo; commit=$sources.automacaoPlanilhas.sha; executable="automacao-planilhas/app/Automacao Planilhas.exe" }
+    extratorNoticias = [ordered]@{ repo=$sources.extratorNoticias.repo; commit=$sources.extratorNoticias.sha; executable="extrator-noticias/app/Extrator de Materias.exe"; overlay="v0.0.10 global-proxy + monitor-url bridge" }
+    automacaoPlanilhas = [ordered]@{ repo=$sources.automacaoPlanilhas.repo; commit=$sources.automacaoPlanilhas.sha; executable="automacao-planilhas/app/Automacao Planilhas.exe"; overlay="v0.0.10 global-proxy" }
     capas = [ordered]@{ repo=$sources.capas.repo; commit=$sources.capas.sha; source="capas/source" }
     videoEditor = [ordered]@{ repo=$sources.videoEditor.repo; commit=$sources.videoEditor.sha; source="video-editor/source" }
 }
