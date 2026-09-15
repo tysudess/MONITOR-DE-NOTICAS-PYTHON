@@ -47,8 +47,6 @@ def patch_news(root: Path) -> None:
         "          <button id=\"colarLink\" class=\"btn btn-ghost\" type=\"button\" title=\"Colar link da área de transferência\">\n            <span aria-hidden=\"true\">▣</span>\n            <span>Colar</span>\n          </button>\n          <button id=\"extrair\" class=\"btn btn-primary\" type=\"button\">\n            <span aria-hidden=\"true\">↓</span>\n            <span>Extrair matéria</span>\n          </button>\n"
     )
 
-    # O proxy individual deixa de aparecer no app integrado; Configurações do
-    # Monitor é a fonte única. Mantemos o fonte original copiado em /source.
     replace_once(
         html,
         "      <details class=\"card proxy-card\" id=\"proxyCard\">",
@@ -71,7 +69,6 @@ def patch_news(root: Path) -> None:
         "window.extratorAPI.onStatus((mensagem) => definirStatus(mensagem));\n\nfunction receberLinkMonitor(value) {\n  const link = String(value || '').trim();\n  if (!link) return;\n  url.value = link;\n  url.dispatchEvent(new Event('input', { bubbles:true }));\n  url.focus();\n  sincronizarBotaoExtrair();\n  definirStatus('Link recebido do Monitor. Pronto para extrair.', 'ready');\n}\nwindow.extratorAPI.onMonitorUrl(receberLinkMonitor);\nbtnColarLink?.addEventListener('click', async () => {\n  try { receberLinkMonitor(await window.extratorAPI.colarDoClipboard()); }\n  catch (e) { definirStatus('Não foi possível colar o link: ' + (e?.message || e), 'error'); }\n});\n"
     )
 
-    # A UI não envia mais credenciais/proxy locais para o motor.
     replace_once(
         renderer,
         "usarProxy.addEventListener('change', () => {\n  camposProxy.classList.toggle('oculto', !usarProxy.checked);\n  if (usarProxy.checked) usuario.focus();\n});\n",
@@ -95,7 +92,16 @@ def main(argv: list[str]) -> int:
     sheet = Path(argv[2]).resolve()
     patch_news(news)
     patch_sheet(sheet)
+
+    # v0.0.12 é um overlay adicional sobre a cópia de BUILD já preparada.
+    # Os fontes auditáveis permanecem intactos porque build_external_integrations.ps1
+    # os copia antes de chamar este script.
+    from patch_v012_external_integrations import patch_news as patch_news_v012, patch_sheet as patch_sheet_v012
+    patch_news_v012(news)
+    patch_sheet_v012(sheet)
+
     print("V010_EXTERNAL_INTEGRATIONS_PATCHED=YES")
+    print("V012_EXTERNAL_INTEGRATIONS_PATCHED=YES")
     return 0
 
 

@@ -1,0 +1,116 @@
+name: Validate v0.0.12 UI Integrations
+
+on:
+  push:
+    branches:
+      - fix/v0.0.12-ui-integrations-stability
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+      MONITOR_DISABLE_WEATHER: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile and run complete regression suite
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+
+      - name: Smoke sidebar after every overlay
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import os, sys
+          from pathlib import Path
+          os.environ['QT_QPA_PLATFORM']='offscreen'
+          os.environ['MONITOR_DISABLE_EXTERNAL_INTEGRATIONS']='1'
+          os.environ['MONITOR_DISABLE_WEATHER']='1'
+          root=Path.cwd(); sys.path.insert(0,str(root/'src'))
+          import run as bootstrap
+          from PySide6.QtWidgets import QApplication, QFrame, QLabel
+          from PySide6.QtCore import Qt
+          from monitor_noticias.ui.main_window import MainWindow
+          from monitor_noticias.app.paths import AppPaths
+          from monitor_noticias.ui.sections import Section
+          app=QApplication.instance() or QApplication([])
+          w=MainWindow(paths=AppPaths.discover())
+          w.show()
+          app.processEvents()
+          for section in Section:
+              if section in w.nav_buttons:
+                  w.navigate(section); app.processEvents()
+                  headers=w.sidebar.findChildren(QFrame,'sideGroupHeader')
+                  titles=[x.text() for h in headers for x in h.findChildren(QLabel,'sideGroupTitle')]
+                  assert sorted(titles)==sorted(['PRINCIPAL','GERENCIAMENTO','FERRAMENTAS','SISTEMA']), titles
+                  for holder in w.nav_holders.values():
+                      for label in holder.findChildren(QLabel,'',Qt.FindChildOption.FindDirectChildrenOnly):
+                          assert not (label.text().strip()=='●' and 'border-left' in label.styleSheet())
+                  heights={b.height() for b in w.nav_buttons.values()}
+                  assert len(heights)==1, heights
+                  assert all(not b.icon().isNull() for b in w.nav_buttons.values())
+          widths={section.name:button.width() for section,button in w.nav_buttons.items()}
+          assert len(set(widths.values()))==1, widths
+          w._allow_close=True
+          w.close(); app.processEvents()
+          print('V012_SIDEBAR_SMOKE_OK=YES')
+          '@ | python -
+
+      - name: Validate v0.0.12 external overlays on pinned sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $work=Join-Path $env:RUNNER_TEMP 'v012-overlay-check'
+          if(Test-Path $work){Remove-Item $work -Recurse -Force}
+          New-Item -ItemType Directory -Force $work | Out-Null
+          git clone --quiet https://github.com/tysudess/Extrator-de-noticias-windows.git (Join-Path $work 'news')
+          git -C (Join-Path $work 'news') checkout --quiet --detach ea43bb344d74dc2a32cc1d733aaabea54d763150
+          git clone --quiet https://github.com/tysudess/automa-o-planilhas.git (Join-Path $work 'sheet')
+          git -C (Join-Path $work 'sheet') checkout --quiet --detach 51bd5386ea280edc2d56c6567be0113cfd84d2e5
+          python scripts/patch_v010_external_integrations.py (Join-Path $work 'news') (Join-Path $work 'sheet')
+          node --check (Join-Path $work 'news/renderer/renderer.js')
+          node --check (Join-Path $work 'news/main.js')
+          node --check (Join-Path $work 'sheet/renderer/renderer.js')
+          node --check (Join-Path $work 'sheet/main.js')
+          @'
+          from pathlib import Path
+          import os
+          root=Path(os.environ['RUNNER_TEMP'])/'v012-overlay-check'
+          nr=(root/'news/renderer/renderer.js').read_text(encoding='utf-8')
+          sr=(root/'sheet/renderer/renderer.js').read_text(encoding='utf-8')
+          sh=(root/'sheet/renderer/index.html').read_text(encoding='utf-8')
+          sm=(root/'sheet/main.js').read_text(encoding='utf-8')
+          assert 'Ctrl+V explícito' in nr and 'inicio - 120' in nr
+          assert 'Ctrl+V explícito' in sr and 'readClipboard' in sr
+          assert 'legacyProxyControls' in sh
+          assert 'conexão única definida na aba Configurações do Monitor' in sh
+          assert 'clipboard:read' in sm
+          print('V012_EXTERNAL_OVERLAY_OK=YES')
+          '@ | python -
