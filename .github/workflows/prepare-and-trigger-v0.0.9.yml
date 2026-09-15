@@ -1,0 +1,58 @@
+name: Prepare and Trigger v0.0.9
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prepare-and-trigger-v0.0.9.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Assemble exact HD MÍDIA IMPRESSA cover
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, io
+          from pathlib import Path
+          from PIL import Image
+
+          parts = sorted(Path('resources/pdf-cover-hd').glob('part*.b64'))
+          if len(parts) != 5:
+              raise SystemExit(f'Esperava 5 partes da capa HD; encontrei {len(parts)}')
+          encoded = ''.join(p.read_text(encoding='utf-8').strip() for p in parts)
+          raw = base64.b64decode(encoded)
+          with Image.open(io.BytesIO(raw)) as im:
+              print(f'HD_COVER={im.format} {im.width}x{im.height} bytes={len(raw)}')
+              if (im.width, im.height) != (1245, 2048):
+                  raise SystemExit(f'Capa HD inesperada: {im.width}x{im.height}')
+          Path('resources/pdf-default-cover.b64').write_text(encoded, encoding='utf-8')
+          PY
+
+      - name: Commit HD default cover
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add resources/pdf-default-cover.b64
+          if ! git diff --cached --quiet; then
+            git commit -m 'Define capa MÍDIA IMPRESSA HD como padrão do Editor PDF'
+            git push origin HEAD:main
+          fi
+
+      - name: Dispatch validated v0.0.9 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release-v0.0.9-corrections.yml --repo ${{ github.repository }} --ref main
