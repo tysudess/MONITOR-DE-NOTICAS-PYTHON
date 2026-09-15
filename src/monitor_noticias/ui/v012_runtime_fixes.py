@@ -45,7 +45,7 @@ def _install_extractor_repeat_download() -> None:
     def run_ytdlp(self, url, selector, proxy, extra, update, executable=None, cookie_file=None, referer=None):
         executable = executable or self.yt_dlp
         self.videos_dir.mkdir(parents=True, exist_ok=True)
-        temp_dir = Path(tempfile.mkdtemp(prefix="monitor-download-", dir=str(self.app_root)))
+        temp_dir = Path(tempfile.mkdtemp(prefix="monitor-download-"))
         cmd = [
             str(executable), "--no-playlist", "--newline", "--progress", "--windows-filenames",
             "--trim-filenames", "180", "--continue", "--retries", "10", "--fragment-retries", "10",
@@ -98,7 +98,6 @@ def _install_extractor_repeat_download() -> None:
             self._clear_active(proc)
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    # Mantém referência do original para diagnóstico/testes de equivalência.
     run_ytdlp._v012_original = original
     ExtractorEngine._run_ytdlp = run_ytdlp
 
@@ -129,8 +128,6 @@ def _install_video_continuity() -> None:
                 editor._v012_resume_requested = True
             result = original_seek(global_ms, keep_playing)
             if keep_playing:
-                # setSource() é assíncrono no Windows. play() chamado cedo demais pode
-                # ser perdido, por isso reafirmamos após a troca sem alterar o motor.
                 for delay in (0, 80, 180, 360):
                     QTimer.singleShot(delay, lambda: _resume_if_requested(editor))
             return result
@@ -183,12 +180,7 @@ def _install_video_continuity() -> None:
 
 
 def _install_covers_frontpages_fix() -> None:
-    """Amplia somente a descoberta da imagem atual do FrontPages.
-
-    O site mudou URLs/atributos ao longo do tempo; o motor antigo exigia /g/ e
-    .webp. Mantemos a validação SPORTS e aceitamos também src/currentSrc/srcset,
-    og:image e formatos jpg/png quando o slug é o Washington Post.
-    """
+    """Amplia somente a descoberta da imagem atual do FrontPages."""
     from monitor_noticias.ui.integrated_tools import CoversPage
 
     if getattr(CoversPage, "_v012_frontpages", False):
@@ -196,8 +188,8 @@ def _install_covers_frontpages_fix() -> None:
     CoversPage._v012_frontpages = True
     original_load_vendor = CoversPage._load_vendor
 
-    def load_vendor(self):
-        ui_mod = original_load_vendor(self)
+    def load_vendor(self, source_dir):
+        ui_mod = original_load_vendor(self, source_dir)
         try:
             import importlib
             pkg = ui_mod.__package__
@@ -249,10 +241,10 @@ def _install_covers_frontpages_fix() -> None:
 
 
 def _install_sidebar_finalizer() -> None:
-    from PySide6.QtCore import QByteArray, QEvent, QSize, Qt
+    from PySide6.QtCore import QByteArray, QSize, Qt
     from PySide6.QtGui import QIcon, QPainter, QPixmap
     from PySide6.QtSvg import QSvgRenderer
-    from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+    from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout
     from monitor_noticias.ui.main_window import MainWindow
     from monitor_noticias.ui.sections import Section
 
@@ -281,18 +273,26 @@ def _install_sidebar_finalizer() -> None:
     def make_icon(section):
         body = svg.get(section, '')
         xml = f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g fill="none" stroke="#eef7ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{body}</g></svg>'
-        pix = QPixmap(28, 28); pix.fill(Qt.GlobalColor.transparent)
+        pix = QPixmap(28, 28)
+        pix.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pix)
-        QSvgRenderer(QByteArray(xml.encode('utf-8'))).render(painter)
+        QSvgRenderer(QByteArray(xml.encode("utf-8"))).render(painter)
         painter.end()
         return QIcon(pix)
 
     def group_header(text):
-        frame = QFrame(); frame.setObjectName("sideGroupHeader")
-        row = QHBoxLayout(frame); row.setContentsMargins(1, 8, 0, 5); row.setSpacing(8)
-        dash = QLabel("━"); dash.setObjectName("sideGroupDash"); dash.setFixedWidth(28)
-        title = QLabel(text); title.setObjectName("sideGroupTitle")
-        row.addWidget(dash); row.addWidget(title, 1)
+        frame = QFrame()
+        frame.setObjectName("sideGroupHeader")
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(1, 8, 0, 5)
+        row.setSpacing(8)
+        dash = QLabel("━")
+        dash.setObjectName("sideGroupDash")
+        dash.setFixedWidth(28)
+        title = QLabel(text)
+        title.setObjectName("sideGroupTitle")
+        row.addWidget(dash)
+        row.addWidget(title, 1)
         return frame
 
     def normalize(self):
@@ -300,38 +300,51 @@ def _install_sidebar_finalizer() -> None:
         if sidebar is None:
             return
         sidebar.setFixedWidth(318)
-        # Remove a linha vertical/nós que o overlay v0.0.10 inseria dentro dos holders.
+
         for holder in self.nav_holders.values():
-            layout = holder.layout()
-            if layout is None:
+            holder_layout = holder.layout()
+            if holder_layout is None:
                 continue
             holder.setFixedHeight(58)
-            for label in holder.findChildren(QLabel, options=Qt.FindChildOption.FindDirectChildrenOnly):
+            for label in holder.findChildren(QLabel, "", Qt.FindChildOption.FindDirectChildrenOnly):
                 if label.text().strip() == "●" and "border-left" in label.styleSheet():
-                    layout.removeWidget(label); label.hide(); label.deleteLater()
-        # O contador de Notícias vira overlay sobre o próprio botão; não reduz sua largura.
+                    holder_layout.removeWidget(label)
+                    label.hide()
+                    label.setParent(None)
+                    label.deleteLater()
+
         news_button = self.nav_buttons.get(Section.NEWS)
         badge = getattr(self, "news_badge", None)
         if news_button is not None and badge is not None:
             old_layout = self.nav_holders[Section.NEWS].layout()
             if old_layout is not None:
                 old_layout.removeWidget(badge)
-            badge.setParent(news_button); badge.show(); badge.raise_(); badge.setFixedWidth(31)
+            badge.setParent(news_button)
+            badge.show()
+            badge.raise_()
+            badge.setFixedWidth(31)
             badge.move(max(0, news_button.width() - 39), 17)
 
         for section, button in self.nav_buttons.items():
-            button.setIcon(make_icon(section)); button.setIconSize(QSize(28, 28))
+            button.setIcon(make_icon(section))
+            button.setIconSize(QSize(28, 28))
             button.setText(section.value.label)
-            button.setMinimumHeight(54); button.setMaximumHeight(54)
+            button.setMinimumHeight(54)
+            button.setMaximumHeight(54)
             button.setStyleSheet("padding-left:18px; text-align:left;")
 
-        # Limpa cabeçalhos duplicados criados pelos overlays antigos e reinsere 1 por grupo.
-        scroll = sidebar.findChild(__import__('PySide6.QtWidgets', fromlist=['QScrollArea']).QScrollArea, "sidebarScroll")
+        scroll = sidebar.findChild(QScrollArea, "sidebarScroll")
         content = scroll.widget() if scroll is not None else None
         layout = content.layout() if content is not None else None
         if isinstance(layout, QVBoxLayout):
-            for frame in content.findChildren(QFrame, "sideGroupHeader", Qt.FindChildOption.FindDirectChildrenOnly):
-                layout.removeWidget(frame); frame.hide(); frame.deleteLater()
+            # setParent(None) retira imediatamente os cabeçalhos antigos da árvore
+            # QObject. deleteLater sozinho só os removeria no próximo event loop e
+            # causava multiplicação ao navegar rapidamente entre abas.
+            for frame in content.findChildren(QFrame, "sideGroupHeader"):
+                layout.removeWidget(frame)
+                frame.hide()
+                frame.setParent(None)
+                frame.deleteLater()
             for title, first in reversed((
                 ("PRINCIPAL", Section.HOME),
                 ("GERENCIAMENTO", Section.DEMANDS),
