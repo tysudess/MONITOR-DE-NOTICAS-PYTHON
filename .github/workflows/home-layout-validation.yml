@@ -6,12 +6,14 @@ on:
       - layout/inicio-dashboard-fiel
       - layout/inicio-refino-fidelidade-v2
       - feature/inicio-dados-reais
+      - fix/inicio-imagem-verdade
     paths:
       - 'src/monitor_noticias/ui/**'
       - 'scripts/capture_home_layout.py'
       - 'tests/**'
       - 'requirements.txt'
       - '.github/workflows/home-layout-validation.yml'
+      - 'run.py'
   workflow_dispatch:
 
 permissions:
