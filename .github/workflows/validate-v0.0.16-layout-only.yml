@@ -1,0 +1,44 @@
+name: Validate v0.0.16 Layout Only
+on:
+  push:
+    branches: [fix/v0.0.16-layout-only]
+    paths:
+      - 'src/monitor_noticias/ui/v016_layout_only.py'
+      - 'scripts/capture_v016_layout_only.py'
+      - 'run.py'
+      - '.github/workflows/validate-v0.0.16-layout-only.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MONITOR_DISABLE_WEATHER: '1'
+      MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v0.0.16-layout-only
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Regression, functionality preservation and visual gate
+        shell: pwsh
+        run: |
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+          python scripts/capture_v016_layout_only.py
+          Write-Host 'V016_LAYOUT_ONLY_GATE=YES'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v016-layout-only-screenshots
+          path: artifacts/v016-layout-only/*.png
+          if-no-files-found: error
+          retention-days: 14
