@@ -62,6 +62,7 @@ jobs:
           from monitor_noticias.ui.sections import Section
           app=QApplication.instance() or QApplication([])
           w=MainWindow(paths=AppPaths.discover())
+          w.show()
           app.processEvents()
           for section in Section:
               if section in w.nav_buttons:
@@ -75,7 +76,8 @@ jobs:
                   heights={b.height() for b in w.nav_buttons.values()}
                   assert len(heights)==1, heights
                   assert all(not b.icon().isNull() for b in w.nav_buttons.values())
-          assert w.nav_buttons[Section.NEWS].width()==w.nav_buttons[Section.HOME].width()
+          widths={section.name:button.width() for section,button in w.nav_buttons.items()}
+          assert len(set(widths.values()))==1, widths
           w._allow_close=True
           w.close(); app.processEvents()
           print('V012_SIDEBAR_SMOKE_OK=YES')
