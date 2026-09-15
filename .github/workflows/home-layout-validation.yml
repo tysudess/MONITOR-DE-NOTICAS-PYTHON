@@ -6,12 +6,14 @@ on:
       - layout/inicio-dashboard-fiel
       - layout/inicio-refino-fidelidade-v2
       - feature/inicio-dados-reais
+      - fix/inicio-imagem-verdade
     paths:
       - 'src/monitor_noticias/ui/**'
       - 'scripts/capture_home_layout.py'
       - 'tests/**'
       - 'requirements.txt'
       - '.github/workflows/home-layout-validation.yml'
+      - 'run.py'
   workflow_dispatch:
 
 permissions:
@@ -44,16 +46,17 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest -q
 
-      - name: Capture HOME 1721x914
+      - name: Capture HOME reference size
         shell: pwsh
         env:
-          QT_QPA_PLATFORM: offscreen
+          QT_QPA_PLATFORM: windows
+          MONITOR_DISABLE_WEATHER: '1'
         run: python scripts/capture_home_layout.py
 
       - name: Upload HOME screenshot
         uses: actions/upload-artifact@v4
         with:
-          name: home-layout-1721x914
-          path: artifacts/home-1721x914.png
+          name: home-reference-1672x941
+          path: artifacts/home-reference-1672x941.png
           if-no-files-found: error
           retention-days: 14

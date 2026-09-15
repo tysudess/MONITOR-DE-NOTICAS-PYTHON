@@ -25,6 +25,9 @@ from monitor_noticias.ui.v014_full_reference_layout import install_v014_full_ref
 from monitor_noticias.ui.v014_reference_sidebar_local import install_v014_reference_sidebar_local
 from monitor_noticias.ui.v015_shell_reference import install_v015_shell_reference
 from monitor_noticias.ui.v016_layout_only import install_v016_layout_only
+from monitor_noticias.ui.v017_home_truth import install_v017_home_truth
+from monitor_noticias.ui.v017_home_truth_refine import install_v017_home_truth_refine
+from monitor_noticias.ui.v017_home_truth_precision import install_v017_home_truth_precision
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
@@ -33,6 +36,7 @@ install_v010_external_bridge()
 install_v010_video_boundary_fix()
 install_v011_pdf_stability()
 install_v011_sidebar_fidelity()
+# v0.0.12
 install_v012_runtime_fixes()
 install_v013_sidebar_reference()
 install_v014_full_reference_layout()
@@ -41,6 +45,11 @@ install_v014_reference_sidebar_local()
 # Nao substituir paginas, nao esconder secoes, nao trocar callbacks.
 install_v015_shell_reference()
 install_v016_layout_only()
+# v0.0.17-home: somente a aba Inicio e reconstruida visualmente.
+# Motor, controller, rotas e paginas dos demais modulos permanecem intactos.
+install_v017_home_truth()
+install_v017_home_truth_refine()
+install_v017_home_truth_precision()
 
 from monitor_noticias.app.application import main
 
