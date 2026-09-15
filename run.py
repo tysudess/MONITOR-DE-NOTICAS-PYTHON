@@ -34,6 +34,7 @@ install_v010_external_bridge()
 install_v010_video_boundary_fix()
 install_v011_pdf_stability()
 install_v011_sidebar_fidelity()
+# v0.0.12
 install_v012_runtime_fixes()
 install_v013_sidebar_reference()
 install_v014_full_reference_layout()
