@@ -26,24 +26,24 @@ jobs:
       - name: Install image verifier
         run: python -m pip install Pillow
 
-      - name: Assemble exact HD MÍDIA IMPRESSA cover
+      - name: Validate and encode exact MÍDIA IMPRESSA HD cover
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64, io
+          import base64
           from pathlib import Path
           from PIL import Image
 
-          parts = sorted(Path('resources/pdf-cover-hd').glob('part*.b64'))
-          if len(parts) != 5:
-              raise SystemExit(f'Esperava 5 partes da capa HD; encontrei {len(parts)}')
-          encoded = ''.join(p.read_text(encoding='utf-8').strip() for p in parts)
-          raw = base64.b64decode(encoded)
-          with Image.open(io.BytesIO(raw)) as im:
-              print(f'HD_COVER={im.format} {im.width}x{im.height} bytes={len(raw)}')
+          source = Path('resources/pdf-default-cover.webp')
+          if not source.is_file():
+              raise SystemExit('Recurso HD da capa não encontrado.')
+          with Image.open(source) as im:
+              im.load()
+              print(f'HD_COVER={im.format} {im.width}x{im.height} bytes={source.stat().st_size}')
               if (im.width, im.height) != (1245, 2048):
                   raise SystemExit(f'Capa HD inesperada: {im.width}x{im.height}')
+          encoded = base64.b64encode(source.read_bytes()).decode('ascii')
           Path('resources/pdf-default-cover.b64').write_text(encoded, encoding='utf-8')
           PY
 
