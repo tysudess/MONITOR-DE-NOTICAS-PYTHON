@@ -1,0 +1,46 @@
+name: Validate v0.0.15 Image Truth
+on:
+  push:
+    branches: [fix/v0.0.15-image-truth]
+    paths:
+      - 'src/monitor_noticias/ui/v015_image_truth_layout.py'
+      - 'scripts/capture_v015_image_truth.py'
+      - 'run.py'
+      - '.github/workflows/validate-v0.0.15-image-truth.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MONITOR_DISABLE_WEATHER: '1'
+      MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v0.0.15-image-truth
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Regression and visual gate
+        shell: pwsh
+        run: |
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+          python scripts/capture_v015_image_truth.py
+          $run=Get-Content run.py -Raw
+          if($run.IndexOf('install_v015_image_truth_layout()') -lt $run.IndexOf('install_v014_reference_sidebar_local()')){throw 'v0.0.15 fora de ordem'}
+          Write-Host 'V015_IMAGE_TRUTH_GATE=YES'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v015-image-truth-screenshots
+          path: artifacts/v015-image-truth/*.png
+          if-no-files-found: error
+          retention-days: 14
