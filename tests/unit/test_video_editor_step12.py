@@ -21,6 +21,12 @@ from monitor_noticias.video_editor.timeline import TimelineWidget
 from monitor_noticias.video_editor.window import VideoEditorWindow
 
 
+V009_SUPPORTED_EXTENSIONS = {
+    ".3gp", ".avi", ".flv", ".m2ts", ".m4v", ".mkv", ".mov", ".mp4",
+    ".mpeg", ".mpg", ".mts", ".mxf", ".ogv", ".ts", ".vob", ".webm", ".wmv",
+}
+
+
 @pytest.fixture(scope="session")
 def app():
     return QApplication.instance() or QApplication([])
@@ -30,8 +36,8 @@ def info(duration: int, audio: str | None = "aac") -> VideoInfo:
     return VideoInfo(duration, 1920, 1080, 29.97, "h264", audio)
 
 
-def test_supported_extensions_are_exactly_the_release_contract():
-    assert SUPPORTED_EXTENSIONS == {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"}
+def test_supported_extensions_are_exactly_the_v009_release_contract():
+    assert SUPPORTED_EXTENSIONS == V009_SUPPORTED_EXTENSIONS
 
 
 def test_time_format_seconds_and_fps_contract():
