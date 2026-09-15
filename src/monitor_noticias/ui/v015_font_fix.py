@@ -3,7 +3,7 @@ _INSTALLED=False
 FONT_QSS="QWidget,QLabel,QPushButton,QLineEdit,QComboBox,QSpinBox,QDateEdit,QTimeEdit,QTextEdit,QPlainTextEdit,QCheckBox,QRadioButton,QTableWidget,QListWidget,QTreeWidget{font-family:Arial;}"
 def _apply(w):
     w.setStyleSheet(w.styleSheet()+"\n"+FONT_QSS)
-    if getattr(w,'sidebar',None) is not None:w.sidebar.setFixedWidth(220)
+    if getattr(w,'sidebar',None) is not None:w.sidebar.setFixedWidth(218)
     if getattr(w,'footer_widget',None) is not None:w.footer_widget.setFixedHeight(28)
     stack=getattr(w,'stack',None)
     if stack is not None and stack.currentWidget() is not None:
