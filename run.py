@@ -22,6 +22,7 @@ from monitor_noticias.ui.v011_sidebar_fidelity import install_v011_sidebar_fidel
 from monitor_noticias.ui.v012_runtime_fixes import install_v012_runtime_fixes
 from monitor_noticias.ui.v013_sidebar_reference import install_v013_sidebar_reference
 from monitor_noticias.ui.v014_full_reference_layout import install_v014_full_reference_layout
+from monitor_noticias.ui.v014_reference_sidebar_local import install_v014_reference_sidebar_local
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
@@ -36,6 +37,9 @@ install_v012_runtime_fixes()
 install_v013_sidebar_reference()
 # v0.0.14 recompõe apenas o shell visual global sobre o programa já funcional.
 install_v014_full_reference_layout()
+# O stylesheet local legado tem precedência no Qt; esta última camada só corrige
+# essa precedência visual, sem tocar navegação, estados ou callbacks.
+install_v014_reference_sidebar_local()
 
 from monitor_noticias.app.application import main
 
