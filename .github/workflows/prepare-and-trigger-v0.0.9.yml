@@ -26,36 +26,37 @@ jobs:
       - name: Install image verifier
         run: python -m pip install Pillow
 
-      - name: Validate and encode exact MÍDIA IMPRESSA HD cover
+      - name: Fetch and validate original MÍDIA IMPRESSA cover
         shell: bash
         run: |
           set -euo pipefail
+          url='https://raw.githubusercontent.com/tysudess/EditorPDF-Windows-v0.1-PROJETO1/2b556e38b9c31f05b75d73a067851da31afcaba5/assets/capa_padrao.png'
+          curl --fail --location --retry 3 "$url" --output resources/pdf-default-cover.png
           python - <<'PY'
-          import base64
+          import base64, hashlib
           from pathlib import Path
           from PIL import Image
 
-          source = Path('resources/pdf-default-cover.webp')
-          if not source.is_file():
-              raise SystemExit('Recurso HD da capa não encontrado.')
+          source = Path('resources/pdf-default-cover.png')
           with Image.open(source) as im:
               im.load()
-              print(f'HD_COVER={im.format} {im.width}x{im.height} bytes={source.stat().st_size}')
+              print(f'PDF_ORIGINAL_COVER={im.format} {im.width}x{im.height} bytes={source.stat().st_size}')
               if (im.width, im.height) != (1245, 2048):
-                  raise SystemExit(f'Capa HD inesperada: {im.width}x{im.height}')
-          encoded = base64.b64encode(source.read_bytes()).decode('ascii')
-          Path('resources/pdf-default-cover.b64').write_text(encoded, encoding='utf-8')
+                  raise SystemExit(f'Capa padrão inesperada: {im.width}x{im.height}')
+          raw = source.read_bytes()
+          print('PDF_ORIGINAL_COVER_SHA256=' + hashlib.sha256(raw).hexdigest())
+          Path('resources/pdf-default-cover.b64').write_text(base64.b64encode(raw).decode('ascii'), encoding='utf-8')
           PY
 
-      - name: Commit HD default cover
+      - name: Commit original HD default cover
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add resources/pdf-default-cover.b64
+          git add resources/pdf-default-cover.png resources/pdf-default-cover.b64
           if ! git diff --cached --quiet; then
-            git commit -m 'Define capa MÍDIA IMPRESSA HD como padrão do Editor PDF'
+            git commit -m 'Define capa original MÍDIA IMPRESSA HD como padrão do Editor PDF'
             git push origin HEAD:main
           fi
 
