@@ -42,9 +42,11 @@ def main() -> int:
     if scroll.verticalScrollBarPolicy() != Qt.ScrollBarPolicy.ScrollBarAsNeeded:
         raise RuntimeError("Scroll vertical não está sob demanda")
 
-    groups = [label.text() for label in window.sidebar.findChildren(QLabel, "sideGroupTitle")]
+    # Overlays anteriores descartam cabeçalhos legados com deleteLater; o gate
+    # considera apenas os componentes realmente visíveis na sidebar final.
+    groups = [label.text() for label in window.sidebar.findChildren(QLabel, "sideGroupTitle") if label.isVisible()]
     if groups != ["PRINCIPAL", "GERENCIAMENTO", "FERRAMENTAS", "SISTEMA"]:
-        raise RuntimeError(f"Categorias divergentes: {groups}")
+        raise RuntimeError(f"Categorias visíveis divergentes: {groups}")
 
     if tuple(window.nav_buttons) != SECTION_ORDER:
         raise RuntimeError("Ordem dos botões divergiu de SECTION_ORDER")
