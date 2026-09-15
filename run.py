@@ -26,6 +26,7 @@ from monitor_noticias.ui.v014_reference_sidebar_local import install_v014_refere
 from monitor_noticias.ui.v015_shell_reference import install_v015_shell_reference
 from monitor_noticias.ui.v015_image_truth_layout import install_v015_image_truth_layout
 from monitor_noticias.ui.v015_home_installer import install_v015_home_reference
+from monitor_noticias.ui.v015_font_fix import install_v015_font_fix
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
@@ -42,6 +43,7 @@ install_v014_reference_sidebar_local()
 install_v015_shell_reference()
 install_v015_image_truth_layout()
 install_v015_home_reference()
+install_v015_font_fix()
 
 from monitor_noticias.app.application import main
 
