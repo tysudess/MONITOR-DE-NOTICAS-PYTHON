@@ -1,0 +1,55 @@
+name: Validate v0.0.14 Full Reference Layout
+
+on:
+  push:
+    branches: [feature/full-layout-reference-v014]
+    paths:
+      - 'src/monitor_noticias/ui/**'
+      - 'tests/**'
+      - 'scripts/capture_v014_reference.py'
+      - 'run.py'
+      - '.github/workflows/validate-v0.0.14-full-layout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  QT_QPA_PLATFORM: offscreen
+  MONITOR_DISABLE_WEATHER: '1'
+  MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+
+jobs:
+  validate-layout:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Compile and run complete regression suite
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+      - name: Capture and validate reference screens
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python scripts/capture_v014_reference.py
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v014-reference-renders
+          path: artifacts/v014-reference/*.png
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
