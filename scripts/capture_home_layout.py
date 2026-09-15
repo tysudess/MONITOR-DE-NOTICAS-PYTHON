@@ -15,9 +15,9 @@ for entry in (ROOT, SRC):
 
 # Importar run instala exatamente a mesma cadeia de patches/overlays usada pelo
 # executável, mas não inicia QApplication porque o bloco __main__ não é executado.
-# Assim a captura valida a Home realmente entregue ao usuário.
 import run as _runtime_bootstrap  # noqa: F401,E402
 
+from PySide6.QtGui import QFont  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from monitor_noticias.ui.main_window import MainWindow  # noqa: E402
@@ -26,15 +26,17 @@ from monitor_noticias.ui.sections import Section  # noqa: E402
 
 def main() -> int:
     app = QApplication.instance() or QApplication([])
+    app.setFont(QFont("Segoe UI", 9))
     window = MainWindow()
     window._timer.stop()
-    window.resize(1721, 914)
+    # A imagem-verdade enviada pelo usuário mede 1672x941.
+    window.resize(1672, 941)
     window.navigate(Section.HOME)
     window.show()
     app.processEvents()
     app.processEvents()
 
-    out = Path("artifacts") / "home-1721x914.png"
+    out = Path("artifacts") / "home-reference-1672x941.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     pixmap = window.grab()
     if not pixmap.save(str(out), "PNG"):
