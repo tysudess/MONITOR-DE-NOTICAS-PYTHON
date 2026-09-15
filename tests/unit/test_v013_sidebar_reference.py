@@ -7,9 +7,9 @@ def test_v013_overlay_is_last_and_visual_only():
     run = Path("run.py").read_text(encoding="utf-8")
     assert run.index("install_v012_runtime_fixes()") < run.index("install_v013_sidebar_reference()")
     source = Path("src/monitor_noticias/ui/v013_sidebar_reference.py").read_text(encoding="utf-8")
-    assert "MainWindow._build_ui=build" in source
-    assert "MainWindow.navigate=navigate" in source
-    assert "MainWindow._tick=tick" in source
+    assert "MainWindow._build_ui = build" in source
+    assert "MainWindow.navigate = navigate" in source
+    assert "MainWindow._tick = tick" in source
     for forbidden in ("database", "collectors", "ffmpeg", "ffprobe", "yt_dlp", "stop_all_searches"):
         assert forbidden not in source.lower()
 
@@ -22,6 +22,11 @@ def test_v013_reference_palette_and_navigation_style():
     assert "QPushButton#navButton:checked" in source
     assert "border:2px solid #EDB707" in source
     assert "QScrollBar:vertical" in source
+    assert "_anchor_pixmap" in source
+    assert "_gear_icon" in source
+    assert "_ring_pixmap" in source
+    assert "_bars_pixmap" in source
+    assert "_windows_pixmap" in source
 
 
 def test_v013_status_card_reuses_live_labels():
@@ -31,3 +36,4 @@ def test_v013_status_card_reuses_live_labels():
     assert "window.side_automation" in source
     assert "old_tick(self)" in source
     assert "Windows Portable" in source
+    assert "_sync_status_visuals(self)" in source
