@@ -58,9 +58,10 @@ jobs:
           from PySide6.QtWidgets import QApplication, QFrame, QLabel
           from PySide6.QtCore import Qt
           from monitor_noticias.ui.main_window import MainWindow
+          from monitor_noticias.app.paths import AppPaths
           from monitor_noticias.ui.sections import Section
           app=QApplication.instance() or QApplication([])
-          w=MainWindow(root)
+          w=MainWindow(paths=AppPaths.discover())
           app.processEvents()
           for section in Section:
               if section in w.nav_buttons:
@@ -75,6 +76,7 @@ jobs:
                   assert len(heights)==1, heights
                   assert all(not b.icon().isNull() for b in w.nav_buttons.values())
           assert w.nav_buttons[Section.NEWS].width()==w.nav_buttons[Section.HOME].width()
+          w._allow_close=True
           w.close(); app.processEvents()
           print('V012_SIDEBAR_SMOKE_OK=YES')
           '@ | python -
