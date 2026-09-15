@@ -42,11 +42,20 @@ def main() -> int:
     if scroll.verticalScrollBarPolicy() != Qt.ScrollBarPolicy.ScrollBarAsNeeded:
         raise RuntimeError("Scroll vertical não está sob demanda")
 
-    # Overlays anteriores descartam cabeçalhos legados com deleteLater; o gate
-    # considera apenas os componentes realmente visíveis na sidebar final.
-    groups = [label.text() for label in window.sidebar.findChildren(QLabel, "sideGroupTitle") if label.isVisible()]
+    # Valida os cabeçalhos que pertencem ao layout final. Objetos legados já
+    # retirados do layout podem aguardar deleteLater e não representam duplicação visual.
+    content = scroll.widget()
+    side_layout = content.layout() if content is not None else None
+    groups = []
+    if side_layout is not None:
+        for index in range(side_layout.count()):
+            widget = side_layout.itemAt(index).widget()
+            if widget is not None and widget.objectName() == "sideGroupHeader":
+                label = widget.findChild(QLabel, "sideGroupTitle")
+                if label is not None:
+                    groups.append(label.text())
     if groups != ["PRINCIPAL", "GERENCIAMENTO", "FERRAMENTAS", "SISTEMA"]:
-        raise RuntimeError(f"Categorias visíveis divergentes: {groups}")
+        raise RuntimeError(f"Categorias no layout divergentes: {groups}")
 
     if tuple(window.nav_buttons) != SECTION_ORDER:
         raise RuntimeError("Ordem dos botões divergiu de SECTION_ORDER")
