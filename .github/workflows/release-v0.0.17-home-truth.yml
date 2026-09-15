@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/release-v0.0.17-home-truth.yml'
       - 'scripts/release_v017.ps1'
+      - 'scripts/validate_portable.ps1'
+      - 'scripts/pyi_runtime_portable_validation.py'
   workflow_dispatch:
 permissions:
   contents: write
