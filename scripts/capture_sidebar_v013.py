@@ -25,6 +25,21 @@ from monitor_noticias.ui.sections import SECTION_ORDER, Section
 EXPECTED_HEADERS = ["PRINCIPAL", "GERENCIAMENTO", "FERRAMENTAS", "SISTEMA"]
 
 
+def _layout_headers(scroll: QScrollArea) -> list[str]:
+    content = scroll.widget()
+    layout = content.layout() if content is not None else None
+    if layout is None:
+        return []
+    titles: list[str] = []
+    for index in range(layout.count()):
+        widget = layout.itemAt(index).widget()
+        if isinstance(widget, QFrame) and widget.objectName() == "sideGroupHeader":
+            label = widget.findChild(QLabel, "sideGroupTitle")
+            if label is not None:
+                titles.append(label.text())
+    return titles
+
+
 def _assert_sidebar(window: MainWindow) -> None:
     scroll = window.sidebar.findChild(QScrollArea, "sidebarScroll")
     if scroll is None:
@@ -34,8 +49,7 @@ def _assert_sidebar(window: MainWindow) -> None:
     if scroll.verticalScrollBarPolicy() != Qt.ScrollBarPolicy.ScrollBarAsNeeded:
         raise RuntimeError("scroll vertical deixou de ser sob demanda")
 
-    headers = window.sidebar.findChildren(QFrame, "sideGroupHeader")
-    titles = [label.text() for frame in headers for label in frame.findChildren(QLabel, "sideGroupTitle")]
+    titles = _layout_headers(scroll)
     if titles != EXPECTED_HEADERS:
         raise RuntimeError(f"cabeçalhos laterais divergentes: {titles}")
 
