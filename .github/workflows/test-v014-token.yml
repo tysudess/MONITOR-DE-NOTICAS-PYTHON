@@ -1,0 +1,12 @@
+name: Test v014 token
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh --version
+        env:
+          GH_TOKEN: ${{ github.token }}
