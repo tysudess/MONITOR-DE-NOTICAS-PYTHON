@@ -57,8 +57,16 @@ def test_v013_sidebar_runtime_preserves_navigation_and_reference_structure():
         assert scroll.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         assert scroll.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAsNeeded
 
-        headers = window.sidebar.findChildren(QFrame, "sideGroupHeader")
-        titles = [label.text() for frame in headers for label in frame.findChildren(QLabel, "sideGroupTitle")]
+        # findChildren segue a ordem da árvore QObject, que pode diferir da ordem
+        # visual após insertWidget. O gate precisa validar a ordem real do layout.
+        side_layout = scroll.widget().layout()
+        titles = []
+        for index in range(side_layout.count()):
+            widget = side_layout.itemAt(index).widget()
+            if isinstance(widget, QFrame) and widget.objectName() == "sideGroupHeader":
+                label = widget.findChild(QLabel, "sideGroupTitle")
+                if label is not None:
+                    titles.append(label.text())
         assert titles == ["PRINCIPAL", "GERENCIAMENTO", "FERRAMENTAS", "SISTEMA"]
 
         assert tuple(window.nav_buttons) == SECTION_ORDER
