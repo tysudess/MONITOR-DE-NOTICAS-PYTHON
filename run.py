@@ -40,6 +40,7 @@ install_v013_sidebar_reference()
 install_v014_full_reference_layout()
 install_v014_reference_sidebar_local()
 # v0.0.15 usa as imagens fornecidas como verdade visual sem mudar os motores.
+# A última camada garante fonte legível e a geometria final validada no Windows.
 install_v015_shell_reference()
 install_v015_image_truth_layout()
 install_v015_home_reference()
