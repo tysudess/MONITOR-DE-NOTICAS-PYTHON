@@ -2,6 +2,7 @@ $ErrorActionPreference='Stop'
 $Tag='v0.0.19'
 $Portable='MONITOR-DE-NOTICAS-PYTHON-portable-windows-x64.zip'
 $PrevTag='v0.0.18'
+$PrevAssetId='566855563'
 $PrevHash='607c85cc48ec9722aaee0b65acd1a6188364833b1f26a868f58a7199e78162f8'
 $FfmpegHash='91678b935eb52cc740249474574b6042768b744c622347f28a1b487e1ed29915'
 $FfprobeHash='c42ada47df746e3788e2ba3ed2f7af07662a58f9088f9894e1b14d3d5c432263'
@@ -55,11 +56,9 @@ if($m.videoEditor.commit -ne '92f031c22cf8c23c2f5dd15a1857a6df4186b97e'){throw '
 if(Test-Path previous){Remove-Item previous -Recurse -Force}
 New-Item -ItemType Directory previous | Out-Null
 $previousZip=Join-Path (Resolve-Path previous).Path $Portable
-$releaseJson=(gh api "repos/tysudess/MONITOR-DE-NOTICAS-PYTHON/releases/tags/$PrevTag") | ConvertFrom-Json
-$asset=$releaseJson.assets | Where-Object { $_.name -eq $Portable } | Select-Object -First 1
-if(-not $asset){throw 'Asset do portable validado v0.0.18 ausente na release'}
-& curl.exe -fL -H "Authorization: Bearer $env:GH_TOKEN" -H 'Accept: application/octet-stream' $asset.url -o $previousZip
-if($LASTEXITCODE -ne 0){throw 'Download autenticado do portable v0.0.18 falhou'}
+$assetUrl="https://api.github.com/repos/tysudess/MONITOR-DE-NOTICAS-PYTHON/releases/assets/$PrevAssetId"
+& curl.exe --fail --location --silent --show-error -H "Authorization: Bearer $env:GH_TOKEN" -H 'Accept: application/octet-stream' -H 'X-GitHub-Api-Version: 2022-11-28' $assetUrl -o $previousZip
+if($LASTEXITCODE -ne 0){throw 'Download autenticado do asset fixado v0.0.18 falhou'}
 $zip=Get-Item $previousZip -ErrorAction SilentlyContinue
 if(-not $zip){throw 'Portable validado v0.0.18 ausente'}
 if((Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -ne $PrevHash){throw 'Hash do portable v0.0.18 divergente'}
