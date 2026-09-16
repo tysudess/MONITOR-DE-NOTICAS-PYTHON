@@ -1,0 +1,35 @@
+name: Release v0.0.18 Home Fidelity
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-v0.0.18-home-fidelity.yml'
+      - 'scripts/release_v018.ps1'
+      - 'scripts/validate_portable.ps1'
+      - 'scripts/pyi_runtime_portable_validation.py'
+      - 'src/monitor_noticias/ui/v018_home_visual_fidelity.py'
+      - 'run.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  release:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build, validar e publicar v0.0.18
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/release_v018.ps1
