@@ -29,6 +29,7 @@ from monitor_noticias.ui.v017_home_truth import install_v017_home_truth
 from monitor_noticias.ui.v017_home_truth_refine import install_v017_home_truth_refine
 from monitor_noticias.ui.v017_home_truth_precision import install_v017_home_truth_precision
 from monitor_noticias.ui.v018_home_visual_fidelity import install_v018_home_visual_fidelity
+from monitor_noticias.ui.v019_exact_reference import install_v019_exact_reference
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
@@ -53,6 +54,9 @@ install_v017_home_truth_refine()
 install_v017_home_truth_precision()
 # v0.0.18-home: refino de brilho, contraste e fidelidade visual somente da Home/shell.
 install_v018_home_visual_fidelity()
+# v0.0.19: imagem-verdade literal no hero e sidebar/topbar globais invariantes.
+# Esta camada vem por ultimo para neutralizar apenas mutacoes visuais historicas.
+install_v019_exact_reference()
 
 from monitor_noticias.app.application import main
 
