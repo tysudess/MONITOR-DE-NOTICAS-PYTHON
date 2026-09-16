@@ -24,6 +24,8 @@ from monitor_noticias.ui.sections import Section  # noqa: E402
 
 
 def main() -> int:
+    # v0.0.19: esta captura tambem força a decodificacao do ativo integral
+    # remontado/validado por v019_asset_fix durante window.render().
     app = QApplication.instance() or QApplication([])
     app.setFont(QFont("Segoe UI", 10))
     window = MainWindow()
