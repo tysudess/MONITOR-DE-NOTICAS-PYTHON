@@ -32,6 +32,7 @@ from monitor_noticias.ui.v018_home_visual_fidelity import install_v018_home_visu
 from monitor_noticias.ui.v019_exact_reference import install_v019_exact_reference
 from monitor_noticias.ui.v019_asset_fix import install_v019_asset_fix
 from monitor_noticias.ui.v020_live_home_stable_shell import install_v020_live_home_stable_shell
+from monitor_noticias.ui.v021_literal_tabs import install_v021_literal_tabs
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
@@ -63,6 +64,9 @@ install_v019_asset_fix()
 # v0.0.20: mantém o visual literal, mas usa os dados reais da Home e trava o
 # shell global mesmo após callbacks/overlays visuais tardios de navegação.
 install_v020_live_home_stable_shell()
+# v0.0.21: aplica as imagens-verdade literais de Notícias, Fontes e Termos,
+# elimina vazamento/sobreposição da UI antiga e mantém dados/callbacks reais.
+install_v021_literal_tabs()
 
 from monitor_noticias.app.application import main
 
