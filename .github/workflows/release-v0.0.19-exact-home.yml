@@ -1,8 +1,16 @@
-name: Release v0.0.18 Home Fidelity
+name: Release v0.0.19 Exact Home
 
-# Workflow histórico preservado somente para execução manual.
-# Releases posteriores não podem reativar/publicar novamente a tag v0.0.18.
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-v0.0.19-exact-home.yml'
+      - 'scripts/release_v019.ps1'
+      - 'scripts/capture_home_layout.py'
+      - 'src/monitor_noticias/ui/v019_exact_reference.py'
+      - 'src/monitor_noticias/ui/v019_asset_fix.py'
+      - 'resources/ui/v019/**'
+      - 'run.py'
   workflow_dispatch:
 
 permissions:
@@ -24,8 +32,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Build, validar e publicar v0.0.18
+      - name: Build, validar e publicar v0.0.19
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/release_v018.ps1
+        run: ./scripts/release_v019.ps1
