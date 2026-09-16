@@ -5,7 +5,8 @@ $PrevTag='v0.0.18'
 $PrevHash='607c85cc48ec9722aaee0b65acd1a6188364833b1f26a868f58a7199e78162f8'
 $FfmpegHash='91678b935eb52cc740249474574b6042768b744c622347f28a1b487e1ed29915'
 $FfprobeHash='c42ada47df746e3788e2ba3ed2f7af07662a58f9088f9894e1b14d3d5c432263'
-$HeroHash='1695b8f24be0846a459ec021a147a0057a15a311a1c8e7474617f52fc52609ec'
+$ReferenceHash='d36b34896671cfe632da2585e9cbb37e16999a9d417b5d8e77ebf961917f0d2f'
+$ReferenceBytes=54218
 
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -17,15 +18,18 @@ if($LASTEXITCODE -ne 0){throw 'Compilacao Python falhou'}
 python -m pytest -q
 if($LASTEXITCODE -ne 0){throw 'Regressao falhou'}
 
-# Validação do ativo visual fornecido pelo usuário: não aceitar fallback inventado.
-$heroB64='resources/ui/v019/home-hero.webp.b64'
-if(-not (Test-Path $heroB64)){throw 'Imagem-verdade do hero v0.0.19 ausente'}
-$heroBytes=[Convert]::FromBase64String((Get-Content $heroB64 -Raw).Trim())
-$heroTemp=Join-Path $env:RUNNER_TEMP 'home-hero-v019.webp'
-[IO.File]::WriteAllBytes($heroTemp,$heroBytes)
-$heroSha=(Get-FileHash $heroTemp -Algorithm SHA256).Hash.ToLowerInvariant()
-if($heroSha -ne $HeroHash){throw "Imagem-verdade do hero divergente: $heroSha"}
-if((Get-Item $heroTemp).Length -ne 73746){throw 'Imagem-verdade do hero com tamanho divergente'}
+# A Home deve usar exatamente o mesmo ativo integral empacotado no programa.
+$parts=Get-ChildItem 'resources/ui/v019/home-full-q20' -Filter 'part*.b64' | Sort-Object Name
+if(-not $parts -or $parts.Count -lt 5){throw 'Fragmentos da imagem-verdade integral v0.0.19 ausentes'}
+$encoded=($parts | ForEach-Object {(Get-Content $_.FullName -Raw).Trim()}) -join ''
+$referenceBytes=[Convert]::FromBase64String($encoded)
+if($referenceBytes.Length -ne $ReferenceBytes){throw "Imagem-verdade integral com tamanho divergente: $($referenceBytes.Length)"}
+$referenceTemp=Join-Path $env:RUNNER_TEMP 'home-truth-v019.webp'
+[IO.File]::WriteAllBytes($referenceTemp,$referenceBytes)
+$referenceSha=(Get-FileHash $referenceTemp -Algorithm SHA256).Hash.ToLowerInvariant()
+if($referenceSha -ne $ReferenceHash){throw "Imagem-verdade integral divergente: $referenceSha"}
+python -c "from PIL import Image; p=r'$referenceTemp'; im=Image.open(p); assert im.size==(1672,941), im.size; print('REFERENCE_OK', im.size)"
+if($LASTEXITCODE -ne 0){throw 'Dimensao da imagem-verdade integral divergente'}
 
 $env:QT_QPA_PLATFORM='windows'
 python scripts/capture_home_layout.py
@@ -34,7 +38,8 @@ if($LASTEXITCODE -ne 0){throw 'Gate visual/sidebar v0.0.19 falhou'}
 $run=Get-Content run.py -Raw
 if($run -notmatch 'install_v017_home_truth\(\)'){throw 'Base funcional da Home ausente'}
 if($run -notmatch 'install_v018_home_visual_fidelity\(\)'){throw 'Base visual v0.0.18 ausente'}
-if($run -notmatch 'install_v019_exact_reference\(\)'){throw 'Camada exata v0.0.19 ausente'}
+if($run -notmatch 'install_v019_exact_reference\(\)'){throw 'Shell v0.0.19 ausente'}
+if($run -notmatch 'install_v019_literal_screen\(\)'){throw 'Camada literal integral v0.0.19 ausente'}
 if($run -notmatch 'install_v016_layout_only\(\)'){throw 'Base funcional v0.0.16 ausente'}
 $target=(git rev-parse HEAD).Trim()
 
@@ -84,16 +89,16 @@ if(gh release view $Tag 2>$null){throw "$Tag ja existe"}
 $notes=@"
 Monitor de Noticias Python 0.0.19 — Windows Portable x64
 
-- Home refeita com a imagem enviada pelo usuario como verdade visual literal
-- hero usa diretamente o recorte da imagem-verdade; nao existe globo redesenhado ou aproximado nesta camada
-- sidebar fixada em 225 px e mantida com a mesma estrutura/estilo em todas as abas
-- troca de aba nao restaura mais sidebar antiga nem muda largura, grupos ou aparencia
-- tipografia da Home, sidebar e topbar aumentada para melhorar legibilidade
-- nove cards, paineis, dados reais e callbacks da Home continuam sendo widgets funcionais
+- Home passa a usar a imagem-verdade integral fornecida pelo usuario como composicao visual literal
+- sidebar usa o recorte literal da mesma referencia e permanece visualmente invariavel em todas as abas
+- topbar usa o recorte literal da mesma referencia; busca real continua ativa por cima da composicao
+- nove cards da Home mantem areas de clique ligadas as rotas reais do programa
+- tipografia e brilho deixam de ser aproximados: sao os pixels da propria referencia visual
 - todas as 15 secoes/rotas existentes continuam registradas, inclusive Extrator de Noticias e Automacao Planilhas
 - controller, banco, coletores, matching, automacao, proxy, credenciais e motores de ferramentas nao foram trocados
 - Editor PDF, Extrator de Videos, Editor de Video, Capas e integracoes originais preservados
 - FFmpeg/FFprobe mantidos byte-a-byte pelos hashes auditados da v0.0.18
+- imagem integral validada antes do build: 1672x941, $ReferenceBytes bytes, SHA-256 $ReferenceHash
 - regressao completa, captura 1672x941, gate de sidebar invariavel, build e smoke do portable executados antes da publicacao
 
 SHA-256 do portable: $hash
