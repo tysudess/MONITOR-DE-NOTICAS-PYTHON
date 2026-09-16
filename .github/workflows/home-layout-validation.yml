@@ -7,8 +7,10 @@ on:
       - layout/inicio-refino-fidelidade-v2
       - feature/inicio-dados-reais
       - fix/inicio-imagem-verdade
+      - fix/v019-exact-home-sidebar
     paths:
       - 'src/monitor_noticias/ui/**'
+      - 'resources/ui/v019/**'
       - 'scripts/capture_home_layout.py'
       - 'tests/**'
       - 'requirements.txt'
@@ -46,7 +48,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest -q
 
-      - name: Capture HOME reference size
+      - name: Capture HOME reference size and validate global sidebar
         shell: pwsh
         env:
           QT_QPA_PLATFORM: windows
