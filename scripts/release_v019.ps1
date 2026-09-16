@@ -54,8 +54,10 @@ if($m.videoEditor.commit -ne '92f031c22cf8c23c2f5dd15a1857a6df4186b97e'){throw '
 
 if(Test-Path previous){Remove-Item previous -Recurse -Force}
 New-Item -ItemType Directory previous | Out-Null
-gh release download $PrevTag -p $Portable -D previous
-$zip=Get-ChildItem previous -Recurse -Filter $Portable | Select-Object -First 1
+$previousZip=Join-Path (Resolve-Path previous).Path $Portable
+$previousUrl="https://github.com/tysudess/MONITOR-DE-NOTICAS-PYTHON/releases/download/$PrevTag/$Portable"
+Invoke-WebRequest -Uri $previousUrl -OutFile $previousZip
+$zip=Get-Item $previousZip -ErrorAction SilentlyContinue
 if(-not $zip){throw 'Portable validado v0.0.18 ausente'}
 if((Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -ne $PrevHash){throw 'Hash do portable v0.0.18 divergente'}
 $extract=Join-Path $env:RUNNER_TEMP 'v018-source-v019'
