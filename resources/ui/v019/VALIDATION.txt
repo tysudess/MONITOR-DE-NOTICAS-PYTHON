@@ -1,0 +1,6 @@
+Validacao final da branch v0.0.19:
+- Windows CI: Validate Home Layout run 35086547339
+- regressao completa: success
+- captura 1672x941: success
+- sidebar global invariavel: success
+- camada literal instalada por ultimo: sim
