@@ -39,6 +39,21 @@ def assert_shell(window, top, width, style, top_height, where: str) -> None:
         raise RuntimeError(f"Topbar mudou de altura em {where}: {top.height()} != {top_height}")
 
 
+def assert_home_surface(home, section_name: str) -> None:
+    surface = getattr(home, "_v019_truth_surface", None)
+    if surface is None:
+        raise RuntimeError(f"Home literal ausente após retorno de {section_name}")
+    # A janela de captura não é exibida com show(); portanto isVisible() é falso
+    # por herança do pai mesmo quando o widget foi explicitamente mostrado.
+    # isHidden() testa o estado próprio correto neste cenário offscreen.
+    if surface.isHidden():
+        raise RuntimeError(f"Home literal ficou explicitamente oculta após retorno de {section_name}")
+    if surface.geometry() != home.rect():
+        raise RuntimeError(f"Home literal mudou de geometria após retorno de {section_name}")
+    if surface.parentWidget() is not home:
+        raise RuntimeError(f"Home literal perdeu o parent correto após retorno de {section_name}")
+
+
 def main() -> int:
     app = QApplication.instance() or QApplication([])
     app.setFont(QFont("Segoe UI", 10))
@@ -63,9 +78,10 @@ def main() -> int:
         raise RuntimeError(f"Sidebar v0.0.20 divergente: {baseline_width}, esperado 225")
     if baseline_top_height != 86:
         raise RuntimeError(f"Topbar v0.0.20 divergente: {baseline_top_height}, esperado 86")
+    assert_home_surface(home, "INICIAL")
 
-    # Gate novo: troca de aba + espera suficiente para callbacks tardios e retorno
-    # à Home. O shell deve permanecer idêntico em todos os pontos.
+    # Gate: troca de aba + espera suficiente para callbacks tardios e retorno
+    # à Home. Shell e superfície devem permanecer idênticos em todos os pontos.
     for section in (Section.NEWS, Section.DEMANDS, Section.SOURCES, Section.SETTINGS):
         window.navigate(section)
         wait_ms(app, 1100)
@@ -74,11 +90,7 @@ def main() -> int:
         home.refresh(window.controller.state)
         wait_ms(app, 1100)
         assert_shell(window, top, baseline_width, baseline_style, baseline_top_height, f"RETORNO_{section.name}")
-        surface = getattr(home, "_v019_truth_surface", None)
-        if surface is None or not surface.isVisible():
-            raise RuntimeError(f"Home literal não permaneceu ativa após retorno de {section.name}")
-        if surface.geometry() != home.rect():
-            raise RuntimeError(f"Home literal mudou de geometria após retorno de {section.name}")
+        assert_home_surface(home, section.name)
 
     required = {
         Section.HOME, Section.NEWS, Section.VIDEOS, Section.DEMANDS,
@@ -96,9 +108,7 @@ def main() -> int:
     wait_ms(app, 200)
     if not getattr(home, "module_cards", None) or not getattr(home, "live_values", None):
         raise RuntimeError("Widgets funcionais da Home não estão disponíveis para a camada de dados vivos")
-    surface = getattr(home, "_v019_truth_surface", None)
-    if surface is None:
-        raise RuntimeError("Superfície da Home v0.0.19 ausente na v0.0.20")
+    assert_home_surface(home, "FINAL")
 
     canvas = QPixmap(1672, 941)
     canvas.fill()
