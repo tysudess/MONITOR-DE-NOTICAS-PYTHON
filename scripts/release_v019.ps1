@@ -1,6 +1,6 @@
 $ErrorActionPreference='Stop'
 $Tag='v0.0.19'
-$Portable='MONITOR-DE-NOTICAS-PYTHON-portable-windows-x64.zip'
+$Portable='MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip'
 $PrevTag='v0.0.18'
 $PrevAssetId='566855563'
 $PrevHash='607c85cc48ec9722aaee0b65acd1a6188364833b1f26a868f58a7199e78162f8'
@@ -77,8 +77,12 @@ Copy-Item $ff (Join-Path $audit 'ffmpeg.exe') -Force
 Copy-Item $fp (Join-Path $audit 'ffprobe.exe') -Force
 $env:MONITOR_VALIDATED_FFMPEG_DIR=$audit
 
-./scripts/build_portable.ps1
-$newZip=(Resolve-Path "portable-out/$Portable").Path
+$portableOut=Join-Path $env:RUNNER_TEMP 'v019-portable-out'
+if(Test-Path $portableOut){Remove-Item $portableOut -Recurse -Force}
+./scripts/build_portable.ps1 -OutputDir $portableOut
+$newZip=Join-Path $portableOut $Portable
+if(-not (Test-Path $newZip)){throw "ZIP recém-gerado não encontrado no caminho absoluto: $newZip"}
+$newZip=(Get-Item $newZip).FullName
 ./scripts/validate_portable.ps1 -ZipPath $newZip
 
 if(Test-Path publish){Remove-Item publish -Recurse -Force}
