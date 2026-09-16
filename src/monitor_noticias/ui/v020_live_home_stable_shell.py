@@ -9,9 +9,16 @@ v0.0.19 depois de eventos tardios de navegação para impedir overlays históric
 de restaurarem a sidebar antiga.
 """
 
-from PySide6.QtCore import QRectF, Qt, QTimer
+from PySide6.QtCore import QLineF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 
+# IMPORTANTE: run.py importa este módulo antes de executar qualquer instalador
+# visual. Guardamos aqui o navigate original do MainWindow, antes dos wrappers
+# v0.0.17/v0.0.18/v0.0.19. Isso permite preservar a navegação funcional e
+# ignorar apenas mutações visuais legadas que reorganizam/deletam a sidebar.
+from monitor_noticias.ui.main_window import MainWindow as _UnpatchedMainWindow
+
+_BASE_NAVIGATE = _UnpatchedMainWindow.navigate
 _INSTALLED = False
 
 
@@ -46,7 +53,6 @@ def _paint_live_overlay(surface, event, old_paint) -> None:
     if page is None or surface.width() <= 0 or surface.height() <= 0:
         return
 
-    # Coordenadas da área de conteúdo da referência v0.0.19 (1447 x 855).
     from monitor_noticias.ui import v019_exact_reference as ref
     sx = surface.width() / ref.REF_CONTENT_W
     sy = surface.height() / ref.REF_CONTENT_H
@@ -55,8 +61,6 @@ def _paint_live_overlay(surface, event, old_paint) -> None:
     p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     p.scale(sx, sy)
 
-    # 1) Cards principais. O título/ícone continuam literais da referência;
-    # somente o valor real cobre o número congelado do print.
     card_values = getattr(page, "module_cards", {})
     card_bg = {
         "NEWS": "#08243d", "VIDEOS": "#111d45", "DEMANDS": "#282619",
@@ -70,8 +74,6 @@ def _paint_live_overlay(surface, event, old_paint) -> None:
         _mask(p, r, card_bg.get(route, "#071d34"))
         _text(p, r, value, size=20, color="#ffffff", bold=True)
 
-    # 2) Monitoramento em tempo real: utiliza exatamente os widgets atualizados
-    # pelo ReferenceHome.refresh(UiState).
     live = getattr(page, "live_values", {})
     metric_spec = (
         ("pct", 18, "#00e5c2"), ("found", 94, "#00d9ff"),
@@ -84,8 +86,6 @@ def _paint_live_overlay(surface, event, old_paint) -> None:
         _text(p, r, _widget_text(live.get(key), "0"), size=17, color=color,
               align=Qt.AlignmentFlag.AlignCenter)
 
-    # 3) Ranking real de fontes. Nomes, contagens e barras vêm do Counter já
-    # preenchido pelo refresh original.
     rows = getattr(page, "source_rows", [])
     for idx in range(5):
         y = 373 + idx * 29
@@ -107,8 +107,6 @@ def _paint_live_overlay(surface, event, old_paint) -> None:
             _text(p, QRectF(704, y, 36, 23), count_text, size=12,
                   align=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-    # 4) Automação real. Mantém ícones/títulos do print e substitui somente
-    # detalhes e status pelos widgets já ligados às configurações reais.
     auto_rows = getattr(page, "auto_rows", {})
     for idx, key in enumerate(("news", "demands", "videos")):
         y = 374 + idx * 47
@@ -124,7 +122,6 @@ def _paint_live_overlay(surface, event, old_paint) -> None:
         _text(p, QRectF(1021, y + 3, 68, 29), status, size=11,
               color="#36e6ae", align=Qt.AlignmentFlag.AlignCenter)
 
-    # 5) Atividade recente real: horários e mensagens vêm da Home funcional.
     activity = getattr(page, "activity_labels", [])
     for idx in range(5):
         y = 620 + idx * 39
@@ -136,15 +133,13 @@ def _paint_live_overlay(surface, event, old_paint) -> None:
             _text(p, QRectF(125, y, 330, 30), _widget_text(text_label, ""),
                   size=11, color="#eef5ff", bold=False)
 
-    # 6) Gráfico real das últimas 24h. Apaga somente a área dos dados e redesenha
-    # as barras a partir das listas do HourlyChart funcional.
     chart = getattr(page, "chart", None)
     plot = QRectF(610, 620, 790, 119)
     _mask(p, plot, "#051d31")
     p.setPen(QPen(QColor(91, 145, 177, 60), 1))
     for i in range(5):
         yy = plot.bottom() - plot.height() * i / 4.0
-        p.drawLine(plot.left(), yy, plot.right(), yy)
+        p.drawLine(QLineF(plot.left(), yy, plot.right(), yy))
     if chart is not None:
         news = list(getattr(chart, "news", [0] * 24))[:24]
         videos = list(getattr(chart, "videos", [0] * 24))[:24]
@@ -161,7 +156,6 @@ def _paint_live_overlay(surface, event, old_paint) -> None:
                 p.setPen(Qt.PenStyle.NoPen); p.setBrush(colors[j])
                 p.drawRoundedRect(QRectF(x0 + j * bw * 1.25, plot.bottom() - height, bw, height), 1.5, 1.5)
 
-    # 7) Totais inferiores do panorama.
     summary = getattr(page, "summary", {})
     for key, x in (("news", 638), ("videos", 903), ("demands", 1170)):
         r = QRectF(x, 768, 83, 31)
@@ -188,8 +182,6 @@ def _reapply_shell(window) -> None:
 
 
 def _schedule_shell(window) -> None:
-    # Algumas camadas históricas utilizam singleShot/resize após navigate.
-    # Reaplicamos depois delas, sempre com a mesma função final v0.0.19.
     for delay in (0, 25, 100, 300, 900):
         QTimer.singleShot(delay, lambda w=window: _reapply_shell(w))
 
@@ -207,7 +199,6 @@ def install_v020_live_home_stable_shell() -> None:
     old_paint = HomeTruthSurface.paintEvent
     old_refresh = ReferenceHome.refresh
     old_build = MainWindow._build_ui
-    old_nav = MainWindow.navigate
 
     def paint(self, event):
         _paint_live_overlay(self, event, old_paint)
@@ -224,8 +215,6 @@ def install_v020_live_home_stable_shell() -> None:
         if stack is not None and not getattr(self, "_v020_stack_hook", False):
             stack.currentChanged.connect(lambda _index, w=self: _schedule_shell(w))
             self._v020_stack_hook = True
-        # Heartbeat leve: não modifica dados nem páginas; apenas impede que um
-        # overlay histórico tardio deixe o shell em outro estado visual.
         timer = QTimer(self)
         timer.setInterval(1500)
         timer.timeout.connect(lambda w=self: _reapply_shell(w))
@@ -234,7 +223,11 @@ def install_v020_live_home_stable_shell() -> None:
         _schedule_shell(self)
 
     def navigate(self, section):
-        old_nav(self, section)
+        # Chama a implementação original, capturada antes de qualquer patch
+        # visual. Preserva stack, seleção, refresh, visibilidade funcional das
+        # ferramentas e restauração de maximização; ignora apenas wrappers
+        # visuais legados que tentam reconstruir a sidebar.
+        _BASE_NAVIGATE(self, section)
         _schedule_shell(self)
 
     HomeTruthSurface.paintEvent = paint
