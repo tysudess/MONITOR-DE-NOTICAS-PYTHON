@@ -1,6 +1,14 @@
-name: Release v0.0.19 Exact Home
+name: Release v0.0.20 Live Home
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-v0.0.20-live-home.yml'
+      - 'scripts/release_v020.ps1'
+      - 'scripts/capture_home_layout.py'
+      - 'src/monitor_noticias/ui/v020_live_home_stable_shell.py'
+      - 'run.py'
   workflow_dispatch:
 
 permissions:
@@ -22,8 +30,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Build, validar e publicar v0.0.19
+      - name: Build, validar e publicar v0.0.20
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/release_v019.ps1
+        run: ./scripts/release_v020.ps1

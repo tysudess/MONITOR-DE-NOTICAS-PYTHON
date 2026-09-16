@@ -15,7 +15,7 @@ for entry in (ROOT, SRC):
 
 import run as _runtime_bootstrap  # noqa: F401,E402
 
-from PySide6.QtCore import QPoint  # noqa: E402
+from PySide6.QtCore import QEventLoop, QPoint, QTimer  # noqa: E402
 from PySide6.QtGui import QFont, QPixmap  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -23,9 +23,23 @@ from monitor_noticias.ui.main_window import MainWindow  # noqa: E402
 from monitor_noticias.ui.sections import Section  # noqa: E402
 
 
+def wait_ms(app: QApplication, ms: int) -> None:
+    loop = QEventLoop()
+    QTimer.singleShot(ms, loop.quit)
+    loop.exec()
+    app.processEvents()
+
+
+def assert_shell(window, top, width, style, top_height, where: str) -> None:
+    if window.sidebar.width() != width:
+        raise RuntimeError(f"Sidebar mudou de largura em {where}: {window.sidebar.width()} != {width}")
+    if window.sidebar.styleSheet() != style:
+        raise RuntimeError(f"Sidebar mudou de estilo em {where}")
+    if top is not None and top.height() != top_height:
+        raise RuntimeError(f"Topbar mudou de altura em {where}: {top.height()} != {top_height}")
+
+
 def main() -> int:
-    # v0.0.19: esta captura tambem força a decodificacao do ativo integral
-    # remontado/validado por v019_asset_fix durante window.render().
     app = QApplication.instance() or QApplication([])
     app.setFont(QFont("Segoe UI", 10))
     window = MainWindow()
@@ -40,28 +54,32 @@ def main() -> int:
         top.sync()
     home = window.pages[Section.HOME]
     home.refresh(window.controller.state)
-    app.processEvents()
+    wait_ms(app, 1100)
 
-    # Gate v0.0.19: shell não pode mudar ao trocar de aba.
     baseline_width = window.sidebar.width()
     baseline_style = window.sidebar.styleSheet()
     baseline_top_height = top.height() if top is not None else 0
     if baseline_width != 225:
-        raise RuntimeError(f"Sidebar v0.0.19 divergente: {baseline_width}, esperado 225")
+        raise RuntimeError(f"Sidebar v0.0.20 divergente: {baseline_width}, esperado 225")
     if baseline_top_height != 86:
-        raise RuntimeError(f"Topbar v0.0.19 divergente: {baseline_top_height}, esperado 86")
+        raise RuntimeError(f"Topbar v0.0.20 divergente: {baseline_top_height}, esperado 86")
 
+    # Gate novo: troca de aba + espera suficiente para callbacks tardios e retorno
+    # à Home. O shell deve permanecer idêntico em todos os pontos.
     for section in (Section.NEWS, Section.DEMANDS, Section.SOURCES, Section.SETTINGS):
         window.navigate(section)
-        app.processEvents()
-        if window.sidebar.width() != baseline_width:
-            raise RuntimeError(f"Sidebar mudou de largura em {section.name}")
-        if window.sidebar.styleSheet() != baseline_style:
-            raise RuntimeError(f"Sidebar mudou de estilo em {section.name}")
-        if top is not None and top.height() != baseline_top_height:
-            raise RuntimeError(f"Topbar mudou de altura em {section.name}")
+        wait_ms(app, 1100)
+        assert_shell(window, top, baseline_width, baseline_style, baseline_top_height, section.name)
+        window.navigate(Section.HOME)
+        home.refresh(window.controller.state)
+        wait_ms(app, 1100)
+        assert_shell(window, top, baseline_width, baseline_style, baseline_top_height, f"RETORNO_{section.name}")
+        surface = getattr(home, "_v019_truth_surface", None)
+        if surface is None or not surface.isVisible():
+            raise RuntimeError(f"Home literal não permaneceu ativa após retorno de {section.name}")
+        if surface.geometry() != home.rect():
+            raise RuntimeError(f"Home literal mudou de geometria após retorno de {section.name}")
 
-    # Todas as rotas históricas continuam presentes.
     required = {
         Section.HOME, Section.NEWS, Section.VIDEOS, Section.DEMANDS,
         Section.SOURCES, Section.HISTORY, Section.TERMS, Section.STOP,
@@ -70,11 +88,17 @@ def main() -> int:
         Section.SETTINGS,
     }
     if not required.issubset(window.pages.keys()) or not required.issubset(window.nav_buttons.keys()):
-        raise RuntimeError("v0.0.19 perdeu rota/página funcional existente")
+        raise RuntimeError("v0.0.20 perdeu rota/página funcional existente")
 
-    window.navigate(Section.HOME)
+    # Gate de dados vivos: os widgets funcionais continuam sendo atualizados e a
+    # superfície visual existe para pintar esses valores sobre a referência.
     home.refresh(window.controller.state)
-    app.processEvents()
+    wait_ms(app, 200)
+    if not getattr(home, "module_cards", None) or not getattr(home, "live_values", None):
+        raise RuntimeError("Widgets funcionais da Home não estão disponíveis para a camada de dados vivos")
+    surface = getattr(home, "_v019_truth_surface", None)
+    if surface is None:
+        raise RuntimeError("Superfície da Home v0.0.19 ausente na v0.0.20")
 
     canvas = QPixmap(1672, 941)
     canvas.fill()
@@ -89,7 +113,9 @@ def main() -> int:
     print("HOME_SIZE=1672x941")
     print(f"SIDEBAR_WIDTH={window.sidebar.width()}")
     print(f"TOPBAR_HEIGHT={baseline_top_height}")
-    print("SIDEBAR_INVARIANT=YES")
+    print("SIDEBAR_INVARIANT_AFTER_DELAY=YES")
+    print("HOME_RETURN_INVARIANT=YES")
+    print("HOME_LIVE_DATA_OVERLAY=YES")
     print(f"ROUTES_PRESERVED={len(required)}")
     print(f"HOME_CLASS={window.pages[Section.HOME].__class__.__name__}")
 
