@@ -1,11 +1,11 @@
 $ErrorActionPreference='Stop'
 $Tag='v0.0.19'
-$Portable='MONITOR-DE-NOTICIAS-PYTHON-portable-windows-x64.zip'
+$Portable='MONITOR-DE-NOTICAS-PYTHON-portable-windows-x64.zip'
 $PrevTag='v0.0.18'
 $PrevHash='607c85cc48ec9722aaee0b65acd1a6188364833b1f26a868f58a7199e78162f8'
 $FfmpegHash='91678b935eb52cc740249474574b6042768b744c622347f28a1b487e1ed29915'
 $FfprobeHash='c42ada47df746e3788e2ba3ed2f7af07662a58f9088f9894e1b14d3d5c432263'
-$HeroHash='1695b8f24be0846a459ec021a147a0057a15a311a1c8e7474617f52fc52609ec'
+$HomeTruthHash='eea22fed79290a01a5fff991147edf41a139c9c5cf020c886069152c9da39201'
 
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -17,15 +17,13 @@ if($LASTEXITCODE -ne 0){throw 'Compilacao Python falhou'}
 python -m pytest -q
 if($LASTEXITCODE -ne 0){throw 'Regressao falhou'}
 
-# Validação do ativo visual fornecido pelo usuário: não aceitar fallback inventado.
-$heroB64='resources/ui/v019/home-hero.webp.b64'
-if(-not (Test-Path $heroB64)){throw 'Imagem-verdade do hero v0.0.19 ausente'}
-$heroBytes=[Convert]::FromBase64String((Get-Content $heroB64 -Raw).Trim())
-$heroTemp=Join-Path $env:RUNNER_TEMP 'home-hero-v019.webp'
-[IO.File]::WriteAllBytes($heroTemp,$heroBytes)
-$heroSha=(Get-FileHash $heroTemp -Algorithm SHA256).Hash.ToLowerInvariant()
-if($heroSha -ne $HeroHash){throw "Imagem-verdade do hero divergente: $heroSha"}
-if((Get-Item $heroTemp).Length -ne 73746){throw 'Imagem-verdade do hero com tamanho divergente'}
+# A Home v0.0.19 usa a própria imagem-verdade completa como superfície visual.
+# Não aceitar arquivo substituto, truncado ou recriado por aproximação.
+$homeTruth='resources/ui/v019/home-full-q90.webp'
+if(-not (Test-Path $homeTruth)){throw 'Imagem-verdade integral da Home v0.0.19 ausente'}
+$homeSha=(Get-FileHash $homeTruth -Algorithm SHA256).Hash.ToLowerInvariant()
+if($homeSha -ne $HomeTruthHash){throw "Imagem-verdade integral divergente: $homeSha"}
+if((Get-Item $homeTruth).Length -ne 180128){throw 'Imagem-verdade integral com tamanho divergente'}
 
 $env:QT_QPA_PLATFORM='windows'
 python scripts/capture_home_layout.py
@@ -84,17 +82,17 @@ if(gh release view $Tag 2>$null){throw "$Tag ja existe"}
 $notes=@"
 Monitor de Noticias Python 0.0.19 — Windows Portable x64
 
-- Home refeita com a imagem enviada pelo usuario como verdade visual literal
-- hero usa diretamente o recorte da imagem-verdade; nao existe globo redesenhado ou aproximado nesta camada
+- Home usa a imagem enviada pelo usuario como verdade visual integral, sem redesenhar a composição
+- conteúdo da Home é pintado diretamente a partir da referência validada por SHA-256
+- nove cards continuam com hotspots ligados às mesmas rotas funcionais existentes
 - sidebar fixada em 225 px e mantida com a mesma estrutura/estilo em todas as abas
-- troca de aba nao restaura mais sidebar antiga nem muda largura, grupos ou aparencia
-- tipografia da Home, sidebar e topbar aumentada para melhorar legibilidade
-- nove cards, paineis, dados reais e callbacks da Home continuam sendo widgets funcionais
-- todas as 15 secoes/rotas existentes continuam registradas, inclusive Extrator de Noticias e Automacao Planilhas
-- controller, banco, coletores, matching, automacao, proxy, credenciais e motores de ferramentas nao foram trocados
-- Editor PDF, Extrator de Videos, Editor de Video, Capas e integracoes originais preservados
+- troca de aba não restaura mais sidebar antiga nem muda largura, grupos ou aparência
+- tipografia da sidebar e topbar aumentada para melhorar legibilidade
+- todas as 15 seções/rotas existentes continuam registradas, inclusive Extrator de Notícias e Automação Planilhas
+- controller, banco, coletores, matching, automação, proxy, credenciais e motores de ferramentas não foram trocados
+- Editor PDF, Extrator de Vídeos, Editor de Vídeo, Capas e integrações originais preservados
 - FFmpeg/FFprobe mantidos byte-a-byte pelos hashes auditados da v0.0.18
-- regressao completa, captura 1672x941, gate de sidebar invariavel, build e smoke do portable executados antes da publicacao
+- regressão completa, captura 1672x941, gate de sidebar invariável, build e smoke do portable executados antes da publicação
 
 SHA-256 do portable: $hash
 "@
