@@ -8,6 +8,7 @@ on:
       - feature/inicio-dados-reais
       - fix/inicio-imagem-verdade
       - fix/v019-exact-home-sidebar
+      - fix/v019-exact-home-sidebar-final
     paths:
       - 'src/monitor_noticias/ui/**'
       - 'resources/ui/v019/**'
