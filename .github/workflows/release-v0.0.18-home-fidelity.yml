@@ -1,18 +1,14 @@
 name: Release v0.0.18 Home Fidelity
+
+# Workflow histórico preservado somente para execução manual.
+# Releases posteriores não podem reativar/publicar novamente a tag v0.0.18.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/release-v0.0.18-home-fidelity.yml'
-      - 'scripts/release_v018.ps1'
-      - 'scripts/validate_portable.ps1'
-      - 'scripts/pyi_runtime_portable_validation.py'
-      - 'src/monitor_noticias/ui/v018_home_visual_fidelity.py'
-      - 'run.py'
   workflow_dispatch:
+
 permissions:
   contents: write
   actions: read
+
 jobs:
   release:
     runs-on: windows-2022
