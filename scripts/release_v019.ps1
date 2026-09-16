@@ -17,13 +17,20 @@ if($LASTEXITCODE -ne 0){throw 'Compilacao Python falhou'}
 python -m pytest -q
 if($LASTEXITCODE -ne 0){throw 'Regressao falhou'}
 
-# A Home v0.0.19 usa a própria imagem-verdade completa como superfície visual.
-# Não aceitar arquivo substituto, truncado ou recriado por aproximação.
-$homeTruth='resources/ui/v019/home-full-q90.webp'
-if(-not (Test-Path $homeTruth)){throw 'Imagem-verdade integral da Home v0.0.19 ausente'}
-$homeSha=(Get-FileHash $homeTruth -Algorithm SHA256).Hash.ToLowerInvariant()
+# A Home v0.0.19 usa a propria imagem-verdade completa como superficie visual.
+# O ativo e remontado a partir de 14 fragmentos Base64 e validado byte-a-byte.
+$parts=@()
+0..13 | ForEach-Object { $parts += ('resources/ui/v019/home-full-q90/part{0:D2}.b64' -f $_) }
+foreach($part in $parts){
+    if(-not (Test-Path $part)){throw "Fragmento da imagem-verdade ausente: $part"}
+}
+$truthB64=($parts | ForEach-Object {(Get-Content $_ -Raw).Trim()}) -join ''
+try{$truthBytes=[Convert]::FromBase64String($truthB64)}catch{throw 'Base64 da imagem-verdade v0.0.19 invalido'}
+if($truthBytes.Length -ne 180128){throw "Imagem-verdade integral com tamanho divergente: $($truthBytes.Length)"}
+$truthTemp=Join-Path $env:RUNNER_TEMP 'home-truth-v019.webp'
+[IO.File]::WriteAllBytes($truthTemp,$truthBytes)
+$homeSha=(Get-FileHash $truthTemp -Algorithm SHA256).Hash.ToLowerInvariant()
 if($homeSha -ne $HomeTruthHash){throw "Imagem-verdade integral divergente: $homeSha"}
-if((Get-Item $homeTruth).Length -ne 180128){throw 'Imagem-verdade integral com tamanho divergente'}
 
 $env:QT_QPA_PLATFORM='windows'
 python scripts/capture_home_layout.py
@@ -33,6 +40,7 @@ $run=Get-Content run.py -Raw
 if($run -notmatch 'install_v017_home_truth\(\)'){throw 'Base funcional da Home ausente'}
 if($run -notmatch 'install_v018_home_visual_fidelity\(\)'){throw 'Base visual v0.0.18 ausente'}
 if($run -notmatch 'install_v019_exact_reference\(\)'){throw 'Camada exata v0.0.19 ausente'}
+if($run -notmatch 'install_v019_asset_fix\(\)'){throw 'Loader validado da imagem-verdade v0.0.19 ausente'}
 if($run -notmatch 'install_v016_layout_only\(\)'){throw 'Base funcional v0.0.16 ausente'}
 $target=(git rev-parse HEAD).Trim()
 
@@ -82,17 +90,17 @@ if(gh release view $Tag 2>$null){throw "$Tag ja existe"}
 $notes=@"
 Monitor de Noticias Python 0.0.19 — Windows Portable x64
 
-- Home usa a imagem enviada pelo usuario como verdade visual integral, sem redesenhar a composição
-- conteúdo da Home é pintado diretamente a partir da referência validada por SHA-256
-- nove cards continuam com hotspots ligados às mesmas rotas funcionais existentes
+- Home usa a imagem enviada pelo usuario como verdade visual integral, sem redesenhar a composicao
+- ativo visual integral e remontado byte-a-byte de 14 fragmentos e validado por SHA-256 antes do build
+- nove cards continuam com hotspots ligados as mesmas rotas funcionais existentes
 - sidebar fixada em 225 px e mantida com a mesma estrutura/estilo em todas as abas
-- troca de aba não restaura mais sidebar antiga nem muda largura, grupos ou aparência
+- troca de aba nao restaura mais sidebar antiga nem muda largura, grupos ou aparencia
 - tipografia da sidebar e topbar aumentada para melhorar legibilidade
-- todas as 15 seções/rotas existentes continuam registradas, inclusive Extrator de Notícias e Automação Planilhas
-- controller, banco, coletores, matching, automação, proxy, credenciais e motores de ferramentas não foram trocados
-- Editor PDF, Extrator de Vídeos, Editor de Vídeo, Capas e integrações originais preservados
+- todas as 15 secoes/rotas existentes continuam registradas, inclusive Extrator de Noticias e Automacao Planilhas
+- controller, banco, coletores, matching, automacao, proxy, credenciais e motores de ferramentas nao foram trocados
+- Editor PDF, Extrator de Videos, Editor de Video, Capas e integracoes originais preservados
 - FFmpeg/FFprobe mantidos byte-a-byte pelos hashes auditados da v0.0.18
-- regressão completa, captura 1672x941, gate de sidebar invariável, build e smoke do portable executados antes da publicação
+- regressao completa, captura 1672x941, gate de sidebar invariavel, build e smoke do portable executados antes da publicacao
 
 SHA-256 do portable: $hash
 "@
