@@ -1,14 +1,6 @@
 name: Release v0.0.20 Live Home
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/release-v0.0.20-live-home.yml'
-      - 'scripts/release_v020.ps1'
-      - 'scripts/capture_home_layout.py'
-      - 'src/monitor_noticias/ui/v020_live_home_stable_shell.py'
-      - 'run.py'
   workflow_dispatch:
 
 permissions:
