@@ -31,6 +31,7 @@ from monitor_noticias.ui.v017_home_truth_precision import install_v017_home_trut
 from monitor_noticias.ui.v018_home_visual_fidelity import install_v018_home_visual_fidelity
 from monitor_noticias.ui.v019_exact_reference import install_v019_exact_reference
 from monitor_noticias.ui.v019_literal_screen import install_v019_literal_screen
+from monitor_noticias.ui.v019_literal_cleanup import install_v019_literal_cleanup
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
@@ -59,6 +60,7 @@ install_v018_home_visual_fidelity()
 # como composicao literal da Home/sidebar/topbar, mantendo controles reais por cima.
 install_v019_exact_reference()
 install_v019_literal_screen()
+install_v019_literal_cleanup()
 
 from monitor_noticias.app.application import main
 
