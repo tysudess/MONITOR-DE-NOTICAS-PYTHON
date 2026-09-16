@@ -1,0 +1,39 @@
+name: Release v0.0.21 Literal Tabs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-v0.0.21-literal-tabs.yml'
+      - 'scripts/release_v021.ps1'
+      - 'scripts/capture_v021_literal_tabs.py'
+      - 'src/monitor_noticias/ui/v021_literal_tabs.py'
+      - 'src/monitor_noticias/ui/v021_surface_stability.py'
+      - 'resources/ui/v021/**'
+      - 'run.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build, validar e publicar v0.0.21
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/release_v021.ps1
