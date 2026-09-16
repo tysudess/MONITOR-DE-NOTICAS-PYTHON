@@ -5,11 +5,6 @@ $PrevAssetId='568214482'
 $PrevHash='083b6bcfcdd58282ad3eb266e653cf30a78fdc280016e997297332b16cea98e5'
 $FfmpegHash='91678b935eb52cc740249474574b6042768b744c622347f28a1b487e1ed29915'
 $FfprobeHash='c42ada47df746e3788e2ba3ed2f7af07662a58f9088f9894e1b14d3d5c432263'
-$Truth=@(
-  @{Path='resources/ui/v021/noticias-page-q90.webp';Size=170594;Hash='4c228cb5d0a134501f2f69698f4bf088b0d447db8355bacd970b57eb475cb3a3'},
-  @{Path='resources/ui/v021/fontes-page-q90.webp';Size=154042;Hash='a425e04f7bd91e77d9546edc3d7e373771f96415e09e5c60a3ff01cefa0bc3f6'},
-  @{Path='resources/ui/v021/termos-page-q90.webp';Size=136628;Hash='8b199f3f67c8b5e6d24e8825fe2a05f10167035b1890b5e16bee3fe607b69274'}
-)
 
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -21,12 +16,10 @@ if($LASTEXITCODE -ne 0){throw 'Compilacao Python falhou'}
 python -m pytest -q
 if($LASTEXITCODE -ne 0){throw 'Regressao falhou'}
 
-foreach($asset in $Truth){
-  $item=Get-Item $asset.Path -ErrorAction Stop
-  if($item.Length -ne $asset.Size){throw "Imagem-verdade tamanho divergente: $($asset.Path) = $($item.Length)"}
-  $sha=(Get-FileHash $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-  if($sha -ne $asset.Hash){throw "Imagem-verdade hash divergente: $($asset.Path) = $sha"}
-}
+# A mesma rotina usada pelo runtime reconstrói os ativos e rejeita qualquer
+# fragmento ausente, tamanho divergente ou SHA-256 diferente do aprovado.
+python -c "from pathlib import Path; from monitor_noticias.ui.v021_asset_loader import META,_decode_asset; root=Path('resources'); [(_decode_asset(root,n), print('TRUTH_OK',n,META[n][0],META[n][1])) for n in ('noticias','fontes','termos')]"
+if($LASTEXITCODE -ne 0){throw 'Integridade das imagens-verdade v0.0.21 falhou'}
 
 $env:QT_QPA_PLATFORM='windows'
 python scripts/capture_v021_literal_tabs.py
@@ -34,6 +27,7 @@ if($LASTEXITCODE -ne 0){throw 'Gate visual/overlap/sidebar v0.0.21 falhou'}
 
 $run=Get-Content run.py -Raw
 if($run -notmatch 'install_v021_literal_tabs\(\)'){throw 'Camada literal v0.0.21 ausente'}
+if($run -notmatch 'install_v021_asset_loader\(\)'){throw 'Loader íntegro v0.0.21 ausente'}
 if($run -notmatch 'install_v021_surface_stability\(\)'){throw 'Estabilidade de superficies v0.0.21 ausente'}
 $target=(git rev-parse HEAD).Trim()
 
@@ -85,14 +79,14 @@ if(gh release view $Tag 2>$null){throw "$Tag ja existe"}
 $notes=@"
 Monitor de Noticias Python 0.0.21 — Windows Portable x64
 
-- Notícias, Fontes e Termos usam literalmente as imagens-verdade fornecidas, sem reinterpretar o layout
+- Notícias, Fontes e Termos usam as imagens-verdade fornecidas como superfícies finais, sem reinterpretar a composição
+- os ativos visuais são remontados de fragmentos Base64 e validados por quantidade, tamanho e SHA-256 antes do uso e do build
 - as superfícies finais são opacas e eliminam o vazamento visual da interface antiga por baixo
 - dados variáveis são redesenhados a partir dos mesmos controller/state/widgets reais já existentes
 - Home recebe correção das faixas duplicadas de cards e monitoramento, removendo números sobrepostos
 - sidebar global de 225 px permanece idêntica ao navegar e retornar entre Início, Notícias, Fontes e Termos
 - páginas funcionais originais, callbacks, filtros, banco, coletores, matching, automação, proxy e credenciais são preservados
 - todas as 15 rotas funcionais permanecem registradas
-- imagens-verdade validadas por tamanho e SHA-256 antes do build
 - integrações externas e FFmpeg/FFprobe preservados pelos commits/hashes auditados
 - regressão completa, gate Windows com múltiplas idas/voltas, quatro capturas, build e smoke do portable executados antes da publicação
 
