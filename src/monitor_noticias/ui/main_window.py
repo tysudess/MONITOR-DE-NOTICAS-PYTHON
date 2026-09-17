@@ -38,7 +38,7 @@ from monitor_noticias.ui.refined_pages import (
 )
 from monitor_noticias.ui.refined_shell import RadarHeader, TechFooter
 from monitor_noticias.ui.refined_tools import RefinedExtractorPage, RefinedPdfEditorPage
-from monitor_noticias.ui.sections import SECTION_ORDER, TOOL_SECTIONS, Section
+from monitor_noticias.ui.sections import SECTION_ORDER, Section
 from monitor_noticias.ui.theme import APP_STYLESHEET
 from monitor_noticias.windows.notifications import WindowsTrayNotifier
 
@@ -143,16 +143,17 @@ class MainWindow(QMainWindow):
         root = QWidget(); root.setObjectName("root"); self.setCentralWidget(root)
         outer = QHBoxLayout(root); outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
 
-        # A barra lateral inteira passa a ser rolável. Com isso todas as novas abas
-        # permanecem acessíveis em 1366x768, escala do Windows ou janela menor.
+        # A sidebar pertence ao shell principal e é construída UMA ÚNICA VEZ.
+        # A navegação troca apenas a página do QStackedWidget; nunca recria, oculta,
+        # reagrupa ou reestiliza os itens desta barra.
         self.sidebar = QFrame(); self.sidebar.setObjectName("sidebar"); self.sidebar.setStyleSheet(SIDEBAR_STYLESHEET); self.sidebar.setFixedWidth(255)
         sidebar_shell = QVBoxLayout(self.sidebar); sidebar_shell.setContentsMargins(0, 0, 0, 0); sidebar_shell.setSpacing(0)
-        sidebar_scroll = QScrollArea(); sidebar_scroll.setObjectName("sidebarScroll"); sidebar_scroll.setWidgetResizable(True)
-        sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        sidebar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.sidebar_scroll = QScrollArea(); self.sidebar_scroll.setObjectName("sidebarScroll"); self.sidebar_scroll.setWidgetResizable(True)
+        self.sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.sidebar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         side_content = QWidget(); side_content.setStyleSheet("background:transparent;")
         side = QVBoxLayout(side_content); side.setContentsMargins(14, 13, 14, 10); side.setSpacing(4)
-        sidebar_scroll.setWidget(side_content); sidebar_shell.addWidget(sidebar_scroll)
+        self.sidebar_scroll.setWidget(side_content); sidebar_shell.addWidget(self.sidebar_scroll)
 
         brand_row = QHBoxLayout(); brand_row.setSpacing(8)
         anchor = QLabel("⚓︎"); anchor.setObjectName("anchorMark"); anchor.setFixedWidth(58); anchor.setAlignment(Qt.AlignmentFlag.AlignCenter); brand_row.addWidget(anchor)
@@ -165,7 +166,7 @@ class MainWindow(QMainWindow):
         self.nav_holders: dict[Section, QWidget] = {}
         self.news_badge = QLabel("0"); self.news_badge.setObjectName("newsBadge"); self.news_badge.setAlignment(Qt.AlignmentFlag.AlignCenter); self.news_badge.setMinimumWidth(34)
         for section in SECTION_ORDER:
-            holder = QWidget(); holder.setStyleSheet("background:transparent;")
+            holder = QWidget(); holder.setStyleSheet("background:transparent;"); holder.setMinimumHeight(44)
             row = QHBoxLayout(holder); row.setContentsMargins(0,0,0,0); row.setSpacing(4)
             button = QPushButton(f"{section.value.icon}   {section.value.label}"); button.setObjectName("navButton"); button.setCheckable(True); button.setMinimumHeight(44); button.setToolTip(section.value.label); button.clicked.connect(lambda _=False,s=section:self.navigate(s)); row.addWidget(button,1)
             if section == Section.NEWS: row.addWidget(self.news_badge,0,Qt.AlignmentFlag.AlignVCenter)
@@ -215,7 +216,6 @@ class MainWindow(QMainWindow):
                 description="Aplicativo original WhatsApp → Planilhas Google, completo e isolado em processo próprio.",
             ),
             Section.COVERS: CoversPage(self.paths.root),
-            # Configurações é deliberadamente a última seção do SECTION_ORDER.
             Section.SETTINGS: SettingsPage(self.controller),
         }
         for section in SECTION_ORDER: self.stack.addWidget(self.pages[section])
@@ -251,7 +251,6 @@ class MainWindow(QMainWindow):
         try:
             self.pages[section].refresh(self.controller.state)
         except Exception as exc:
-            # Uma falha de UI de uma ferramenta não pode derrubar o Monitor inteiro.
             log.exception("Falha ao atualizar a seção %s", section.name)
             if hasattr(self, "footer_widget"):
                 self.footer_widget.status.setText(f"Falha isolada em {section.value.label}: {exc}")
@@ -260,17 +259,21 @@ class MainWindow(QMainWindow):
         keep_maximized = self.isMaximized() or bool(
             self.windowState() & Qt.WindowState.WindowMaximized
         )
+        # A posição visual da sidebar é estado do shell, não da página.
+        # Guardamos o scroll antes da troca e o restauramos depois para impedir
+        # qualquer deslocamento provocado por foco/layout durante a navegação.
+        sidebar_scroll_value = self.sidebar_scroll.verticalScrollBar().value()
         self._current=section; self.stack.setCurrentIndex(SECTION_ORDER.index(section))
         for sec,button in self.nav_buttons.items(): button.setChecked(sec==section)
         full_workspace = section in {Section.HOME, Section.EXTRACTOR, Section.SHEET_AUTOMATION}
         self.header_widget.setVisible(not full_workspace); self.footer_widget.setVisible(not full_workspace)
         if full_workspace: self.content_layout.setContentsMargins(0,0,0,0); self.content_layout.setSpacing(0)
         else: self.content_layout.setContentsMargins(18,8,18,0); self.content_layout.setSpacing(10)
-        # As ferramentas devem existir e permanecer visíveis desde a primeira pintura.
-        # A release anterior as ocultava no HOME e só as mostrava após a primeira navegação.
-        for tool in TOOL_SECTIONS: self.nav_holders[tool].setVisible(True)
+        # IMPORTANTE: navigate() não modifica mais visibilidade, ordem, tamanho,
+        # agrupamento ou estilo de nenhum elemento da sidebar.
         self.header_widget.set_section(section.value.label,section.value.subtitle)
         self._safe_refresh_page(section)
+        QTimer.singleShot(0, lambda value=sidebar_scroll_value: self.sidebar_scroll.verticalScrollBar().setValue(value))
         if keep_maximized:
             QTimer.singleShot(0, self._restore_maximized_after_navigation)
 
@@ -309,8 +312,6 @@ class MainWindow(QMainWindow):
         if isinstance(extractor,RefinedExtractorPage) and not extractor.shutdown():
             self.footer_widget.status.setText("Aguardando o Extrator encerrar a operação ativa antes de sair."); self._restore(); return
 
-        # Todas as demais ferramentas implementam shutdown isolado. O encerramento
-        # de um app externo nunca usa QApplication.quit e nunca fecha o Monitor.
         for section in (Section.VIDEO_EDITOR, Section.NEWS_EXTRACTOR, Section.SHEET_AUTOMATION, Section.COVERS):
             page = self.pages.get(section)
             shutdown = getattr(page, "shutdown", None)
