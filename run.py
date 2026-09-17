@@ -31,6 +31,7 @@ from monitor_noticias.ui.v017_home_truth_precision import install_v017_home_trut
 from monitor_noticias.ui.v018_home_visual_fidelity import install_v018_home_visual_fidelity
 from monitor_noticias.ui.v019_exact_reference import install_v019_exact_reference
 from monitor_noticias.ui.v019_asset_fix import install_v019_asset_fix
+from monitor_noticias.ui.v019_live_metrics import install_v019_live_metrics
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
@@ -59,6 +60,8 @@ install_v018_home_visual_fidelity()
 install_v019_exact_reference()
 # O ativo integral e remontado byte-a-byte e validado antes da exibicao.
 install_v019_asset_fix()
+# Dados reais mínimos: apenas valores dos cards e totais inferiores, sem máscaras amplas.
+install_v019_live_metrics()
 
 from monitor_noticias.app.application import main
 
