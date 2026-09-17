@@ -31,8 +31,9 @@ from monitor_noticias.ui.v017_home_truth_precision import install_v017_home_trut
 from monitor_noticias.ui.v018_home_visual_fidelity import install_v018_home_visual_fidelity
 from monitor_noticias.ui.v019_exact_reference import install_v019_exact_reference
 from monitor_noticias.ui.v019_asset_fix import install_v019_asset_fix
-from monitor_noticias.ui.v019_live_metrics import install_v019_live_metrics
+from monitor_noticias.ui.v019_home_user_truth import install_v019_home_user_truth
 from monitor_noticias.ui.v019_news_reference import install_v019_news_reference
+from monitor_noticias.ui.v019_news_scroll_fix import install_v019_news_scroll_fix
 
 install_v009_runtime_fixes()
 install_v009_pdf_cover_patch()
@@ -59,12 +60,17 @@ install_v017_home_truth_precision()
 install_v018_home_visual_fidelity()
 # v0.0.19: imagem-verdade literal na Home e sidebar/topbar globais invariantes.
 install_v019_exact_reference()
-# O ativo integral e remontado byte-a-byte e validado antes da exibicao.
+# O ativo aprovado pelo usuario e remontado byte-a-byte e validado antes da exibicao.
 install_v019_asset_fix()
-# Dados reais da Home sobre a imagem-verdade, sem máscaras amplas.
-install_v019_live_metrics()
+# Ajusta corte, sidebar, topbar e hotspots à nova imagem-verdade 1755x896.
+install_v019_home_user_truth()
+# O antigo overlay de métricas permanece deliberadamente desativado: ele causava
+# blocos e números sobrepostos à arte. Os dados serão reintroduzidos depois em
+# âncoras pequenas e transparentes sobre esta imagem já validada.
 # Aba Notícias fiel à referência visual, mantendo o motor e os callbacks existentes.
 install_v019_news_reference()
+# A lista mostra 25 resultados por página com rolagem vertical própria.
+install_v019_news_scroll_fix()
 
 from monitor_noticias.app.application import main
 
