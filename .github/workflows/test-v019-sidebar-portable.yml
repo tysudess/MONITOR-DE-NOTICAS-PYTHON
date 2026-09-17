@@ -11,6 +11,7 @@ on:
       - 'src/monitor_noticias/ui/v019_exact_reference.py'
       - 'src/monitor_noticias/ui/v019_asset_fix.py'
       - 'src/monitor_noticias/ui/v019_live_metrics.py'
+      - 'src/monitor_noticias/ui/v019_news_reference.py'
   workflow_dispatch:
 
 permissions:
