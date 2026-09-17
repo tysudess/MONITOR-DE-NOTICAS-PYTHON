@@ -7,11 +7,15 @@ on:
     paths:
       - '.github/workflows/test-v019-sidebar-portable.yml'
       - 'scripts/build_v019_sidebar_fix.ps1'
+      - 'scripts/capture_home_layout.py'
       - 'run.py'
+      - 'resources/ui/v019/home-user/**'
       - 'src/monitor_noticias/ui/v019_exact_reference.py'
       - 'src/monitor_noticias/ui/v019_asset_fix.py'
+      - 'src/monitor_noticias/ui/v019_home_user_truth.py'
       - 'src/monitor_noticias/ui/v019_live_metrics.py'
       - 'src/monitor_noticias/ui/v019_news_reference.py'
+      - 'src/monitor_noticias/ui/v019_news_scroll_fix.py'
   workflow_dispatch:
 
 permissions:
