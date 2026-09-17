@@ -1,0 +1,47 @@
+name: Test v0.0.19 Sidebar Portable
+
+on:
+  push:
+    branches:
+      - test/v019-sidebar-portable
+    paths:
+      - '.github/workflows/test-v019-sidebar-portable.yml'
+      - 'scripts/build_v019_sidebar_fix.ps1'
+      - 'src/monitor_noticias/ui/v019_exact_reference.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  portable-test:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build and validate portable
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/build_v019_sidebar_fix.ps1
+
+      - name: Upload portable test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v0.0.19-sidebar-fix-portable-windows-x64
+          path: portable-test-artifact/*
+          if-no-files-found: error
+          retention-days: 7
