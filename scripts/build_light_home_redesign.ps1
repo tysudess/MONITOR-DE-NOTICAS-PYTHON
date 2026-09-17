@@ -13,6 +13,7 @@ python -m pip install -r requirements.txt
 $env:QT_QPA_PLATFORM = 'offscreen'
 $env:MONITOR_DISABLE_WEATHER = '1'
 $env:MONITOR_DISABLE_EXTERNAL_INTEGRATIONS = '1'
+$env:PYTHONPATH = (Join-Path $PWD 'src')
 python -m compileall -q src tests scripts run.py
 if ($LASTEXITCODE -ne 0) { throw 'Compilacao Python falhou' }
 python -m pytest -q
