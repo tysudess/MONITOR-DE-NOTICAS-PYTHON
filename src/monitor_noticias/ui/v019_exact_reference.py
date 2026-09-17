@@ -203,9 +203,18 @@ def _arrange_global_sidebar(window) -> None:
     if layout is not None:
         layout.setContentsMargins(9, 8, 9, 6)
         layout.setSpacing(2)
+
+        # A v0.0.12 recria cabeçalhos de grupo a cada navegação. Na v0.0.19
+        # o shell é único e contínuo, portanto não basta escondê-los: eles são
+        # removidos do layout para impedir que reapareçam ou reservem espaço
+        # depois da troca de aba.
         for group in sidebar.findChildren(QFrame, "sideGroupHeader"):
+            if layout.indexOf(group) >= 0:
+                layout.removeWidget(group)
             group.hide()
             group.setFixedHeight(0)
+            group.setParent(None)
+            group.deleteLater()
 
         holders = list(getattr(window, "nav_holders", {}).values())
         current_indices = [layout.indexOf(w) for w in holders if layout.indexOf(w) >= 0]
