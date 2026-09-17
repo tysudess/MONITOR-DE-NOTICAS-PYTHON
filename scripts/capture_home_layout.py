@@ -43,9 +43,6 @@ def assert_home_surface(home, section_name: str) -> None:
     surface = getattr(home, "_v019_truth_surface", None)
     if surface is None:
         raise RuntimeError(f"Home literal ausente após retorno de {section_name}")
-    # A janela de captura não é exibida com show(); portanto isVisible() é falso
-    # por herança do pai mesmo quando o widget foi explicitamente mostrado.
-    # isHidden() testa o estado próprio correto neste cenário offscreen.
     if surface.isHidden():
         raise RuntimeError(f"Home literal ficou explicitamente oculta após retorno de {section_name}")
     if surface.geometry() != home.rect():
@@ -59,7 +56,7 @@ def main() -> int:
     app.setFont(QFont("Segoe UI", 10))
     window = MainWindow()
     window._timer.stop()
-    window.resize(1672, 941)
+    window.resize(1755, 896)
     window.navigate(Section.HOME)
     window.ensurePolished()
     if window.layout() is not None:
@@ -74,14 +71,13 @@ def main() -> int:
     baseline_width = window.sidebar.width()
     baseline_style = window.sidebar.styleSheet()
     baseline_top_height = top.height() if top is not None else 0
-    if baseline_width != 225:
-        raise RuntimeError(f"Sidebar v0.0.20 divergente: {baseline_width}, esperado 225")
-    if baseline_top_height != 86:
-        raise RuntimeError(f"Topbar v0.0.20 divergente: {baseline_top_height}, esperado 86")
+    if baseline_width != 250:
+        raise RuntimeError(f"Sidebar v0.0.19 divergente: {baseline_width}, esperado 250")
+    if baseline_top_height != 90:
+        raise RuntimeError(f"Topbar v0.0.19 divergente: {baseline_top_height}, esperado 90")
     assert_home_surface(home, "INICIAL")
 
-    # Gate: troca de aba + espera suficiente para callbacks tardios e retorno
-    # à Home. Shell e superfície devem permanecer idênticos em todos os pontos.
+    # Troca de aba + retorno: shell e imagem-verdade devem permanecer invariantes.
     for section in (Section.NEWS, Section.DEMANDS, Section.SOURCES, Section.SETTINGS):
         window.navigate(section)
         wait_ms(app, 1100)
@@ -100,32 +96,32 @@ def main() -> int:
         Section.SETTINGS,
     }
     if not required.issubset(window.pages.keys()) or not required.issubset(window.nav_buttons.keys()):
-        raise RuntimeError("v0.0.20 perdeu rota/página funcional existente")
+        raise RuntimeError("v0.0.19 perdeu rota/página funcional existente")
 
-    # Gate de dados vivos: os widgets funcionais continuam sendo atualizados e a
-    # superfície visual existe para pintar esses valores sobre a referência.
+    # Os widgets funcionais originais continuam vivos sob a superfície literal.
     home.refresh(window.controller.state)
     wait_ms(app, 200)
     if not getattr(home, "module_cards", None) or not getattr(home, "live_values", None):
-        raise RuntimeError("Widgets funcionais da Home não estão disponíveis para a camada de dados vivos")
+        raise RuntimeError("Widgets funcionais da Home não estão disponíveis sob a imagem-verdade")
     assert_home_surface(home, "FINAL")
 
-    canvas = QPixmap(1672, 941)
+    canvas = QPixmap(1755, 896)
     canvas.fill()
     window.render(canvas, QPoint(0, 0))
 
-    out = Path("artifacts") / "home-reference-1672x941.png"
+    out = Path("artifacts") / "home-reference-1755x896.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     if not canvas.save(str(out), "PNG"):
         raise RuntimeError("Não foi possível salvar o screenshot da tela Início")
 
     print(f"HOME_SCREENSHOT={out.resolve()}")
-    print("HOME_SIZE=1672x941")
+    print("HOME_SIZE=1755x896")
     print(f"SIDEBAR_WIDTH={window.sidebar.width()}")
     print(f"TOPBAR_HEIGHT={baseline_top_height}")
     print("SIDEBAR_INVARIANT_AFTER_DELAY=YES")
     print("HOME_RETURN_INVARIANT=YES")
-    print("HOME_LIVE_DATA_OVERLAY=YES")
+    print("HOME_TRUTH_SURFACE=YES")
+    print("HOME_LIVE_OVERLAY=DISABLED")
     print(f"ROUTES_PRESERVED={len(required)}")
     print(f"HOME_CLASS={window.pages[Section.HOME].__class__.__name__}")
 
