@@ -7,7 +7,7 @@ on:
     paths:
       - '.github/workflows/test-home-light-dashboard.yml'
       - 'run.py'
-      - 'scripts/build_v019_sidebar_fix.ps1'
+      - 'scripts/build_light_home_redesign.ps1'
       - 'src/monitor_noticias/ui/v021_light_home_dashboard.py'
       - 'src/monitor_noticias/ui/v019_news_reference.py'
       - 'src/monitor_noticias/ui/v019_news_scroll_fix.py'
@@ -39,7 +39,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/build_v019_sidebar_fix.ps1
+        run: ./scripts/build_light_home_redesign.ps1
 
       - name: Upload portable test artifact
         uses: actions/upload-artifact@v4
