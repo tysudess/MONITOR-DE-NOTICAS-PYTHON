@@ -1,0 +1,51 @@
+name: Validate v0.0.21 Literal Tabs
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/monitor_noticias/ui/v021_literal_tabs.py'
+      - 'src/monitor_noticias/ui/v021_surface_stability.py'
+      - 'resources/ui/v021/**'
+      - 'scripts/capture_v021_literal_tabs.py'
+      - 'run.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar dependências
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Compilar e regressão
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MONITOR_DISABLE_WEATHER: '1'
+          MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+        run: |
+          python -m compileall -q src tests scripts run.py
+          python -m pytest -q
+      - name: Gate visual Windows
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: windows
+          MONITOR_DISABLE_WEATHER: '1'
+          MONITOR_DISABLE_EXTERNAL_INTEGRATIONS: '1'
+        run: python scripts/capture_v021_literal_tabs.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v021-literal-tabs-screenshots
+          path: artifacts/*.png
+          if-no-files-found: error
