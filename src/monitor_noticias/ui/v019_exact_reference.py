@@ -345,7 +345,15 @@ def install_v019_exact_reference() -> None:
         _apply_global_shell(self)
 
     def navigate(self, section):
-        old_nav(self, section)
+        try:
+            old_nav(self, section)
+        except RuntimeError as exc:
+            # Overlays anteriores mantêm referências para cabeçalhos da sidebar
+            # que a v0.0.19 remove de propósito. A navegação funcional já ocorreu
+            # antes dessas rotinas visuais; ignoramos somente esse erro de ciclo
+            # de vida do Qt e reaplicamos o shell definitivo abaixo.
+            if "already deleted" not in str(exc):
+                raise
         page = self.pages.get(Section.HOME)
         if page is not None:
             _install_home_truth(page)
